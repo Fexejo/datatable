@@ -8,6 +8,7 @@
 // The convenient public API lives in `datatable.js`. This file is the Web Component itself.
 
 import { iconSvg } from "./icons.js";
+import { getTranslations } from "./i18n.js";
 import {
     getCellValue,
     clamp,
@@ -107,10 +108,12 @@ class JwDataTable extends HTMLElement {
     configure(config = {}) {
         this._config = {
             locale: "en-US",
-            emptyText: "No data.",
-            noResultsText: "No rows match the current filters.",
             ...config
         };
+        this._t = getTranslations(this._config.locale);
+        // Derive text defaults from translation bundle; allow explicit config override.
+        this._config.emptyText ??= this._t.emptyData;
+        this._config.noResultsText ??= this._t.noResults;
         this._features = { ...DEFAULT_FEATURES, ...(config.features || {}) };
         this._columns = this._normalizeColumns(config.columns || []);
         this._sourceData = Array.isArray(config.data) ? config.data.slice() : [];
@@ -335,9 +338,9 @@ class JwDataTable extends HTMLElement {
                 el("input", {
                     type: "search",
                     class: "k-dt-search-input",
-                    placeholder: this._config.searchPlaceholder || "Search…",
+                    placeholder: this._config.searchPlaceholder || this._t.searchPlaceholder,
                     value: this._state.globalSearch,
-                    "aria-label": "Search table",
+                    "aria-label": this._t.searchAriaLabel,
                     oninput: (e) => this._debouncedSearch(e.target.value)
                 })
             ]);
@@ -349,9 +352,9 @@ class JwDataTable extends HTMLElement {
             right.appendChild(el("button", {
                 type: "button",
                 class: "k-dt-btn",
-                title: "Clear all filters",
+                title: this._t.clearFilters,
                 onclick: () => this.clearFilters()
-            }, [iconEl("x"), el("span", { text: `Filter (${activeFilters})` })]));
+            }, [iconEl("x"), el("span", { text: this._t.filterCount(activeFilters) })]));
         }
 
         if (this._features.grid) {
@@ -359,7 +362,7 @@ class JwDataTable extends HTMLElement {
             right.appendChild(el("button", {
                 type: "button",
                 class: "k-dt-btn",
-                title: isGrid ? "Table view" : "Grid view",
+                title: isGrid ? this._t.tableView : this._t.gridView,
                 "aria-pressed": String(isGrid),
                 onclick: () => {
                     this._state.viewMode = isGrid ? "table" : "grid";
@@ -373,7 +376,7 @@ class JwDataTable extends HTMLElement {
             right.appendChild(el("button", {
                 type: "button",
                 class: "k-dt-btn",
-                title: "Show or hide columns",
+                title: this._t.showHideColumns,
                 onclick: (e) => this._openColumnChooser(e.currentTarget)
             }, [iconEl("columns")]));
         }
@@ -382,7 +385,7 @@ class JwDataTable extends HTMLElement {
             right.appendChild(el("button", {
                 type: "button",
                 class: "k-dt-btn",
-                title: "View templates",
+                title: this._t.viewTemplates,
                 onclick: (e) => this._openTemplatesMenu(e.currentTarget)
             }, [iconEl("save")]));
         }
@@ -391,7 +394,7 @@ class JwDataTable extends HTMLElement {
             right.appendChild(el("button", {
                 type: "button",
                 class: "k-dt-btn",
-                title: "Export as CSV",
+                title: this._t.exportCsv,
                 onclick: () => this.exportCSV()
             }, [iconEl("download")]));
         }
@@ -444,7 +447,7 @@ class JwDataTable extends HTMLElement {
         const labelBtn = el(column.sortable ? "button" : "span", {
             class: "k-dt-th-label",
             type: column.sortable ? "button" : null,
-            title: column.sortable ? "Sort (Shift+click for multi-column)" : null,
+            title: column.sortable ? this._t.sortHint : null,
             onclick: column.sortable
                 ? (e) => this._applySort(column.key, { additive: e.shiftKey && this._features.multiSort })
                 : null
@@ -465,8 +468,8 @@ class JwDataTable extends HTMLElement {
             inner.appendChild(el("button", {
                 type: "button",
                 class: "k-dt-filter-btn" + (active ? " is-active" : ""),
-                title: active ? "Filter active — edit" : "Filter",
-                "aria-label": "Filter column",
+                title: active ? this._t.filterActive : this._t.filter,
+                "aria-label": this._t.filterAriaLabel,
                 onclick: (e) => this._openFilterPanel(column, e.currentTarget)
             }, [iconEl("filter")]));
         }
@@ -558,8 +561,8 @@ class JwDataTable extends HTMLElement {
         return el("button", {
             type: "button",
             class: "k-dt-copy",
-            title: "Copy value",
-            "aria-label": "Copy value",
+            title: this._t.copyValue,
+            "aria-label": this._t.copyValue,
             onclick: (e) => {
                 e.stopPropagation();
                 this._copyText(toText(value, column, this._config.locale, row), e.currentTarget);
@@ -623,14 +626,14 @@ class JwDataTable extends HTMLElement {
         const footer = el("div", { class: "k-dt-footer", part: "footer" });
 
         const info = el("div", { class: "k-dt-info" }, [
-            el("span", { text: `${start}–${end} of ${total}` })
+            el("span", { text: this._t.pageInfo(start, end, total) })
         ]);
 
         const sizer = el("label", { class: "k-dt-pagesize" }, [
-            el("span", { text: "per page:" }),
+            el("span", { text: this._t.perPage }),
             el("select", {
                 class: "k-dt-select",
-                "aria-label": "Rows per page",
+                "aria-label": this._t.rowsPerPage,
                 onchange: (e) => {
                     this._state.pageSize = Number(e.target.value);
                     this._state.page = 1;
@@ -642,7 +645,7 @@ class JwDataTable extends HTMLElement {
         ]);
         info.appendChild(sizer);
 
-        const nav = el("div", { class: "k-dt-pager", role: "navigation", "aria-label": "Pagination" });
+        const nav = el("div", { class: "k-dt-pager", role: "navigation", "aria-label": this._t.paginationAriaLabel });
         const page = this._state.page;
         const pageCount = this._pageCount;
 
@@ -655,8 +658,8 @@ class JwDataTable extends HTMLElement {
             onclick: () => this._goToPage(target)
         }, [iconEl(icon)]);
 
-        nav.appendChild(navBtn("chevronsLeft", "First page", 1, page <= 1));
-        nav.appendChild(navBtn("chevronLeft", "Previous page", page - 1, page <= 1));
+        nav.appendChild(navBtn("chevronsLeft", this._t.firstPage, 1, page <= 1));
+        nav.appendChild(navBtn("chevronLeft", this._t.prevPage, page - 1, page <= 1));
 
         this._pageItems(page, pageCount).forEach((item) => {
             if (item === "…") {
@@ -672,8 +675,8 @@ class JwDataTable extends HTMLElement {
             }
         });
 
-        nav.appendChild(navBtn("chevronRight", "Next page", page + 1, page >= pageCount));
-        nav.appendChild(navBtn("chevronsRight", "Last page", pageCount, page >= pageCount));
+        nav.appendChild(navBtn("chevronRight", this._t.nextPage, page + 1, page >= pageCount));
+        nav.appendChild(navBtn("chevronsRight", this._t.lastPage, pageCount, page >= pageCount));
 
         footer.appendChild(info);
         footer.appendChild(nav);
@@ -717,13 +720,13 @@ class JwDataTable extends HTMLElement {
         const group = typeGroup(column.type);
 
         if (column.sortable) {
-            items.push({ label: "Sort ascending", icon: "arrowUp", onSelect: () => this._setSortDirection(column.key, "asc") });
-            items.push({ label: "Sort descending", icon: "arrowDown", onSelect: () => this._setSortDirection(column.key, "desc") });
+            items.push({ label: this._t.sortAsc, icon: "arrowUp", onSelect: () => this._setSortDirection(column.key, "asc") });
+            items.push({ label: this._t.sortDesc, icon: "arrowDown", onSelect: () => this._setSortDirection(column.key, "desc") });
             if (this._features.multiSort) {
-                items.push({ label: "Add as sort key (asc)", icon: "arrowUpDown", onSelect: () => this._setSortDirection(column.key, "asc", true) });
+                items.push({ label: this._t.addSortKey, icon: "arrowUpDown", onSelect: () => this._setSortDirection(column.key, "asc", true) });
             }
             if (this._state.sort.some((s) => s.key === column.key)) {
-                items.push({ label: "Remove sort for this column", icon: "x", onSelect: () => this._setSortDirection(column.key, null, true) });
+                items.push({ label: this._t.removeSortKey, icon: "x", onSelect: () => this._setSortDirection(column.key, null, true) });
             }
             items.push({ separator: true });
         }
@@ -744,29 +747,29 @@ class JwDataTable extends HTMLElement {
                     });
                 }
             }
-            items.push({ label: "Open filter…", icon: "filter", onSelect: () => this._openFilterPanel(column, event.target) });
+            items.push({ label: this._t.openFilter, icon: "filter", onSelect: () => this._openFilterPanel(column, event.target) });
             if (isActiveFilter(this._state.filters[column.key])) {
-                items.push({ label: "Clear column filter", icon: "x", onSelect: () => this._setFilter(column.key, null) });
+                items.push({ label: this._t.clearColumnFilter, icon: "x", onSelect: () => this._setFilter(column.key, null) });
             }
             items.push({ separator: true });
         }
 
         if (row) {
-            items.push({ label: "Copy cell", icon: "copy", onSelect: () => this._copyText(toText(value, column, this._config.locale, row)) });
-            items.push({ label: "Copy row", icon: "copy", onSelect: () => this._copyRow(row) });
+            items.push({ label: this._t.copyCell, icon: "copy", onSelect: () => this._copyText(toText(value, column, this._config.locale, row)) });
+            items.push({ label: this._t.copyRow, icon: "copy", onSelect: () => this._copyRow(row) });
         }
         if (this._features.csvExport) {
-            items.push({ label: "Copy column", icon: "copy", onSelect: () => this._copyColumn(column) });
+            items.push({ label: this._t.copyColumn, icon: "copy", onSelect: () => this._copyColumn(column) });
         }
 
         if (this._features.columnVisibility) {
             items.push({ separator: true });
-            items.push({ label: "Hide column", icon: "columns", onSelect: () => this._toggleColumn(column.key, false) });
+            items.push({ label: this._t.hideColumn, icon: "columns", onSelect: () => this._toggleColumn(column.key, false) });
         }
 
         if (this._features.csvExport) {
             items.push({ separator: true });
-            items.push({ label: "Export as CSV", icon: "download", onSelect: () => this.exportCSV() });
+            items.push({ label: this._t.exportCsv, icon: "download", onSelect: () => this.exportCSV() });
         }
 
         openContextMenu(this.shadow, { x: event.clientX, y: event.clientY, items });
@@ -786,11 +789,11 @@ class JwDataTable extends HTMLElement {
         let mode = existing ? existing.kind : (group === "text" ? "value" : "pattern");
 
         const panel = el("div", { class: "k-dt-panel" });
-        panel.appendChild(el("div", { class: "k-dt-panel-head", text: `Filter: ${column.label}` }));
+        panel.appendChild(el("div", { class: "k-dt-panel-head", text: this._t.filterPanelTitle(column.label) }));
 
         const tabs = el("div", { class: "k-dt-tabs" });
-        const valueTab = el("button", { type: "button", class: "k-dt-tab", text: "Values" });
-        const patternTab = el("button", { type: "button", class: "k-dt-tab", text: "Pattern" });
+        const valueTab = el("button", { type: "button", class: "k-dt-tab", text: this._t.valuesTab });
+        const patternTab = el("button", { type: "button", class: "k-dt-tab", text: this._t.patternTab });
         tabs.appendChild(valueTab);
         tabs.appendChild(patternTab);
         panel.appendChild(tabs);
@@ -815,13 +818,13 @@ class JwDataTable extends HTMLElement {
             el("button", {
                 type: "button",
                 class: "k-dt-btn",
-                text: "Reset",
+                text: this._t.reset,
                 onclick: () => { this._setFilter(column.key, null); this._closeOverlay(); }
             }),
             el("button", {
                 type: "button",
                 class: "k-dt-btn k-dt-btn-primary",
-                text: "Apply",
+                text: this._t.apply,
                 onclick: () => {
                     const filter = mode === "value" ? bodyValue.collect() : bodyPattern.collect();
                     this._setFilter(column.key, filter);
@@ -843,7 +846,7 @@ class JwDataTable extends HTMLElement {
         const search = el("input", {
             type: "search",
             class: "k-dt-input",
-            placeholder: "Search values…",
+            placeholder: this._t.searchValues,
             oninput: (e) => {
                 const q = e.target.value.toLowerCase();
                 list.querySelectorAll(".k-dt-check").forEach((label) => {
@@ -864,13 +867,13 @@ class JwDataTable extends HTMLElement {
                     });
                 }
             }),
-            el("span", { text: "Select all" })
+            el("span", { text: this._t.selectAll })
         ]);
         container.appendChild(toggleAll);
 
         const list = el("div", { class: "k-dt-check-list" });
         values.forEach((entry) => {
-            const labelText = String(entry.label || "(empty)");
+            const labelText = String(entry.label || this._t.emptyValue);
             const label = el("label", { class: "k-dt-check", dataset: { label: labelText.toLowerCase(), value: String(entry.value) } }, [
                 el("input", { type: "checkbox", checked: selected.has(String(entry.value)) }),
                 el("span", { class: "k-dt-check-label", text: labelText }),
@@ -913,7 +916,7 @@ class JwDataTable extends HTMLElement {
         const select = el("select", {
             class: "k-dt-select",
             onchange: () => renderOperands()
-        }, operators.map((op) => el("option", { value: op.id, text: op.label, selected: current && current.operator === op.id })));
+        }, operators.map((op) => el("option", { value: op.id, text: this._t.operators[op.id] ?? op.label, selected: current && current.operator === op.id })));
 
         const renderOperands = () => {
             const meta = operatorMeta(column.type, select.value);
@@ -924,7 +927,7 @@ class JwDataTable extends HTMLElement {
         };
         renderOperands();
 
-        container.appendChild(el("label", { class: "k-dt-field-label", text: "Condition" }));
+        container.appendChild(el("label", { class: "k-dt-field-label", text: this._t.condition }));
         container.appendChild(select);
         container.appendChild(operandWrap);
 
@@ -955,7 +958,7 @@ class JwDataTable extends HTMLElement {
 
     _openColumnChooser(anchor) {
         const panel = el("div", { class: "k-dt-panel" });
-        panel.appendChild(el("div", { class: "k-dt-panel-head", text: "Columns" }));
+        panel.appendChild(el("div", { class: "k-dt-panel-head", text: this._t.columnsPanel }));
         const list = el("div", { class: "k-dt-check-list" });
         this._columns.forEach((column) => {
             const visible = !this._state.hiddenColumns.has(column.key);
@@ -981,15 +984,15 @@ class JwDataTable extends HTMLElement {
 
     async _openTemplatesMenu(anchor) {
         const panel = el("div", { class: "k-dt-panel" });
-        panel.appendChild(el("div", { class: "k-dt-panel-head", text: "View templates" }));
+        panel.appendChild(el("div", { class: "k-dt-panel-head", text: this._t.templatesPanel }));
 
-        const nameInput = el("input", { type: "text", class: "k-dt-input", placeholder: "Template name" });
+        const nameInput = el("input", { type: "text", class: "k-dt-input", placeholder: this._t.templateNamePlaceholder });
         const saveRow = el("div", { class: "k-dt-tpl-save" }, [
             nameInput,
             el("button", {
                 type: "button",
                 class: "k-dt-btn k-dt-btn-primary",
-                text: "Save",
+                text: this._t.save,
                 onclick: async () => {
                     const name = nameInput.value.trim();
                     if (!name) return;
@@ -1004,7 +1007,7 @@ class JwDataTable extends HTMLElement {
         const names = await this.listTemplates();
         const list = el("div", { class: "k-dt-tpl-list" });
         if (names.length === 0) {
-            list.appendChild(el("div", { class: "k-dt-tpl-empty", text: "No templates saved yet." }));
+            list.appendChild(el("div", { class: "k-dt-tpl-empty", text: this._t.noTemplates }));
         }
         names.forEach((name) => {
             list.appendChild(el("div", { class: "k-dt-tpl-item" }, [
@@ -1012,14 +1015,14 @@ class JwDataTable extends HTMLElement {
                     type: "button",
                     class: "k-dt-tpl-load",
                     text: name,
-                    title: "Load template",
+                    title: this._t.loadTemplate,
                     onclick: async () => { await this.loadTemplate(name); this._closeOverlay(); }
                 }),
                 el("button", {
                     type: "button",
                     class: "k-dt-icon-btn",
-                    title: "Delete template",
-                    "aria-label": "Delete template",
+                    title: this._t.deleteTemplate,
+                    "aria-label": this._t.deleteTemplate,
                     onclick: async () => { await this.removeTemplate(name); this._closeOverlay(); this._openTemplatesMenu(anchor); }
                 }, [iconEl("trash")])
             ]));

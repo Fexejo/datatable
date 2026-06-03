@@ -2,6 +2,7 @@
 // Each column can override defaults via `format` options or a custom `formatter`.
 
 import { isEmptyValue, toDate, toBoolean } from "./util.js";
+import { getTranslations } from "./i18n.js";
 
 // Intl formatters are expensive to create — simple memoization.
 const numberCache = new Map();
@@ -86,7 +87,8 @@ export function formatValue(value, column, locale = "en-US", row = null) {
             return numberFormatter(locale, options).format(fraction);
         }
         case "boolean": {
-            return toBoolean(value) ? (fmt.trueLabel ?? "Yes") : (fmt.falseLabel ?? "No");
+            const t = getTranslations(locale);
+            return toBoolean(value) ? (fmt.trueLabel ?? t.boolTrue) : (fmt.falseLabel ?? t.boolFalse);
         }
         case "date":
         case "datetime":

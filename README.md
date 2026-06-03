@@ -36,8 +36,9 @@ written in Vanilla JS (ES modules, Shadow DOM). No external dependencies.
 11. [Events](#events)
 12. [Instance API](#instance-api)
 13. [Theming & styling](#theming--styling)
-14. [Accessibility](#accessibility)
-15. [Demo](#demo)
+14. [i18n / Localization](#i18n--localization)
+15. [Accessibility](#accessibility)
+16. [Demo](#demo)
 
 ---
 
@@ -56,6 +57,7 @@ written in Vanilla JS (ES modules, Shadow DOM). No external dependencies.
 | `styles.js` | Shadow DOM styles as a string |
 | `util.js` | Shared helpers |
 | `icons.js` | Inline SVG icons (no external icon package) |
+| `i18n.js` | UI translations + `getTranslations()` helper |
 | `columns.js` | Column inference from data |
 | `demo.html` | Runnable demo |
 
@@ -126,7 +128,7 @@ table.configure({ /* … */ });
 | `data` | `object[]` | `[]` | Row objects |
 | `id` | `string` | `"default"` | Id for template storage namespace |
 | `title` | `string` | — | Toolbar title |
-| `locale` | `string` | `"en-US"` | Locale for number/date formatting & sort |
+| `locale` | `string` | `"en-US"` | BCP-47 locale — drives number/date formatting, sort, **and UI language** (see [i18n](#i18n--localization)) |
 | `features` | `object` | all on | Toggle features (see below) |
 | `pagination` | `object` | — | `{ pageSize, pageSizeOptions }` |
 | `initial` | `object` | — | `{ sort, filters, globalSearch, page, pageSize, viewMode, hiddenColumns }` |
@@ -134,9 +136,9 @@ table.configure({ /* … */ });
 | `grid` | `object` | — | `{ minWidth, titleColumn }` |
 | `maxHeight` | `string` | — | e.g. `"60vh"`; scroll body, sticky header |
 | `storage` | `object` | — | Templates: `{ adapter, namespace, key }` |
-| `searchPlaceholder` | `string` | `"Search…"` | Search input placeholder |
-| `emptyText` | `string` | `"No data."` | Shown when there are no rows |
-| `noResultsText` | `string` | `"No rows match…"` | Shown when filters match nothing |
+| `searchPlaceholder` | `string` | *(from locale)* | Search input placeholder override |
+| `emptyText` | `string` | *(from locale)* | Override text shown when there are no rows |
+| `noResultsText` | `string` | *(from locale)* | Override text shown when filters match nothing |
 | `csvDelimiter` | `string` | `";"` | CSV delimiter |
 | `exportFilename` | `string` | `"export"` | Default CSV filename |
 | `styles` | `string` | — | Extra CSS injected into shadow root |
@@ -418,6 +420,70 @@ createDataTable("#c", { /* … */ styles: `
     .k-dt-tr:hover .k-dt-td { background: #fffbe6; }
 ` });
 ```
+
+---
+
+## i18n / Localization
+
+The single `locale` config option controls **both** number/date formatting (via `Intl`) **and** all UI strings (toolbar labels, filter operators, pagination, context menu, etc.).
+
+### Built-in languages
+
+| `locale` value | Language | Number/date format |
+|----------------|----------|--------------------|
+| `"en-US"` (default) | English | US |
+| `"en-GB"` | English | British |
+| `"de-DE"` | German | German |
+| `"de-AT"` | German | Austrian |
+| `"de-CH"` | German | Swiss |
+
+Any `de-*` locale resolves to German UI strings; any other unsupported prefix falls back to English.
+
+```js
+// German UI + German number/date formatting
+createDataTable("#c", { locale: "de-DE", /* … */ });
+
+// English UI + British date format
+createDataTable("#c", { locale: "en-GB", /* … */ });
+```
+
+### Per-text overrides
+
+Individual strings can still be overridden via `config`:
+
+```js
+createDataTable("#c", {
+    locale: "de-DE",
+    emptyText: "Noch keine Einträge vorhanden.",
+    searchPlaceholder: "Mitglieder suchen…"
+});
+```
+
+### Adding a new language
+
+Open `i18n.js` and add a new entry to the `LOCALES` object using the BCP-47 language subtag as the key:
+
+```js
+// i18n.js
+export const LOCALES = {
+    en: { /* … */ },
+    de: { /* … */ },
+
+    // New: French
+    fr: {
+        searchPlaceholder: "Rechercher…",
+        clearFilters: "Effacer tous les filtres",
+        filterCount: (n) => `Filtre (${n})`,
+        // … all other keys …
+        operators: {
+            contains: "contient",
+            // …
+        }
+    }
+};
+```
+
+`getTranslations("fr-FR")` and `getTranslations("fr-CA")` will then both resolve to the `fr` bundle automatically.
 
 ---
 

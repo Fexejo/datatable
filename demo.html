@@ -52,12 +52,55 @@
         }
 
         h1 { font-size: 1.3rem; }
-        .controls { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
-        button.ctrl {
-            font: inherit; cursor: pointer; padding: 8px 12px;
-            border: 1px solid var(--k-color-border); border-radius: 8px;
-            background: var(--k-color-page); color: var(--k-color-text);
+
+        .controls {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 16px;
+            flex-wrap: wrap;
+            align-items: center;
         }
+
+        button.ctrl {
+            font: inherit;
+            cursor: pointer;
+            padding: 8px 12px;
+            border: 1px solid var(--k-color-border);
+            border-radius: 8px;
+            background: var(--k-color-page);
+            color: var(--k-color-text);
+        }
+        button.ctrl:hover { background: var(--k-color-hover); }
+
+        .ctrl-locale {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-left: auto;   /* push to the right */
+        }
+        .ctrl-locale label {
+            font-size: 0.875rem;
+            color: var(--k-color-text-muted);
+            white-space: nowrap;
+        }
+        .ctrl-locale select {
+            font: inherit;
+            font-size: 0.875rem;
+            cursor: pointer;
+            padding: 6px 10px;
+            border: 1px solid var(--k-color-border);
+            border-radius: 8px;
+            background: var(--k-color-page);
+            color: var(--k-color-text);
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 8px center;
+            padding-right: 28px;
+        }
+        .ctrl-locale select:hover { background-color: var(--k-color-hover); }
+        .ctrl-locale select:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
+
         #log { margin-top: 16px; font-size: 0.85rem; color: var(--k-color-text-muted); white-space: pre-wrap; }
     </style>
 </head>
@@ -70,15 +113,22 @@
         <button class="ctrl" id="add">Add row</button>
         <button class="ctrl" id="export">Export CSV</button>
         <button class="ctrl" id="state">Print state</button>
+
+        <div class="ctrl-locale">
+            <label for="locale-select">Language:</label>
+            <select id="locale-select"></select>
+        </div>
     </div>
     <div id="table"></div>
     <div id="log"></div>
 
     <script type="module">
         import { createDataTable } from "./datatable.js";
+        import { LOCALE_NAMES } from "./i18n.js";
 
+        // ── Sample data ──────────────────────────────────────────────────────
         const firstNames = ["Anna", "Ben", "Clara", "David", "Eva", "Felix", "Greta", "Hannes", "Ida", "Jonas"];
-        const lastNames = ["Miller", "Schmidt", "Schneider", "Fischer", "Weber", "Meyer", "Wagner", "Becker"];
+        const lastNames  = ["Miller", "Schmidt", "Schneider", "Fischer", "Weber", "Meyer", "Wagner", "Becker"];
         const roles = { admin: "Administrator", member: "Member", guest: "Guest" };
 
         function makeRows(n) {
@@ -88,69 +138,111 @@
                 rows.push({
                     id: i,
                     firstName: firstNames[i % firstNames.length],
-                    lastName: lastNames[i % lastNames.length],
-                    role: roleKeys[i % roleKeys.length],
+                    lastName:  lastNames[i % lastNames.length],
+                    role:      roleKeys[i % roleKeys.length],
                     contribution: Math.round((Math.random() * 200 + 20) * 100) / 100,
-                    active: Math.random() > 0.4,
-                    joinedAt: new Date(2020 + (i % 5), i % 12, (i % 27) + 1).toISOString(),
-                    share: Math.random()
+                    active:    Math.random() > 0.4,
+                    joinedAt:  new Date(2020 + (i % 5), i % 12, (i % 27) + 1).toISOString(),
+                    share:     Math.random()
                 });
             }
             return rows;
         }
 
-        const log = (msg) => { document.getElementById("log").textContent = msg; };
-
-        const table = createDataTable("#table", {
+        // ── Base config (everything except locale, data, initial state) ───────
+        const BASE_CONFIG = {
             id: "demo-members",
             title: "Members",
-            data: makeRows(137),
             columns: [
-                { key: "id", label: "ID", type: "integer", width: "64px" },
+                { key: "id",           label: "ID",           type: "integer",  width: "64px" },
                 {
-                    key: "firstName", label: "First name", type: "string", copyable: true,
+                    key: "firstName",  label: "First name",   type: "string",   copyable: true,
                     link: { spa: true, url: (row) => `/members/${row.id}` }
                 },
                 {
-                    key: "lastName", label: "Last name", type: "string", copyable: true,
-                    action: (row) => log(`Action on row: ${row.firstName} ${row.lastName}`)
+                    key: "lastName",   label: "Last name",    type: "string",   copyable: true,
+                    action: (row) => log(`Action: ${row.firstName} ${row.lastName}`)
                 },
-                { key: "role", label: "Role", type: "enum", options: Object.entries(roles).map(([value, label]) => ({ value, label })) },
+                {
+                    key: "role",       label: "Role",         type: "enum",
+                    options: Object.entries(roles).map(([value, label]) => ({ value, label }))
+                },
                 { key: "contribution", label: "Contribution", type: "currency", format: { currency: "EUR" } },
-                { key: "share", label: "Share", type: "percent", format: { decimals: 0 } },
-                { key: "active", label: "Active", type: "boolean" },
-                { key: "joinedAt", label: "Joined", type: "date" }
+                { key: "share",        label: "Share",        type: "percent",  format: { decimals: 0 } },
+                { key: "active",       label: "Active",       type: "boolean" },
+                { key: "joinedAt",     label: "Joined",       type: "date" }
             ],
             initial: {
                 sort: [{ key: "lastName", direction: "asc" }],
                 pageSize: 25
             },
             onRowClick: (row) => log(`Row clicked: #${row.id} ${row.firstName}`)
+        };
+
+        // ── Locale selector: built from LOCALE_NAMES in i18n.js ─────────────
+        const localeSelect = document.getElementById("locale-select");
+        let currentLocale = "en-US";
+
+        Object.entries(LOCALE_NAMES).forEach(([locale, displayName]) => {
+            const opt = document.createElement("option");
+            opt.value = locale;
+            opt.textContent = displayName;
+            opt.selected = locale === currentLocale;
+            localeSelect.appendChild(opt);
         });
 
-        table.addEventListener("jw-datatable:navigate", (e) => log(`SPA navigation -> ${e.detail.href}`));
-        table.addEventListener("jw-datatable:change", (e) => console.log("state", e.detail.state));
+        // ── Create initial table ─────────────────────────────────────────────
+        const log = (msg) => { document.getElementById("log").textContent = msg; };
 
-        document.getElementById("theme").onclick = () => {
-            document.documentElement.dataset.theme = document.documentElement.dataset.theme === "dark" ? "" : "dark";
+        const table = createDataTable("#table", {
+            ...BASE_CONFIG,
+            locale: currentLocale,
+            data: makeRows(137)
+        });
+
+        table.addEventListener("jw-datatable:navigate", (e) => log(`SPA navigation → ${e.detail.href}`));
+        table.addEventListener("jw-datatable:change",   (e) => console.log("state", e.detail.state));
+
+        // ── Language switch ──────────────────────────────────────────────────
+        localeSelect.onchange = () => {
+            const newLocale = localeSelect.value;
+            if (newLocale === currentLocale) return;
+            currentLocale = newLocale;
+
+            // Preserve current data and view state across the reconfigure.
+            const savedState = table.getState();
+            const savedData  = table.data;
+
+            table.configure({
+                ...BASE_CONFIG,
+                locale: currentLocale,
+                data:   savedData,
+                initial: savedState
+            });
+
+            // Keep html[lang] in sync for screen readers.
+            document.documentElement.lang = currentLocale.split("-")[0];
         };
-        document.getElementById("reload").onclick = () => table.setData(makeRows(60 + Math.floor(Math.random() * 100)));
+
+        // ── Other controls ───────────────────────────────────────────────────
+        document.getElementById("theme").onclick = () => {
+            document.documentElement.dataset.theme =
+                document.documentElement.dataset.theme === "dark" ? "" : "dark";
+        };
+        document.getElementById("reload").onclick = () =>
+            table.setData(makeRows(60 + Math.floor(Math.random() * 100)));
         document.getElementById("add").onclick = () => {
             const data = table.data.slice();
             data.unshift({
                 id: Date.now() % 100000,
-                firstName: "New",
-                lastName: "Entry",
-                role: "guest",
-                contribution: 99.9,
-                active: true,
-                joinedAt: new Date().toISOString(),
-                share: 0.5
+                firstName: "New", lastName: "Entry",
+                role: "guest", contribution: 99.9,
+                active: true, joinedAt: new Date().toISOString(), share: 0.5
             });
             table.setData(data);
         };
         document.getElementById("export").onclick = () => table.exportCSV("members");
-        document.getElementById("state").onclick = () => log(JSON.stringify(table.getState(), null, 2));
+        document.getElementById("state").onclick  = () => log(JSON.stringify(table.getState(), null, 2));
     </script>
 </body>
 
