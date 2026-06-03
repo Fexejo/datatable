@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>jw-datatable – Demo</title>
+    <style>
+        :root {
+            --k-font-family-base: system-ui, Arial, sans-serif;
+            --k-color-text: #222;
+            --k-color-text-muted: #888;
+            --k-color-page: #fff;
+            --k-color-surface: #f0f0f0;
+            --k-color-surface-muted: #f8f8f8;
+            --k-color-hover: #e8e8e8;
+            --k-color-border: #d8d8d8;
+            --k-color-schicht-meine-bg: #1f7a3a;
+            --k-color-schicht-meine-text: #fff;
+            --k-color-schicht-vertretung-bg: #c0392b;
+            --k-space-2xs: 4px;
+            --k-space-xs: 6px;
+            --k-space-s: 8px;
+            --k-space-m: 10px;
+            --k-space-l: 12px;
+            --k-space-xl: 14px;
+            --k-space-2xl: 18px;
+            --k-space-3xl: 20px;
+            --k-space-4xl: 24px;
+            --k-radius-s: 8px;
+            --k-radius-m: 10px;
+            --k-radius-l: 12px;
+        }
+
+        [data-theme="dark"] {
+            --k-color-text: #f4f4f4;
+            --k-color-text-muted: #b8b8b8;
+            --k-color-page: #171717;
+            --k-color-surface: #242424;
+            --k-color-surface-muted: #1f1f1f;
+            --k-color-hover: #333;
+            --k-color-border: #4a4a4a;
+            --k-color-schicht-meine-bg: #1f7a3a;
+        }
+
+        body {
+            margin: 0;
+            font-family: var(--k-font-family-base);
+            background: var(--k-color-page);
+            color: var(--k-color-text);
+            padding: 24px;
+        }
+
+        h1 { font-size: 1.3rem; }
+        .controls { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
+        button.ctrl {
+            font: inherit; cursor: pointer; padding: 8px 12px;
+            border: 1px solid var(--k-color-border); border-radius: 8px;
+            background: var(--k-color-page); color: var(--k-color-text);
+        }
+        #log { margin-top: 16px; font-size: 0.85rem; color: var(--k-color-text-muted); white-space: pre-wrap; }
+    </style>
+</head>
+
+<body>
+    <h1>jw-datatable – Demo</h1>
+    <div class="controls">
+        <button class="ctrl" id="theme">Toggle theme</button>
+        <button class="ctrl" id="reload">Reload data</button>
+        <button class="ctrl" id="add">Add row</button>
+        <button class="ctrl" id="export">Export CSV</button>
+        <button class="ctrl" id="state">Print state</button>
+    </div>
+    <div id="table"></div>
+    <div id="log"></div>
+
+    <script type="module">
+        import { createDataTable } from "./datatable.js";
+
+        const firstNames = ["Anna", "Ben", "Clara", "David", "Eva", "Felix", "Greta", "Hannes", "Ida", "Jonas"];
+        const lastNames = ["Miller", "Schmidt", "Schneider", "Fischer", "Weber", "Meyer", "Wagner", "Becker"];
+        const roles = { admin: "Administrator", member: "Member", guest: "Guest" };
+
+        function makeRows(n) {
+            const rows = [];
+            for (let i = 1; i <= n; i++) {
+                const roleKeys = Object.keys(roles);
+                rows.push({
+                    id: i,
+                    firstName: firstNames[i % firstNames.length],
+                    lastName: lastNames[i % lastNames.length],
+                    role: roleKeys[i % roleKeys.length],
+                    contribution: Math.round((Math.random() * 200 + 20) * 100) / 100,
+                    active: Math.random() > 0.4,
+                    joinedAt: new Date(2020 + (i % 5), i % 12, (i % 27) + 1).toISOString(),
+                    share: Math.random()
+                });
+            }
+            return rows;
+        }
+
+        const log = (msg) => { document.getElementById("log").textContent = msg; };
+
+        const table = createDataTable("#table", {
+            id: "demo-members",
+            title: "Members",
+            data: makeRows(137),
+            columns: [
+                { key: "id", label: "ID", type: "integer", width: "64px" },
+                {
+                    key: "firstName", label: "First name", type: "string", copyable: true,
+                    link: { spa: true, url: (row) => `/members/${row.id}` }
+                },
+                {
+                    key: "lastName", label: "Last name", type: "string", copyable: true,
+                    action: (row) => log(`Action on row: ${row.firstName} ${row.lastName}`)
+                },
+                { key: "role", label: "Role", type: "enum", options: Object.entries(roles).map(([value, label]) => ({ value, label })) },
+                { key: "contribution", label: "Contribution", type: "currency", format: { currency: "EUR" } },
+                { key: "share", label: "Share", type: "percent", format: { decimals: 0 } },
+                { key: "active", label: "Active", type: "boolean" },
+                { key: "joinedAt", label: "Joined", type: "date" }
+            ],
+            initial: {
+                sort: [{ key: "lastName", direction: "asc" }],
+                pageSize: 25
+            },
+            onRowClick: (row) => log(`Row clicked: #${row.id} ${row.firstName}`)
+        });
+
+        table.addEventListener("jw-datatable:navigate", (e) => log(`SPA navigation -> ${e.detail.href}`));
+        table.addEventListener("jw-datatable:change", (e) => console.log("state", e.detail.state));
+
+        document.getElementById("theme").onclick = () => {
+            document.documentElement.dataset.theme = document.documentElement.dataset.theme === "dark" ? "" : "dark";
+        };
+        document.getElementById("reload").onclick = () => table.setData(makeRows(60 + Math.floor(Math.random() * 100)));
+        document.getElementById("add").onclick = () => {
+            const data = table.data.slice();
+            data.unshift({
+                id: Date.now() % 100000,
+                firstName: "New",
+                lastName: "Entry",
+                role: "guest",
+                contribution: 99.9,
+                active: true,
+                joinedAt: new Date().toISOString(),
+                share: 0.5
+            });
+            table.setData(data);
+        };
+        document.getElementById("export").onclick = () => table.exportCSV("members");
+        document.getElementById("state").onclick = () => log(JSON.stringify(table.getState(), null, 2));
+    </script>
+</body>
+
+</html>
