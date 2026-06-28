@@ -9,28 +9,41 @@ let activeMenu = null;
 // items: array of
 //   { separator: true }
 //   { label, icon?, danger?, disabled?, checked?, onSelect?, submenu?: items[] }
-export function openContextMenu(root, { x, y, items, onClose } = {}) {
+export function openContextMenu(root, { x, y, items, onClose, sheet = false } = {}) {
     closeContextMenu();
 
     const menu = buildMenu(items, () => closeContextMenu());
+    if (sheet) menu.classList.add("k-ctx-menu--sheet");
+    // The menu lives outside the table root, so suppress the native menu here too
+    // (e.g. long-press directly on an open menu item).
+    menu.addEventListener("contextmenu", (event) => event.preventDefault());
     menu.style.visibility = "hidden";
     root.appendChild(menu);
 
-    // Position and keep within the viewport.
-    requestAnimationFrame(() => {
-        const rect = menu.getBoundingClientRect();
-        const vw = window.innerWidth;
-        const vh = window.innerHeight;
-        let left = x;
-        let top = y;
-        if (left + rect.width > vw) left = Math.max(4, vw - rect.width - 4);
-        if (top + rect.height > vh) top = Math.max(4, vh - rect.height - 4);
-        menu.style.left = `${left}px`;
-        menu.style.top = `${top}px`;
-        menu.style.visibility = "visible";
-        const first = menu.querySelector('[role="menuitem"]:not([aria-disabled="true"])');
-        first?.focus();
-    });
+    if (sheet) {
+        // Bottom sheet on touch: CSS positions it, no viewport math needed.
+        requestAnimationFrame(() => {
+            menu.style.visibility = "visible";
+            const first = menu.querySelector('[role="menuitem"]:not([aria-disabled="true"])');
+            first?.focus();
+        });
+    } else {
+        // Position and keep within the viewport.
+        requestAnimationFrame(() => {
+            const rect = menu.getBoundingClientRect();
+            const vw = window.innerWidth;
+            const vh = window.innerHeight;
+            let left = x;
+            let top = y;
+            if (left + rect.width > vw) left = Math.max(4, vw - rect.width - 4);
+            if (top + rect.height > vh) top = Math.max(4, vh - rect.height - 4);
+            menu.style.left = `${left}px`;
+            menu.style.top = `${top}px`;
+            menu.style.visibility = "visible";
+            const first = menu.querySelector('[role="menuitem"]:not([aria-disabled="true"])');
+            first?.focus();
+        });
+    }
 
     const handleOutside = (event) => {
         const path = event.composedPath ? event.composedPath() : [event.target];
@@ -61,9 +74,14 @@ export function openContextMenu(root, { x, y, items, onClose } = {}) {
 
 export function closeContextMenu() {
     if (!activeMenu) return;
-    activeMenu.el.remove();
-    activeMenu.cleanup();
+    // Clear the reference first: removing the (focused) menu fires a synchronous
+    // `blur`, whose capture-phase listener calls closeContextMenu() again. With
+    // the reference already nulled that re-entrant call is a no-op, avoiding a
+    // double removal ("node is no longer a child") error.
+    const current = activeMenu;
     activeMenu = null;
+    current.el.remove();
+    current.cleanup();
 }
 
 function buildMenu(items, requestClose, isSubmenu = false) {

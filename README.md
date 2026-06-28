@@ -13,8 +13,9 @@ written in Vanilla JS (ES modules, Shadow DOM). No external dependencies.
 - **Context menu** – sort, filter, copy (cell/row/column), hide column, export
 - **CSV export** – in the browser, Excel-friendly (with BOM)
 - **Grid / card view** – compact cards as an alternative to the table
+- **Mobile First / responsive** – compact, touch-optimized layout; auto-switches to card view on small screens; bottom-sheet panels; long-press context menu
 - **Links** – href, SPA routing event, or custom handler (e.g. open a dialog)
-- **Copy button** – per column on hover when `copyable` is set
+- **Copy button** – per column when `copyable` is set (shown on hover on desktop, always visible on touch)
 - **Runtime data** – replace data anytime via `setData()` / `.data`
 - **Templates** – save sort, filters, view, etc. to `localStorage` (pluggable adapter, e.g. backend later)
 - **Theming** – CSS variables (`--k-*`), `part` selectors, custom CSS
@@ -36,9 +37,10 @@ written in Vanilla JS (ES modules, Shadow DOM). No external dependencies.
 11. [Events](#events)
 12. [Instance API](#instance-api)
 13. [Theming & styling](#theming--styling)
-14. [i18n / Localization](#i18n--localization)
-15. [Accessibility](#accessibility)
-16. [Demo](#demo)
+14. [Responsive & touch](#responsive--touch)
+15. [i18n / Localization](#i18n--localization)
+16. [Accessibility](#accessibility)
+17. [Demo](#demo)
 
 ---
 
@@ -132,8 +134,9 @@ table.configure({ /* … */ });
 | `features` | `object` | all on | Toggle features (see below) |
 | `pagination` | `object` | — | `{ pageSize, pageSizeOptions }` |
 | `initial` | `object` | — | `{ sort, filters, globalSearch, page, pageSize, viewMode, hiddenColumns }` |
-| `defaultView` | `"table" \| "grid"` | `"table"` | Initial view |
+| `defaultView` | `"table" \| "grid"` | `"table"` | Initial view (pins the view — disables auto-switching) |
 | `grid` | `object` | — | `{ minWidth, titleColumn }` |
+| `responsive` | `object` | *(on)* | `{ enabled, breakpoint, autoGridView }` — see [Responsive & touch](#responsive--touch) |
 | `maxHeight` | `string` | — | e.g. `"60vh"`; scroll body, sticky header |
 | `storage` | `object` | — | Templates: `{ adapter, namespace, key }` |
 | `searchPlaceholder` | `string` | *(from locale)* | Search input placeholder override |
@@ -269,23 +272,41 @@ table.addEventListener("jw-datatable:navigate", (e) => {
 
 ## Enabling / disabling features
 
-All features are on by default. Disable via `features`:
+Most features are **opt-in** (off by default) and are enabled explicitly via
+`features`. Only the basics — pagination, context menu, and copy buttons — are on
+by default.
+
+| Feature | Default | Description |
+|---------|---------|-------------|
+| `pagination` | **on** | First/prev/next/last, page numbers, page size |
+| `contextMenu` | **on** | Right-click / long-press menu |
+| `copyButtons` | **on** | Per-column copy button (needs column `copyable`) |
+| `sorting` | off | Sortable column headers + sort context menu |
+| `multiSort` | on\* | Multi-column sort via Shift+click (\*only active when `sorting` is on) |
+| `filtering` | off | Value / pattern filters per column |
+| `globalSearch` | off | Full-text search box in the toolbar |
+| `grid` | off | Table ↔ card/grid view toggle (also drives responsive auto-view) |
+| `columnVisibility` | off | Show/hide columns chooser |
+| `templates` | off | Save/load views (needs storage) |
+| `csvExport` | off | CSV export button |
+
+Enable what you need:
 
 ```js
 features: {
-    pagination: true,
     sorting: true,
-    multiSort: true,      // multi-column sort via Shift+click
     filtering: true,
     globalSearch: true,
-    contextMenu: true,
-    csvExport: true,
-    grid: true,           // table/grid toggle
+    grid: true,
     columnVisibility: true,
     templates: true,
-    copyButtons: true     // plus per-column `copyable`
+    csvExport: true
 }
 ```
+
+To turn an always-on feature off, set it to `false` (e.g. `pagination: false`).
+Column-level flags (`sortable`, `filterable`, …) apply only when the matching
+global feature is enabled.
 
 ---
 
@@ -420,6 +441,51 @@ createDataTable("#c", { /* … */ styles: `
     .k-dt-tr:hover .k-dt-td { background: #fffbe6; }
 ` });
 ```
+
+---
+
+## Responsive & touch
+
+The component is built **Mobile First**: the base styling targets small / touch
+screens (compact spacing, ≥44px touch targets, always-visible copy buttons,
+stacked toolbar & footer, trimmed pagination), and a `@media (min-width: 640px)`
+layer adds the roomier desktop experience (more padding, hover-reveal copy
+buttons, inline toolbar/footer, full page-number pagination).
+
+**What adapts automatically**
+
+| Behavior | Mobile (`< breakpoint`) | Desktop (`≥ breakpoint`) |
+|----------|-------------------------|--------------------------|
+| View | auto card/grid view (`autoGridView`) | table |
+| Toolbar | stacked, full-width search | inline, `space-between` |
+| Copy buttons | always visible | reveal on hover |
+| Pagination | first / prev / current / next / last | full page numbers + page-size select |
+| Filter / column / template panels | bottom sheet | popover anchored to the button |
+| Context menu | bottom sheet, opened via **long-press** | popover at the cursor, opened via **right-click** |
+
+**Configuration** (`config.responsive`, all optional):
+
+```js
+createDataTable("#c", {
+    // …
+    responsive: {
+        enabled: true,       // master switch (default true)
+        breakpoint: 640,     // px; must match the CSS breakpoint if you override styles
+        autoGridView: true   // switch to card/grid below the breakpoint (needs features.grid)
+    }
+});
+```
+
+Notes:
+
+- **Auto view switching** only kicks in when neither `defaultView` nor
+  `initial.viewMode` is set, and is suspended once the user toggles the view or
+  a template/`setState` sets `viewMode` — explicit choices always win.
+- The CSS breakpoint is `640px`. If you change `responsive.breakpoint`, mirror it
+  via `config.styles` so the visual layout and the JS view-switching agree.
+- **Long-press** (~500ms) on a header, cell, or card opens the context menu on
+  touch devices; the follow-up tap is suppressed so it won't also trigger
+  row/cell/link handlers.
 
 ---
 

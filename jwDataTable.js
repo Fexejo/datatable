@@ -59,17 +59,20 @@ function iconEl(name, className = "k-dt-ic") {
     return el("span", { class: className, html: iconSvg(name, name) });
 }
 
+// Opt-in features default to `false` and must be enabled explicitly via
+// `config.features`. Always-on basics (pagination, context menu, copy buttons)
+// stay `true`. `multiSort` only takes effect when `sorting` is enabled.
 const DEFAULT_FEATURES = {
     pagination: true,
-    sorting: true,
+    sorting: false,
     multiSort: true,
-    filtering: true,
-    globalSearch: true,
+    filtering: false,
+    globalSearch: false,
     contextMenu: true,
-    csvExport: true,
-    grid: true,
-    columnVisibility: true,
-    templates: true,
+    csvExport: false,
+    grid: false,
+    columnVisibility: false,
+    templates: false,
     copyButtons: true
 };
 
@@ -85,6 +88,15 @@ class JwDataTable extends HTMLElement {
         this._pageData = [];
         this._templateStore = null;
         this._instanceId = uid("kdt");
+        // Responsive / touch state
+        this._mql = null;
+        this._mqlHandler = null;
+        this._isMobileView = false;
+        this._viewModeUserSet = false;
+        this._lpTimer = null;
+        this._lpCleanup = null;
+        this._suppressClickUntil = 0;
+        this._suppressContextUntil = 0;
         this._debouncedSearch = debounce((value) => {
             this._state.globalSearch = value;
             this._state.page = 1;
@@ -95,12 +107,16 @@ class JwDataTable extends HTMLElement {
     }
 
     connectedCallback() {
-        if (this._configured && !this.shadow.firstChild) this._render();
+        if (!this._configured) return;
+        if (!this._mql) this._setupResponsive();
+        if (!this.shadow.firstChild) this._render();
     }
 
     disconnectedCallback() {
         closeContextMenu();
         this._closeOverlay();
+        this._cancelLongPress();
+        this._teardownResponsive();
     }
 
     // ---- Public API ------------------------------------------------------
@@ -141,10 +157,72 @@ class JwDataTable extends HTMLElement {
             )
         };
 
+        // An explicit view choice (config or initial state) pins the view and
+        // opts out of the automatic breakpoint-driven switching.
+        this._viewModeUserSet = !!(initial.viewMode || config.defaultView);
+
         this._configured = true;
+        this._setupResponsive();
         this._deriveView();
         this._render();
         return this;
+    }
+
+    // ---- Responsive (Mobile First) --------------------------------------
+
+    // Sets up a matchMedia listener that, when `responsive.autoGridView` is on,
+    // switches to the card/grid view below the breakpoint and back on desktop —
+    // unless the developer/user pinned a view explicitly.
+    _setupResponsive() {
+        this._teardownResponsive();
+        const r = this._config.responsive || {};
+        this._responsive = {
+            enabled: r.enabled !== false,
+            breakpoint: typeof r.breakpoint === "number" ? r.breakpoint : 640,
+            autoGridView: r.autoGridView !== false
+        };
+
+        if (!this._responsive.enabled || typeof window.matchMedia !== "function") {
+            this._isMobileView = false;
+            return;
+        }
+
+        this._mql = window.matchMedia(`(max-width: ${this._responsive.breakpoint - 0.02}px)`);
+        this._isMobileView = this._mql.matches;
+        this._mqlHandler = (event) => this._onBreakpointChange(event.matches);
+        this._mql.addEventListener("change", this._mqlHandler);
+        this._applyAutoView();
+    }
+
+    _teardownResponsive() {
+        if (this._mql && this._mqlHandler) this._mql.removeEventListener("change", this._mqlHandler);
+        this._mql = null;
+        this._mqlHandler = null;
+    }
+
+    _applyAutoView() {
+        if (!this._responsive || !this._responsive.enabled || !this._responsive.autoGridView) return;
+        if (this._viewModeUserSet || !this._features.grid) return;
+        this._state.viewMode = this._isMobileView ? "grid" : "table";
+    }
+
+    _onBreakpointChange(matches) {
+        this._isMobileView = matches;
+        // Transient popups computed for the previous layout are no longer valid.
+        this._closeOverlay();
+        closeContextMenu();
+
+        if (!this._responsive.autoGridView || this._viewModeUserSet || !this._features.grid) return;
+        const next = matches ? "grid" : "table";
+        if (next !== this._state.viewMode) {
+            this._state.viewMode = next;
+            this._render();
+            this._emitChange();
+        }
+    }
+
+    _isMobile() {
+        return !!this._isMobileView;
     }
 
     set data(rows) {
@@ -179,7 +257,7 @@ class JwDataTable extends HTMLElement {
         if (partial.globalSearch != null) this._state.globalSearch = partial.globalSearch;
         if (partial.pageSize) this._state.pageSize = partial.pageSize;
         if (partial.page) this._state.page = partial.page;
-        if (partial.viewMode) this._state.viewMode = partial.viewMode;
+        if (partial.viewMode) { this._state.viewMode = partial.viewMode; this._viewModeUserSet = true; }
         if (partial.hiddenColumns) this._state.hiddenColumns = new Set(partial.hiddenColumns);
         this._deriveView();
         this._render();
@@ -310,6 +388,17 @@ class JwDataTable extends HTMLElement {
         this.shadow.appendChild(el("style", { html: datatableStyles + (this._config.styles || "") }));
 
         const root = el("div", { class: "k-dt", part: "root" });
+        // Suppress the browser's native context menu anywhere in the table (incl.
+        // long-press on touch) so only our custom menu shows. Form fields keep
+        // their native menu (paste, spell-check, …).
+        if (this._features.contextMenu) {
+            root.addEventListener("contextmenu", (e) => {
+                const target = e.composedPath ? e.composedPath()[0] : e.target;
+                const tag = target && target.tagName ? target.tagName.toLowerCase() : "";
+                if (tag === "input" || tag === "textarea" || tag === "select") return;
+                e.preventDefault();
+            });
+        }
         root.appendChild(this._renderToolbar());
 
         const body = el("div", { class: "k-dt-body", part: "body" });
@@ -366,6 +455,7 @@ class JwDataTable extends HTMLElement {
                 "aria-pressed": String(isGrid),
                 onclick: () => {
                     this._state.viewMode = isGrid ? "table" : "grid";
+                    this._viewModeUserSet = true;
                     this._render();
                     this._emitChange();
                 }
@@ -476,12 +566,7 @@ class JwDataTable extends HTMLElement {
 
         th.appendChild(inner);
 
-        if (this._features.contextMenu) {
-            th.addEventListener("contextmenu", (e) => {
-                e.preventDefault();
-                this._openContextMenu(e, column, null, null);
-            });
-        }
+        this._bindContextTrigger(th, () => ({ column, row: null, value: null }));
         return th;
     }
 
@@ -493,7 +578,10 @@ class JwDataTable extends HTMLElement {
         }
         if (typeof this._config.onRowClick === "function") {
             tr.classList.add("k-dt-clickable");
-            tr.addEventListener("click", () => this._config.onRowClick(row, index));
+            tr.addEventListener("click", () => {
+                if (this._shouldSuppressClick()) return;
+                this._config.onRowClick(row, index);
+            });
         }
         columns.forEach((column) => tr.appendChild(this._renderCell(column, row, index)));
         return tr;
@@ -511,14 +599,12 @@ class JwDataTable extends HTMLElement {
         if (column.copyable) content.appendChild(this._copyButton(column, row, value));
         td.appendChild(content);
 
-        if (this._features.contextMenu) {
-            td.addEventListener("contextmenu", (e) => {
-                e.preventDefault();
-                this._openContextMenu(e, column, row, value);
-            });
-        }
+        this._bindContextTrigger(td, () => ({ column, row, value }));
         if (typeof this._config.onCellClick === "function") {
-            td.addEventListener("click", () => this._config.onCellClick(value, row, column));
+            td.addEventListener("click", () => {
+                if (this._shouldSuppressClick()) return;
+                this._config.onCellClick(value, row, column);
+            });
         }
         return td;
     }
@@ -534,6 +620,7 @@ class JwDataTable extends HTMLElement {
             const anchor = el("a", { class: "k-dt-link", href: href || "#" });
             anchor.appendChild(content);
             anchor.addEventListener("click", (e) => {
+                if (this._shouldSuppressClick()) { e.preventDefault(); return; }
                 if (typeof link.handler === "function") {
                     e.preventDefault();
                     link.handler(row, value, e);
@@ -550,6 +637,7 @@ class JwDataTable extends HTMLElement {
             btn.appendChild(content);
             btn.addEventListener("click", (e) => {
                 e.stopPropagation();
+                if (this._shouldSuppressClick()) { e.preventDefault(); return; }
                 column.action(row, value, e);
             });
             return btn;
@@ -587,7 +675,10 @@ class JwDataTable extends HTMLElement {
             const card = el("div", { class: "k-dt-card", part: "card" });
             if (typeof this._config.onRowClick === "function") {
                 card.classList.add("k-dt-clickable");
-                card.addEventListener("click", () => this._config.onRowClick(row, index));
+                card.addEventListener("click", () => {
+                    if (this._shouldSuppressClick()) return;
+                    this._config.onRowClick(row, index);
+                });
             }
             const titleColumn = titleKey ? columns.find((c) => c.key === titleKey) : null;
             if (titleColumn) {
@@ -606,12 +697,7 @@ class JwDataTable extends HTMLElement {
                 ]);
                 card.appendChild(cardRow);
             });
-            if (this._features.contextMenu) {
-                card.addEventListener("contextmenu", (e) => {
-                    e.preventDefault();
-                    this._openContextMenu(e, columns[0], row, getCellValue(row, columns[0]));
-                });
-            }
+            this._bindContextTrigger(card, () => ({ column: columns[0], row, value: getCellValue(row, columns[0]) }));
             grid.appendChild(card);
         });
         return grid;
@@ -715,6 +801,69 @@ class JwDataTable extends HTMLElement {
 
     // ---- Context menu ----------------------------------------------------
 
+    // Opens the context menu via right-click (desktop) or long-press (touch).
+    // `getArgs` returns { column, row, value } lazily so cells share one binder.
+    _bindContextTrigger(node, getArgs) {
+        if (!this._features.contextMenu) return;
+
+        node.addEventListener("contextmenu", (event) => {
+            event.preventDefault();
+            this._cancelLongPress();
+            // A long-press already opened the menu; don't reopen on the native
+            // contextmenu event that follows the same gesture.
+            if (this._suppressContextUntil && Date.now() < this._suppressContextUntil) return;
+            const args = getArgs();
+            this._openContextMenu(event, args.column, args.row, args.value);
+        });
+
+        node.addEventListener("pointerdown", (event) => {
+            if (event.pointerType !== "touch") return;
+            this._cancelLongPress();
+            const startX = event.clientX;
+            const startY = event.clientY;
+
+            const onMove = (ev) => {
+                if (Math.abs(ev.clientX - startX) > 10 || Math.abs(ev.clientY - startY) > 10) {
+                    this._cancelLongPress();
+                }
+            };
+            const onEnd = () => this._cancelLongPress();
+            this._lpCleanup = () => {
+                node.removeEventListener("pointermove", onMove);
+                node.removeEventListener("pointerup", onEnd);
+                node.removeEventListener("pointercancel", onEnd);
+                node.removeEventListener("pointerleave", onEnd);
+            };
+            node.addEventListener("pointermove", onMove);
+            node.addEventListener("pointerup", onEnd);
+            node.addEventListener("pointercancel", onEnd);
+            node.addEventListener("pointerleave", onEnd);
+
+            this._lpTimer = setTimeout(() => {
+                this._lpTimer = null;
+                if (this._lpCleanup) { this._lpCleanup(); this._lpCleanup = null; }
+                // Swallow the click and the native contextmenu that follow the
+                // long-press release.
+                this._suppressClickUntil = Date.now() + 700;
+                this._suppressContextUntil = Date.now() + 700;
+                const args = getArgs();
+                this._openContextMenu({ clientX: startX, clientY: startY, target: node }, args.column, args.row, args.value);
+            }, 500);
+        });
+    }
+
+    _cancelLongPress() {
+        if (this._lpTimer) { clearTimeout(this._lpTimer); this._lpTimer = null; }
+        if (this._lpCleanup) { this._lpCleanup(); this._lpCleanup = null; }
+    }
+
+    // True briefly after a long-press so the synthetic click does not also
+    // trigger row/cell/link handlers. Non-consuming so every nested handler in
+    // the same click sees it.
+    _shouldSuppressClick() {
+        return !!this._suppressClickUntil && Date.now() < this._suppressClickUntil;
+    }
+
     _openContextMenu(event, column, row, value) {
         const items = [];
         const group = typeGroup(column.type);
@@ -772,7 +921,7 @@ class JwDataTable extends HTMLElement {
             items.push({ label: this._t.exportCsv, icon: "download", onSelect: () => this.exportCSV() });
         }
 
-        openContextMenu(this.shadow, { x: event.clientX, y: event.clientY, items });
+        openContextMenu(this.shadow, { x: event.clientX, y: event.clientY, items, sheet: this._isMobile() });
     }
 
     // ---- Filter panel ----------------------------------------------------
@@ -1037,20 +1186,26 @@ class JwDataTable extends HTMLElement {
         this._closeOverlay();
         closeContextMenu();
         panel.classList.add("k-dt-overlay");
-        panel.style.visibility = "hidden";
-        this.shadow.appendChild(panel);
 
-        requestAnimationFrame(() => {
-            const rect = panel.getBoundingClientRect();
-            const aRect = anchor ? anchor.getBoundingClientRect() : { left: 0, bottom: 0, right: 0 };
-            let left = aRect.left;
-            let top = aRect.bottom + 4;
-            if (left + rect.width > window.innerWidth) left = Math.max(4, window.innerWidth - rect.width - 4);
-            if (top + rect.height > window.innerHeight) top = Math.max(4, aRect.top - rect.height - 4);
-            panel.style.left = `${Math.max(4, left)}px`;
-            panel.style.top = `${Math.max(4, top)}px`;
-            panel.style.visibility = "visible";
-        });
+        if (this._isMobile()) {
+            // Bottom sheet: CSS handles positioning, no anchoring needed.
+            panel.classList.add("k-dt-overlay--sheet");
+            this.shadow.appendChild(panel);
+        } else {
+            panel.style.visibility = "hidden";
+            this.shadow.appendChild(panel);
+            requestAnimationFrame(() => {
+                const rect = panel.getBoundingClientRect();
+                const aRect = anchor ? anchor.getBoundingClientRect() : { left: 0, bottom: 0, right: 0 };
+                let left = aRect.left;
+                let top = aRect.bottom + 4;
+                if (left + rect.width > window.innerWidth) left = Math.max(4, window.innerWidth - rect.width - 4);
+                if (top + rect.height > window.innerHeight) top = Math.max(4, aRect.top - rect.height - 4);
+                panel.style.left = `${Math.max(4, left)}px`;
+                panel.style.top = `${Math.max(4, top)}px`;
+                panel.style.visibility = "visible";
+            });
+        }
 
         this._overlay = panel;
         this._overlayOutside = (event) => {
