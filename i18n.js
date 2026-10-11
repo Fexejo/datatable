@@ -63,6 +63,11 @@ export const LOCALES = {
         hideColumn: "Hide column",
         pinColumn: "Pin column",
         unpinColumn: "Unpin column",
+        moveLeft: "Move left",
+        moveRight: "Move right",
+        moveToStart: "Move to start",
+        moveToEnd: "Move to end",
+        resetColumnOrder: "Reset column order",
 
         // Filter panel
         filterPanelTitle: (label) => `Filter: ${label}`,
@@ -81,6 +86,10 @@ export const LOCALES = {
 
         // Column chooser panel
         columnsPanel: "Columns",
+        moveUp: "Move up (left in the table)",
+        moveDown: "Move down (right in the table)",
+        moveUpNamed: (label) => `Move up: ${label}`,
+        moveDownNamed: (label) => `Move down: ${label}`,
 
         // Record details dialog
         details: "Details",
@@ -124,6 +133,10 @@ export const LOCALES = {
         unpinColumnNamed: (label) => `Unpin column: ${label}`,
         columnPinned: (label) => `Column “${label}” pinned`,
         columnUnpinned: (label) => `Column “${label}” unpinned`,
+        columnMoved: (label, pos, total) => `Column “${label}” moved to position ${pos} of ${total}`,
+        columnMovedPinned: (label, pos, total) => `Column “${label}” pinned, position ${pos} of ${total}`,
+        columnMovedUnpinned: (label, pos, total) => `Column “${label}” unpinned, now position ${pos} of ${total}`,
+        columnOrderReset: "Column order reset",
         pinsPaused: (label, paused) => `Column “${label}” pinned. Not enough room for all pinned columns; scrolling with the table for now: ${paused}.`,
         templateSaved: (name) => `Template “${name}” saved`,
         templateLoaded: (name) => `Template “${name}” loaded`,
@@ -208,6 +221,11 @@ export const LOCALES = {
         hideColumn: "Spalte ausblenden",
         pinColumn: "Spalte fixieren",
         unpinColumn: "Fixierung aufheben",
+        moveLeft: "Nach links verschieben",
+        moveRight: "Nach rechts verschieben",
+        moveToStart: "An den Anfang verschieben",
+        moveToEnd: "Ans Ende verschieben",
+        resetColumnOrder: "Spaltenreihenfolge zurücksetzen",
 
         // Filter panel
         filterPanelTitle: (label) => `Filter: ${label}`,
@@ -226,6 +244,10 @@ export const LOCALES = {
 
         // Column chooser panel
         columnsPanel: "Spalten",
+        moveUp: "Nach oben (in der Tabelle nach links)",
+        moveDown: "Nach unten (in der Tabelle nach rechts)",
+        moveUpNamed: (label) => `Nach oben: ${label}`,
+        moveDownNamed: (label) => `Nach unten: ${label}`,
 
         // Record details dialog
         details: "Details",
@@ -269,6 +291,10 @@ export const LOCALES = {
         unpinColumnNamed: (label) => `Fixierung aufheben: ${label}`,
         columnPinned: (label) => `Spalte „${label}“ fixiert`,
         columnUnpinned: (label) => `Fixierung von „${label}“ aufgehoben`,
+        columnMoved: (label, pos, total) => `Spalte „${label}“ an Position ${pos} von ${total} verschoben`,
+        columnMovedPinned: (label, pos, total) => `Spalte „${label}“ fixiert, Position ${pos} von ${total}`,
+        columnMovedUnpinned: (label, pos, total) => `Fixierung von „${label}“ aufgehoben, jetzt Position ${pos} von ${total}`,
+        columnOrderReset: "Spaltenreihenfolge zurückgesetzt",
         pinsPaused: (label, paused) => `Spalte „${label}“ fixiert. Zu wenig Platz für alle fixierten Spalten; vorerst scrollen mit: ${paused}.`,
         templateSaved: (name) => `Vorlage „${name}“ gespeichert`,
         templateLoaded: (name) => `Vorlage „${name}“ geladen`,

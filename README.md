@@ -12,6 +12,7 @@ written in Vanilla JS (ES modules, Shadow DOM). No external dependencies.
 - **Global search** – full-text across searchable columns
 - **Context menu** – sort, filter, copy (cell/row/column), pin/hide column, export
 - **Record details** – dialog with all fields of a row (including hidden columns), previous/next through all results
+- **Column order** – move columns via drag and drop on the header (desktop), the context menu, `Alt+Shift+←/→` or the column chooser
 - **Column pinning** – pin any columns to the left edge (sticky while scrolling horizontally); scroll shadows show where more content is
 - **CSV export** – in the browser, Excel-friendly (with BOM)
 - **Grid / card view** – cards with label/value pairs as an alternative to the table (two columns, stacked on narrow cards)
@@ -37,19 +38,20 @@ written in Vanilla JS (ES modules, Shadow DOM). No external dependencies.
 8. [Enabling / disabling features](#enabling--disabling-features)
 9. [Filters](#filters)
 10. [Column pinning](#column-pinning)
-11. [Views: table, cards, compact](#views-table-cards-compact)
-12. [Record details](#record-details)
-13. [Templates & storage adapter](#templates--storage-adapter)
-14. [Events](#events)
-15. [Instance API](#instance-api)
-16. [Theming & styling](#theming--styling)
+11. [Column order](#column-order)
+12. [Views: table, cards, compact](#views-table-cards-compact)
+13. [Record details](#record-details)
+14. [Templates & storage adapter](#templates--storage-adapter)
+15. [Events](#events)
+16. [Instance API](#instance-api)
+17. [Theming & styling](#theming--styling)
     - [Icons](#icons)
-17. [Responsive & touch](#responsive--touch)
-18. [i18n / Localization](#i18n--localization)
-19. [Accessibility](#accessibility)
-20. [Demo](#demo)
-21. [Development & tests](#development--tests)
-22. [Releases & build](#releases--build)
+18. [Responsive & touch](#responsive--touch)
+19. [i18n / Localization](#i18n--localization)
+20. [Accessibility](#accessibility)
+21. [Demo](#demo)
+22. [Development & tests](#development--tests)
+23. [Releases & build](#releases--build)
 
 ---
 
@@ -162,7 +164,7 @@ table.configure({ /* … */ });
 | `locale` | `string` | `"en-US"` | BCP-47 locale — drives number/date formatting, sort, **and UI language** (see [i18n](#i18n--localization)) |
 | `features` | `object` | all on | Toggle features (see below) |
 | `pagination` | `object` | — | `{ pageSize, pageSizeOptions }` |
-| `initial` | `object` | — | `{ sort, filters, globalSearch, page, pageSize, viewMode, hiddenColumns, pinnedColumns }` |
+| `initial` | `object` | — | `{ sort, filters, globalSearch, page, pageSize, viewMode, hiddenColumns, pinnedColumns, columnOrder }` |
 | `defaultView` | `"table" \| "grid" \| "compact"` | `"table"` | Initial view (pins the view — disables auto-switching) |
 | `grid` | `object` | — | `{ minWidth, titleColumn }` |
 | `responsive` | `object` | *(on)* | `{ enabled, breakpoint, autoGridView, mobileView }` — see [Responsive & touch](#responsive--touch) |
@@ -338,6 +340,7 @@ by default.
 | `compactView` | off | Compact view in the view switch: key columns + details dialog per row (includes `rowDetails` behavior) |
 | `columnVisibility` | off | Show/hide columns chooser |
 | `columnPinning` | off | Pin columns to the left edge (context menu, column chooser) |
+| `columnReorder` | off | Move columns: drag and drop on the header, context menu, `Alt+Shift+←/→`, column chooser |
 | `rowDetails` | off | “Show details” in the context menu of cells/cards: dialog with all fields of the record |
 | `templates` | off | Save/load views (needs storage) |
 | `csvExport` | off | CSV export button |
@@ -353,6 +356,7 @@ features: {
     compactView: true,
     columnVisibility: true,
     columnPinning: true,
+    columnReorder: true,
     rowDetails: true,
     templates: true,
     csvExport: true
@@ -429,6 +433,32 @@ independent of pinning and always on.
 Pinned cells need an opaque background. They use `--k-color-page` (header:
 `--k-color-surface`); if you color rows via `rowClass`, set the color on the
 cells (`.my-row > td`), not on the `<tr>`, so pinned cells match.
+
+---
+
+## Column order
+
+With `features.columnReorder`, users can move columns:
+
+- **Drag and drop** a header onto another header (desktop layout, not on
+  touch); an accent bar marks whether it lands before or after the target.
+- **Context menu** of a header or cell: “Move left”, “Move right”, “Move to
+  start”, “Move to end” (only the moves that are possible), and “Reset column
+  order” once the order differs from `columns`.
+- **Keyboard shortcut** on a header button: `Alt+Shift+←` / `Alt+Shift+→`.
+- **Column chooser** (`features.columnVisibility`): “Move up” / “Move down”
+  per column; the list shows all columns in display order (top = left).
+
+**With pinned columns:** pinned columns always form the block at the front.
+Moving a column into that block pins it, moving a pinned column out of it
+unpins it; dropping a column right at the boundary keeps its state. Pinned
+columns can be reordered among themselves (this changes `pinnedColumns`).
+
+**State:** `columnOrder` (all column keys, including hidden ones) is part of
+`getState()` / `setState()` / `initial` and saved templates. Unknown keys are
+ignored; columns missing from it keep their configured order at the end.
+CSV export and “Copy row” follow the displayed order. In the compact view the
+moves refer to the columns shown there.
 
 ---
 
@@ -562,7 +592,8 @@ All events are `composed` and `bubbles`.
     page: 1,
     viewMode: "table",            // or "grid", "compact"
     hiddenColumns: ["internalId"],
-    pinnedColumns: ["name"]       // display order of the pinned columns
+    pinnedColumns: ["name"],      // display order of the pinned columns
+    columnOrder: ["name", "email", "id", "internalId"]   // all columns; pinned ones still come first
 }
 ```
 
@@ -743,6 +774,7 @@ or touch also works with the keyboard alone.
 | Table cell | `Enter` | Activate the cell's link or action, otherwise `onCellClick` / `onRowClick`; in the compact view: open the row's details |
 | Card view | `←` `→` `↑` `↓`, `Home` / `End`, `Enter` | Move between cards, `Enter` triggers `onRowClick` |
 | Cell, card, header button | `Shift+F10` or context-menu key | Open the actions menu (same as right-click / long-press) |
+| Header button | `Alt+Shift+←` / `Alt+Shift+→` | Move the column (with `features.columnReorder`); focus stays on the button |
 | Actions menu | `↑` `↓`, `Home` / `End`, `Enter` / `Space`, `Esc` / `Tab` | Navigate, activate, close (focus returns to where the menu was opened) |
 | Sort header | `Enter` / `Space` (`Shift+Enter` adds a sort key) | Sort |
 | Panels (filter, columns, templates, details) | `Tab` / `Shift+Tab`, `Esc` | Focus stays inside the panel; `Esc` closes and returns focus to the button that opened it |
@@ -774,6 +806,11 @@ table.
   each row's button is named “Show details: <record>” and carries
   `aria-haspopup="dialog"` / `aria-expanded`. The keyboard hint mentions that
   `Enter` opens the details.
+- Column order: every drag-and-drop move also works without dragging (context
+  menu, `Alt+Shift+←/→`, column chooser buttons named “Move up: <column>” /
+  “Move down: <column>”). Moves are announced with the new position (“Column
+  “Name” moved to position 3 of 8”, or pinned/unpinned when crossing the
+  pinned block); the table and the focused control are kept in place.
 - Column pinning: the pin toggles in the column chooser are toggle buttons
   (`aria-pressed`, named “Pin column: <column>”); the pin button in a pinned
   column's header is named “Unpin column: <column>”. After unpinning from the

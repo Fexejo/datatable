@@ -27,7 +27,7 @@ const COLUMNS = [
 ];
 const ALL_FEATURES = {
     sorting: true, filtering: true, globalSearch: true, grid: true,
-    columnVisibility: true, templates: true, csvExport: true
+    columnVisibility: true, columnReorder: true, templates: true, csvExport: true
 };
 
 function mount(config = {}) {
@@ -1073,4 +1073,121 @@ test("text in cells with a copy button lines up with plain cells; compact rows a
     table.setState({ viewMode: "compact" });
     const compactRow = $(table, "tbody tr").getBoundingClientRect().height;
     assert.ok(Math.abs(compactRow - tableRow) < 1, `compact ${compactRow}px vs table ${tableRow}px`);
+});
+
+// ---- Column order ---------------------------------------------------------------
+
+const REORDER = { features: { columnReorder: true, sorting: true } };
+const menuLabels = (table) => $$(table, '[role="menuitem"]').map((i) => i.textContent.trim());
+const dragTo = (table, fromKey, toKey, after = false) => {
+    const th = (key) => $(table, `thead th[data-key="${key}"]`);
+    const dataTransfer = new DataTransfer();
+    const target = th(toKey).getBoundingClientRect();
+    const at = { clientX: after ? target.right - 2 : target.left + 2, clientY: target.top + 5 };
+    const fire = (node, type, extra = {}) => node.dispatchEvent(new DragEvent(type, { bubbles: true, composed: true, cancelable: true, dataTransfer, ...extra }));
+    const source = th(fromKey);
+    fire(source, "dragstart");
+    fire(th(toKey), "dragover", at);
+    const marked = th(toKey).classList.contains(after ? "is-drop-after" : "is-drop-before");
+    fire(th(toKey), "drop", at);
+    fire(source, "dragend");
+    return marked;
+};
+
+test("context menu moves columns; edges hide impossible moves; order is state and resettable", async () => {
+    const table = mount(REORDER);
+    const tableEl = $(table, "table");
+    rightClick($$(table, "thead th")[0]);
+    assert.ok(!menuLabels(table).includes("Move left") && !menuLabels(table).includes("Move to start"), "first column cannot move left");
+    menuItem(table, "Move right").click();
+    assert.deepEqual(headerKeys(table), ["name", "id", "fee", "active", "joined"]);
+    await announced(table, "Column “ID” moved to position 2 of 5");
+    assert.equal($(table, "table"), tableEl, "table updated in place");
+
+    rightClick($(table, '[data-fk="cell:0:joined"]'));
+    menuItem(table, "Move to start").click();
+    assert.deepEqual(headerKeys(table), ["joined", "name", "id", "fee", "active"]);
+    assert.deepEqual(table.getState().columnOrder, ["joined", "name", "id", "fee", "active"]);
+    assert.deepEqual(columnTexts(table, 1).slice(0, 2), ["Anna", "Ben"], "body follows the header");
+
+    rightClick($$(table, "thead th")[4]);
+    assert.ok(!menuLabels(table).includes("Move to end"), "last column cannot move right");
+    menuItem(table, "Reset column order").click();
+    assert.deepEqual(headerKeys(table), COLUMNS.map((c) => c.key));
+    await announced(table, "Column order reset");
+    rightClick($$(table, "thead th")[1]);
+    assert.ok(!menuLabels(table).includes("Reset column order"), "no reset in the default order");
+});
+
+test("moving across the pinned block pins or unpins; the boundary keeps the state", async () => {
+    const table = mount({ features: { columnReorder: true, columnPinning: true }, initial: { pinnedColumns: ["id"] } });
+    rightClick($(table, '[data-fk="cell:0:name"]'));
+    menuItem(table, "Move left").click();
+    assert.deepEqual(table.getState().pinnedColumns, ["name", "id"]);
+    assert.deepEqual(headerKeys(table).slice(0, 2), ["name", "id"]);
+    await announced(table, "Column “Name” pinned, position 1 of 5");
+
+    rightClick($(table, '[data-fk="cell:0:id"]'));
+    menuItem(table, "Move right").click();
+    assert.deepEqual(table.getState().pinnedColumns, ["name"]);
+    assert.deepEqual(headerKeys(table).slice(0, 3), ["name", "fee", "id"]);
+    await announced(table, "Column “ID” unpinned, now position 3 of 5");
+
+    // Dropped right after the pinned block: stays unpinned.
+    dragTo(table, "joined", "name", true);
+    assert.deepEqual(headerKeys(table), ["name", "joined", "fee", "id", "active"]);
+    assert.deepEqual(table.getState().pinnedColumns, ["name"]);
+});
+
+test("drag and drop on the header reorders columns with a drop marker", () => {
+    const table = mount(REORDER);
+    assert.equal($(table, 'thead th[data-key="id"]').draggable, true);
+    assert.ok(dragTo(table, "joined", "id"), "drop marker before the target");
+    assert.deepEqual(headerKeys(table), ["joined", "id", "name", "fee", "active"]);
+    assert.ok(dragTo(table, "joined", "fee", true), "drop marker after the target");
+    assert.deepEqual(headerKeys(table), ["id", "name", "fee", "joined", "active"]);
+    assert.equal($$(table, ".is-drop-before, .is-drop-after, .is-dragging").length, 0, "markers cleaned up");
+});
+
+test("Alt+Shift+Arrow on a header button moves the column and keeps focus", async () => {
+    const table = mount(REORDER);
+    const tableEl = $(table, "table");
+    const button = $(table, '[data-fk="sort:fee"]');
+    button.focus();
+    await input.press("ArrowLeft", ["Alt", "Shift"]);
+    assert.deepEqual(headerKeys(table), ["id", "fee", "name", "active", "joined"]);
+    assert.equal(deepActiveElement(), button, "same focused button");
+    assert.equal($(table, "table"), tableEl);
+    await input.press("ArrowRight", ["Alt", "Shift"]);
+    await input.press("ArrowRight", ["Alt", "Shift"]);
+    assert.deepEqual(headerKeys(table), ["id", "name", "active", "fee", "joined"]);
+    await announced(table, "Column “Fee” moved to position 4 of 5");
+}, { cdp: true });
+
+test("column chooser: up/down buttons reorder, keep focus and follow the pinned block", async () => {
+    const table = mount({ features: { columnVisibility: true, columnReorder: true, columnPinning: true }, initial: { pinnedColumns: ["joined"] } });
+    $(table, '[data-fk="tb:columns"]').click();
+    const rowKeys = () => $$(table, ".k-dt-overlay .k-dt-col-row").map((r) => r.dataset.key);
+    assert.deepEqual(rowKeys(), ["joined", "id", "name", "fee", "active"], "listed in display order");
+    const up = (key) => $(table, `[data-fk="colmove:up:${key}"]`);
+    const down = (key) => $(table, `[data-fk="colmove:down:${key}"]`);
+    assert.equal(accessibleName(up("name")), "Move up: Name");
+    assert.ok(up("joined").disabled && down("active").disabled, "ends are disabled");
+
+    const button = up("id");
+    button.focus();
+    button.click();   // first unpinned → into the pinned block
+    assert.deepEqual(rowKeys(), ["id", "joined", "name", "fee", "active"]);
+    assert.equal(deepActiveElement(), down("id"), "Up got disabled: focus moves to Down");
+    assert.equal($(table, '.k-dt-col-row[data-key="id"] .k-dt-pin-toggle').getAttribute("aria-pressed"), "true");
+    assert.deepEqual(headerKeys(table), ["id", "joined", "name", "fee", "active"]);
+    await announced(table, "Column “ID” pinned, position 1 of 5");
+    assert.ok($(table, '[role="dialog"]'), "chooser stays open");
+});
+
+test("columnOrder in setState is normalized", () => {
+    const table = mount(REORDER);
+    table.setState({ columnOrder: ["fee", "nope", "fee", "id"] });
+    assert.deepEqual(table.getState().columnOrder, ["fee", "id", "name", "active", "joined"]);
+    assert.deepEqual(headerKeys(table), ["fee", "id", "name", "active", "joined"]);
 });

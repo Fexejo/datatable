@@ -95,6 +95,7 @@ const DEFAULT_FEATURES = {
     compactView: false,
     columnVisibility: false,
     columnPinning: false,
+    columnReorder: false,
     rowDetails: false,
     templates: false,
     copyButtons: true
@@ -192,7 +193,8 @@ class JwDataTable extends HTMLElement {
             hiddenColumns: new Set(
                 initial.hiddenColumns || this._columns.filter((c) => c.hidden).map((c) => c.key)
             ),
-            pinnedColumns: (initial.pinnedColumns || this._columns.filter((c) => c.pinned).map((c) => c.key)).slice()
+            pinnedColumns: (initial.pinnedColumns || this._columns.filter((c) => c.pinned).map((c) => c.key)).slice(),
+            columnOrder: this._normalizeOrder(initial.columnOrder)
         };
 
         // An explicit view choice (config or initial state) pins the view and
@@ -325,6 +327,7 @@ class JwDataTable extends HTMLElement {
         if (partial.viewMode) { this._state.viewMode = partial.viewMode; this._viewModeUserSet = true; }
         if (partial.hiddenColumns) this._state.hiddenColumns = new Set(partial.hiddenColumns);
         if (partial.pinnedColumns) this._state.pinnedColumns = partial.pinnedColumns.slice();
+        if (partial.columnOrder) this._state.columnOrder = this._normalizeOrder(partial.columnOrder);
         this._deriveView();
         this._render();
         this._emitChange();
@@ -403,12 +406,31 @@ class JwDataTable extends HTMLElement {
         return enabled && columnFlag !== false;
     }
 
-    // Visible columns in display order: pinned columns first (in pin order).
+    // All columns (including hidden ones) in display order: pinned columns
+    // first (in pin order), then the others in `columnOrder`.
+    _orderedColumns() {
+        const byKey = new Map(this._columns.map((c) => [c.key, c]));
+        const ordered = this._state.columnOrder.map((key) => byKey.get(key)).filter(Boolean);
+        if (!this._features.columnPinning) return ordered;
+        const pinned = this._state.pinnedColumns.map((key) => byKey.get(key)).filter(Boolean);
+        return pinned.length ? [...pinned, ...ordered.filter((c) => !pinned.includes(c))] : ordered;
+    }
+
+    // Visible columns in display order.
     _visibleColumns() {
-        const visible = this._columns.filter((c) => !this._state.hiddenColumns.has(c.key));
-        if (!this._features.columnPinning) return visible;
-        const pinned = this._state.pinnedColumns.map((key) => visible.find((c) => c.key === key)).filter(Boolean);
-        return pinned.length ? [...pinned, ...visible.filter((c) => !pinned.includes(c))] : visible;
+        return this._orderedColumns().filter((c) => !this._state.hiddenColumns.has(c.key));
+    }
+
+    // Column keys in the given order; unknown keys are dropped, missing columns
+    // keep their configured order at the end.
+    _normalizeOrder(order) {
+        const keys = this._columns.map((c) => c.key);
+        const known = (Array.isArray(order) ? order : []).filter((key, i, all) => keys.includes(key) && all.indexOf(key) === i);
+        return [...known, ...keys.filter((key) => !known.includes(key))];
+    }
+
+    _orderChanged() {
+        return this._state.columnOrder.join("\u0000") !== this._columns.map((c) => c.key).join("\u0000");
     }
 
     _isPinned(column) {
@@ -862,6 +884,7 @@ class JwDataTable extends HTMLElement {
         th.appendChild(inner);
 
         this._bindContextTrigger(th, () => ({ column, row: null, value: null }));
+        if (this._features.columnReorder) this._bindColumnMove(th, column);
         return th;
     }
 
@@ -1479,7 +1502,8 @@ class JwDataTable extends HTMLElement {
             items.push({ label: this._t.copyColumn, icon: "copy", onSelect: () => this._copyColumn(column) });
         }
 
-        if (this._features.columnVisibility || this._features.columnPinning) items.push({ separator: true });
+        if (this._features.columnVisibility || this._features.columnPinning || this._features.columnReorder) items.push({ separator: true });
+        if (this._features.columnReorder) items.push(...this._moveMenuItems(column));
         if (this._features.columnPinning) {
             items.push(this._isPinned(column)
                 ? { label: this._t.unpinColumn, icon: "pin-off", onSelect: () => this._togglePin(column.key, false) }
@@ -1759,6 +1783,131 @@ class JwDataTable extends HTMLElement {
         this._announceResults();
     }
 
+    // ---- Column order ------------------------------------------------------
+
+    // Moves column `key` to index `target` among the columns shown in the table
+    // (`all`: among all columns incl. hidden ones, as listed in the column
+    // chooser). Pinned columns form a block at the front: a column moved into
+    // it gets pinned, a pinned one moved out of it gets unpinned; right at the
+    // boundary it keeps its state.
+    _moveColumn(key, target, { all = false } = {}) {
+        const scope = () => (all ? this._orderedColumns() : this._tableColumns());
+        const keys = scope().map((c) => c.key);
+        const from = keys.indexOf(key);
+        if (from < 0) return;
+        target = clamp(target, 0, keys.length - 1);
+        if (target === from) return;
+        const column = this._columns.find((c) => c.key === key);
+        const wasPinned = this._isPinned(column);
+        const rest = keys.filter((k) => k !== key);
+        const pinnedCount = rest.filter((k) => this._isPinned(this._columns.find((c) => c.key === k))).length;
+        const pinned = this._features.columnPinning && (wasPinned ? target <= pinnedCount : target < pinnedCount);
+        rest.splice(target, 0, key);
+
+        if (pinned) {
+            const block = rest.slice(0, pinnedCount + 1);
+            this._state.pinnedColumns = [...block, ...this._state.pinnedColumns.filter((k) => !block.includes(k))];
+        } else {
+            this._state.pinnedColumns = this._state.pinnedColumns.filter((k) => k !== key);
+            // Place it next to its new unpinned neighbour; everything else keeps its order.
+            const unpinned = rest.slice(pinnedCount);
+            const at = unpinned.indexOf(key);
+            const order = this._state.columnOrder.filter((k) => k !== key);
+            const next = unpinned[at + 1];
+            const prev = unpinned[at - 1];
+            if (next) order.splice(order.indexOf(next), 0, key);
+            else if (prev) order.splice(order.indexOf(prev) + 1, 0, key);
+            else order.push(key);
+            this._state.columnOrder = order;
+        }
+
+        this._updateColumnsView();
+        this._syncColumnChooser();
+        this._emitChange();
+        const list = scope();
+        const position = list.findIndex((c) => c.key === key) + 1;
+        const message = pinned === wasPinned ? this._t.columnMoved
+            : pinned ? this._t.columnMovedPinned : this._t.columnMovedUnpinned;
+        this._announce(message(column.label, position, list.length));
+    }
+
+    _moveMenuItems(column) {
+        const keys = this._tableColumns().map((c) => c.key);
+        const i = keys.indexOf(column.key);
+        const items = [];
+        if (i > 0) {
+            items.push({ label: this._t.moveLeft, icon: "arrow-left", onSelect: () => this._moveColumn(column.key, i - 1) });
+            items.push({ label: this._t.moveToStart, icon: "arrow-left-to-line", onSelect: () => this._moveColumn(column.key, 0) });
+        }
+        if (i >= 0 && i < keys.length - 1) {
+            items.push({ label: this._t.moveRight, icon: "arrow-right", onSelect: () => this._moveColumn(column.key, i + 1) });
+            items.push({ label: this._t.moveToEnd, icon: "arrow-right-to-line", onSelect: () => this._moveColumn(column.key, keys.length - 1) });
+        }
+        if (this._orderChanged()) items.push({ label: this._t.resetColumnOrder, onSelect: () => this._resetColumnOrder() });
+        return items;
+    }
+
+    _resetColumnOrder() {
+        this._state.columnOrder = this._normalizeOrder();
+        this._updateColumnsView();
+        this._syncColumnChooser();
+        this._emitChange();
+        this._announce(this._t.columnOrderReset);
+    }
+
+    // Header: Alt+Shift+←/→ moves the column; drag and drop on the desktop layout.
+    _bindColumnMove(th, column) {
+        th.addEventListener("keydown", (event) => {
+            if (!event.altKey || !event.shiftKey || !["ArrowLeft", "ArrowRight"].includes(event.key)) return;
+            event.preventDefault();
+            const keys = this._tableColumns().map((c) => c.key);
+            this._moveColumn(column.key, keys.indexOf(column.key) + (event.key === "ArrowLeft" ? -1 : 1));
+        });
+
+        // Not on touch: a long-press there opens the context menu.
+        const canDrag = () => !this._isMobile() && !window.matchMedia?.("(pointer: coarse)").matches;
+        th.draggable = canDrag();
+        const clearMarks = () => this.shadow.querySelectorAll(".is-drop-before, .is-drop-after")
+            .forEach((n) => n.classList.remove("is-drop-before", "is-drop-after"));
+        // Drop before or after `th`, depending on the half the pointer is over.
+        const dropAfter = (event) => {
+            const rect = th.getBoundingClientRect();
+            return event.clientX > rect.left + rect.width / 2;
+        };
+        th.addEventListener("dragstart", (event) => {
+            if (!canDrag()) { event.preventDefault(); return; }
+            this._dragKey = column.key;
+            event.dataTransfer.effectAllowed = "move";
+            event.dataTransfer.setData("text/plain", column.label);
+            th.classList.add("is-dragging");
+        });
+        th.addEventListener("dragover", (event) => {
+            if (!this._dragKey) return;
+            event.preventDefault();
+            event.dataTransfer.dropEffect = "move";
+            clearMarks();
+            if (this._dragKey !== column.key) th.classList.add(dropAfter(event) ? "is-drop-after" : "is-drop-before");
+        });
+        th.addEventListener("dragleave", (event) => {
+            if (!th.contains(event.relatedTarget)) th.classList.remove("is-drop-before", "is-drop-after");
+        });
+        th.addEventListener("drop", (event) => {
+            if (!this._dragKey) return;
+            event.preventDefault();
+            const key = this._dragKey;
+            const keys = this._tableColumns().map((c) => c.key);
+            const from = keys.indexOf(key);
+            const point = keys.indexOf(column.key) + (dropAfter(event) ? 1 : 0);
+            clearMarks();
+            this._moveColumn(key, point > from ? point - 1 : point);
+        });
+        th.addEventListener("dragend", () => {
+            this._dragKey = null;
+            clearMarks();
+            this.shadow.querySelectorAll(".is-dragging").forEach((n) => n.classList.remove("is-dragging"));
+        });
+    }
+
     // ---- Record details ------------------------------------------------------
 
     _detailsEnabled() {
@@ -1871,7 +2020,7 @@ class JwDataTable extends HTMLElement {
         const panel = el("div", { class: "k-dt-panel" });
         panel.appendChild(el("div", { class: "k-dt-panel-head", text: this._t.columnsPanel }));
         const list = el("div", { class: "k-dt-check-list" });
-        this._columns.forEach((column) => {
+        this._orderedColumns().forEach((column) => {
             const visible = !this._state.hiddenColumns.has(column.key);
             const check = el("label", { class: "k-dt-check" }, [
                 el("input", {
@@ -1881,23 +2030,76 @@ class JwDataTable extends HTMLElement {
                 }),
                 el("span", { class: "k-dt-check-label", text: column.label })
             ]);
-            if (!this._features.columnPinning) { list.appendChild(check); return; }
-            // Toggle button: constant name, state in aria-pressed.
-            const pin = el("button", {
-                type: "button",
-                class: "k-dt-pin-toggle",
-                title: this._t.pinColumn,
-                "aria-label": this._t.pinColumnNamed(column.label),
-                "aria-pressed": String(this._isPinned(column)),
-                onclick: () => {
-                    this._togglePin(column.key, !this._isPinned(column));
-                    pin.setAttribute("aria-pressed", String(this._isPinned(column)));
-                }
-            }, [iconEl("pin")]);
-            list.appendChild(el("div", { class: "k-dt-col-row" }, [check, pin]));
+            if (!this._features.columnPinning && !this._features.columnReorder) { list.appendChild(check); return; }
+            const row = el("div", { class: "k-dt-col-row", "data-key": column.key }, [check]);
+            if (this._features.columnPinning) {
+                // Toggle button: constant name, state in aria-pressed.
+                row.appendChild(el("button", {
+                    type: "button",
+                    class: "k-dt-pin-toggle",
+                    title: this._t.pinColumn,
+                    "aria-label": this._t.pinColumnNamed(column.label),
+                    "aria-pressed": String(this._isPinned(column)),
+                    onclick: () => {
+                        this._togglePin(column.key, !this._isPinned(column));
+                        this._syncColumnChooser();
+                    }
+                }, [iconEl("pin")]));
+            }
+            if (this._features.columnReorder) {
+                // Top of the list = left in the table.
+                const move = (step) => {
+                    const index = this._orderedColumns().findIndex((c) => c.key === column.key);
+                    this._moveColumn(column.key, index + step, { all: true });
+                };
+                row.appendChild(el("button", {
+                    type: "button",
+                    class: "k-dt-icon-btn k-dt-move-btn",
+                    "data-fk": `colmove:up:${column.key}`,
+                    title: this._t.moveUp,
+                    "aria-label": this._t.moveUpNamed(column.label),
+                    onclick: () => move(-1)
+                }, [iconEl("arrow-up")]));
+                row.appendChild(el("button", {
+                    type: "button",
+                    class: "k-dt-icon-btn k-dt-move-btn",
+                    "data-fk": `colmove:down:${column.key}`,
+                    title: this._t.moveDown,
+                    "aria-label": this._t.moveDownNamed(column.label),
+                    onclick: () => move(1)
+                }, [iconEl("arrow-down")]));
+            }
+            list.appendChild(row);
         });
         panel.appendChild(list);
+        this._chooserList = list;
         this._showOverlay(panel, anchor);
+        this._syncColumnChooser();
+    }
+
+    // Brings the open column chooser in line with the current order and pins.
+    // Rows are moved around the focused one (moving it would drop focus).
+    _syncColumnChooser() {
+        const list = this._chooserList;
+        if (!list?.isConnected) { this._chooserList = null; return; }
+        const rows = new Map(Array.from(list.children).map((row) => [row.dataset.key, row]));
+        const ordered = this._orderedColumns().map((c) => rows.get(c.key)).filter(Boolean);
+        const active = deepActiveElement();
+        const anchor = ordered.find((row) => row.contains(active));
+        const at = ordered.indexOf(anchor);
+        ordered.forEach((row, i) => {
+            if (i < at) list.insertBefore(row, anchor);
+            else if (i > at) list.appendChild(row);
+        });
+        ordered.forEach((row, i) => {
+            const column = this._columns.find((c) => c.key === row.dataset.key);
+            row.querySelector(".k-dt-pin-toggle")?.setAttribute("aria-pressed", String(this._isPinned(column)));
+            const [up, down] = row.querySelectorAll(".k-dt-move-btn");
+            if (up) up.disabled = i === 0;
+            if (down) down.disabled = i === ordered.length - 1;
+        });
+        // A move button that just got disabled hands focus to its neighbour.
+        if (active?.disabled && anchor) anchor.querySelector(".k-dt-move-btn:not(:disabled)")?.focus();
     }
 
     _toggleColumn(key, visible) {
@@ -2189,7 +2391,8 @@ class JwDataTable extends HTMLElement {
             pageSize: this._state.pageSize,
             viewMode: this._state.viewMode,
             hiddenColumns: Array.from(this._state.hiddenColumns),
-            pinnedColumns: this._state.pinnedColumns.slice()
+            pinnedColumns: this._state.pinnedColumns.slice(),
+            columnOrder: this._state.columnOrder.slice()
         };
         if (includePage) state.page = this._state.page;
         return state;

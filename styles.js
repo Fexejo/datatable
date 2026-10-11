@@ -190,6 +190,11 @@ export const datatableStyles = `
     white-space: nowrap;
     font-weight: 700;
 }
+/* Column drag and drop (desktop): dragged header dimmed, drop position as an accent bar. */
+.k-dt-th[draggable="true"] { cursor: grab; }
+.k-dt-th.is-dragging { opacity: 0.5; }
+.k-dt-th.is-drop-before { box-shadow: inset 3px 0 0 var(--k-dt-accent); }
+.k-dt-th.is-drop-after { box-shadow: inset -3px 0 0 var(--k-dt-accent); }
 .k-dt-th-inner { display: flex; align-items: center; gap: var(--k-space-2xs, 4px); justify-content: inherit; }
 .k-dt-align-right .k-dt-th-inner { flex-direction: row-reverse; }
 .k-dt-th-label {
@@ -574,6 +579,8 @@ span.k-dt-th-label { cursor: default; }
 .k-dt-search-mode legend { padding: 0; float: left; width: 100%; }
 .k-dt-col-row { display: flex; align-items: center; gap: var(--k-space-2xs, 4px); }
 .k-dt-col-row .k-dt-check { flex: 1; min-width: 0; }
+.k-dt-move-btn { border-color: transparent; flex: none; }
+.k-dt-move-btn:disabled { opacity: 0.35; cursor: default; background: none; }
 /* Pressed = filled accent (not color alone: background + border change). */
 .k-dt-pin-toggle {
     display: inline-flex;
