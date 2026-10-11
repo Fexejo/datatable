@@ -311,7 +311,6 @@
         });
 
         table.addEventListener("jw-datatable:navigate", (e) => log(`SPA navigation → ${e.detail.href}`));
-        table.addEventListener("jw-datatable:change",   (e) => console.log("state", e.detail.state));
 
         // ── Language switch ──────────────────────────────────────────────────
         localeSelect.onchange = () => {
