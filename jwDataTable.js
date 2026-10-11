@@ -287,13 +287,14 @@ class JwDataTable extends HTMLElement {
 
     async saveTemplate(name) {
         if (!this._templateStore || !name) return;
-        await this._templateStore.save(name, this._serializeState());
+        await this._templateStore.save(name, this._serializeState({ includePage: false }));
     }
 
     async loadTemplate(name) {
         if (!this._templateStore) return;
         const data = await this._templateStore.get(name);
-        if (data) this.setState(data);
+        // A loaded view starts on page 1; templates do not store the page.
+        if (data) this.setState({ ...data, page: 1 });
     }
 
     removeTemplate(name) {
@@ -1276,7 +1277,8 @@ class JwDataTable extends HTMLElement {
 
     // ---- State serialization & events ------------------------------------
 
-    _serializeState() {
+    // Templates omit `page` (a saved view should open on page 1).
+    _serializeState({ includePage = true } = {}) {
         const filters = {};
         for (const [key, filter] of Object.entries(this._state.filters)) {
             if (!isActiveFilter(filter)) continue;
@@ -1284,7 +1286,7 @@ class JwDataTable extends HTMLElement {
                 ? { kind: "value", values: filter.values.slice() }
                 : { kind: "pattern", operator: filter.operator, operand: filter.operand, operand2: filter.operand2, arity: filter.arity };
         }
-        return {
+        const state = {
             sort: this._state.sort.slice(),
             filters,
             globalSearch: this._state.globalSearch,
@@ -1292,6 +1294,8 @@ class JwDataTable extends HTMLElement {
             viewMode: this._state.viewMode,
             hiddenColumns: Array.from(this._state.hiddenColumns)
         };
+        if (includePage) state.page = this._state.page;
+        return state;
     }
 
     _deserializeFilters(filters) {

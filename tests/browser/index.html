@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>jw-datatable – Browser tests</title>
+    <style>
+        body { font-family: system-ui, sans-serif; margin: 16px; color: #222; background: #fff; }
+        h1 { font-size: 1.2rem; }
+        #summary { font-weight: 600; }
+        #results { list-style: none; padding: 0; }
+        #results li { padding: 4px 0; border-bottom: 1px solid #ddd; }
+        .pass::before { content: "✔ "; color: #1f7a3a; }
+        .fail::before { content: "✖ "; color: #b00020; }
+        .skip::before { content: "○ "; color: #666; }
+        pre { white-space: pre-wrap; margin: 4px 0 0 1.5em; color: #b00020; }
+        /* Tests mount tables here; visible so layout-dependent code behaves normally. */
+        #fixture { margin-top: 24px; }
+    </style>
+</head>
+
+<body>
+    <h1>jw-datatable – Browser tests</h1>
+    <p id="summary" role="status">Running…</p>
+    <ul id="results"></ul>
+    <div id="fixture"></div>
+
+    <script type="module">
+        import { run } from "./harness.js";
+        import "./datatable.test.js";
+
+        const filter = new URLSearchParams(location.search).get("filter") || undefined;
+        const results = await run({ filter });
+        window.__testResults = results;
+
+        const list = document.getElementById("results");
+        for (const r of results) {
+            const li = document.createElement("li");
+            li.className = r.status;
+            li.textContent = r.name;
+            if (r.message) {
+                const pre = document.createElement("pre");
+                pre.textContent = r.message;
+                li.appendChild(pre);
+            }
+            list.appendChild(li);
+        }
+        const count = (s) => results.filter((r) => r.status === s).length;
+        document.getElementById("summary").textContent =
+            `${count("pass")} passed, ${count("fail")} failed, ${count("skip")} skipped`;
+    </script>
+</body>
+
+</html>

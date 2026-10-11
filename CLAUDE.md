@@ -70,23 +70,24 @@ selbst gezeichneten Icons, keine Aliase, kein Custom Element, keine
 
 ## Lokal ausführen & testen
 
-ES-Module brauchen HTTP (nicht `file://`):
-
 ```bash
-python3 -m http.server 8000   # dann http://localhost:8000/demo.html
+node tests/run.js              # alle Tests (Unit + Browser), Exit-Code ≠ 0 bei Fehlern
+node tests/run.js --unit       # nur node:test-Unit-Tests
+node tests/run.js --browser    # nur Browser-Tests (headless Chromium via CDP)
+node tests/run.js --filter "context menu"
+python3 -m http.server 8000    # Demo: /demo.html, Tests manuell: /tests/browser/
 ```
 
-Verfügbare Werkzeuge (ohne npm): Node 24 (`node --test`, eingebautes
-`WebSocket`), Python 3, `curl`, headless Chromium aus dem Playwright-Cache:
-
-```bash
-CHROME=$(find ~/.cache/ms-playwright -name chrome-headless-shell -type f | head -1)
-"$CHROME" --no-sandbox --window-size=1280,900 --virtual-time-budget=3000 \
-  --screenshot=/tmp/demo.png http://localhost:8000/demo.html
-```
-
-- Syntaxcheck aller Module: `for f in *.js; do node --check "$f"; done`
-- Reine Module (`util`, `comparators`, `filtering`, `formatters`, `csv`,
-  `columns`, `i18n`, `templateStore`) lassen sich direkt in Node importieren.
-- Für UI-/A11y-Prüfung: headless Chromium per `--remote-debugging-port` und
-  CDP über Nodes eingebautes `WebSocket` steuern (kein Playwright-Paket nötig).
+- Nach jeder Änderung `node tests/run.js` ausführen; muss grün sein.
+- Neue Logik in reinen Modulen → Test in `tests/unit/<modul>.test.js`.
+  Neues UI-Verhalten → Test in `tests/browser/datatable.test.js`, inklusive
+  Tastaturbedienung und ARIA (Rollen, Namen, Zustände, Fokus). Echte
+  Tastendrücke/Viewport nur über `input.press()` / `input.viewport()` mit
+  `{ cdp: true }`.
+- Chromium: `CHROME_BIN`, sonst `PATH`, sonst Playwright-Cache
+  (`~/.cache/ms-playwright/chromium_headless_shell-*`). Auf dieser Maschine ist
+  nur Letzteres vorhanden.
+- Der Runner meldet auch Konsolen-Fehler/-Warnungen der Seite als Fehlschlag.
+- Visuelle Kontrolle: `"$CHROME" --no-sandbox --window-size=1280,900
+  --virtual-time-budget=3000 --screenshot=<pfad>.png http://localhost:8000/demo.html`
+  (mit `--window-size=390,844` für Mobile).

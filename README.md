@@ -42,6 +42,7 @@ written in Vanilla JS (ES modules, Shadow DOM). No external dependencies.
 15. [i18n / Localization](#i18n--localization)
 16. [Accessibility](#accessibility)
 17. [Demo](#demo)
+18. [Development & tests](#development--tests)
 
 ---
 
@@ -63,6 +64,7 @@ written in Vanilla JS (ES modules, Shadow DOM). No external dependencies.
 | `i18n.js` | UI translations + `getTranslations()` helper |
 | `columns.js` | Column inference from data |
 | `demo.html` | Runnable demo |
+| `tests/` | Unit and browser tests (not needed in consuming projects) |
 
 All modules are plain ES modules with no build step.
 
@@ -366,6 +368,8 @@ createDataTable("#c", { /* … */ storage: { adapter: backendAdapter } });
 
 Adapter methods may return Promises.
 
+Templates do not store the current page; loading a template always starts on page 1.
+
 ---
 
 ## Events
@@ -593,3 +597,50 @@ export const LOCALES = {
 python3 -m http.server 8000
 # then open http://localhost:8000/demo.html
 ```
+
+---
+
+## Development & tests
+
+No npm, no build. Tests need only **Node.js ≥ 22** and, for browser tests,
+a Chromium-based browser.
+
+```bash
+node tests/run.js                 # all tests
+node tests/run.js --unit          # unit tests only (node:test)
+node tests/run.js --browser       # browser tests only (headless Chromium)
+node tests/run.js --filter "sort" # only tests whose name contains "sort"
+```
+
+| Path | Content |
+|------|---------|
+| `tests/unit/*.test.js` | `node:test` tests for the DOM-free modules (formatting, sorting, filtering, CSV, i18n, icons, …) |
+| `tests/browser/datatable.test.js` | Component tests in a real browser (rendering, sorting, pagination, context menu, accessibility, keyboard, responsive) |
+| `tests/browser/harness.js` | Tiny in-browser test harness (`test`, `assert`, `waitFor`, `input.press`, `input.viewport`) |
+| `tests/run.js` | Runner: starts a static server and headless Chromium, drives it via the DevTools protocol |
+
+**Browser lookup:** `CHROME_BIN` env var → `chromium` / `google-chrome` on
+`PATH` → Playwright's browser cache (`~/.cache/ms-playwright`).
+
+**In a normal browser:** serve the repo (`python3 -m http.server 8000`) and open
+<http://localhost:8000/tests/browser/>. Tests marked `{ cdp: true }` need
+trusted keyboard input or viewport emulation and are skipped there. Keep the
+tab in the foreground; background tabs pause animation frames.
+
+**Writing a browser test:**
+
+```js
+test("name", async () => {
+    const table = mount({ features: { sorting: true } });   // mounts into #fixture
+    $$(table, "thead th")[1].querySelector("button").click();
+    assert.equal($$(table, "thead th")[1].getAttribute("aria-sort"), "ascending");
+});
+
+test("keyboard", async () => {
+    // …
+    await input.press("Enter");          // trusted key event via CDP
+}, { cdp: true });
+```
+
+Each change to UI behavior should come with a browser test, including its
+keyboard and screen-reader semantics (roles, names, states, focus).
