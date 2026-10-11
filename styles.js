@@ -280,10 +280,25 @@ span.k-dt-th-label { cursor: default; }
     flex-direction: column;
     gap: var(--k-space-2xs, 4px);
 }
-.k-dt-card-title { font-weight: 700; font-size: 1.05rem; margin-bottom: var(--k-space-2xs, 4px); }
-.k-dt-card-row { display: flex; justify-content: space-between; gap: var(--k-space-s, 8px); font-size: 0.9rem; }
-.k-dt-card-label { color: var(--k-color-text-muted, #666); }
-.k-dt-card-val { display: inline-flex; align-items: center; gap: var(--k-space-2xs, 4px); text-align: right; }
+.k-dt-card { container-type: inline-size; }
+.k-dt-card-title { font-weight: 700; font-size: 1.05rem; margin-bottom: var(--k-space-2xs, 4px); overflow-wrap: anywhere; }
+
+/* Label/value list (cards, detail dialog): two columns, stacked when narrow. */
+.k-dt-fields { margin: 0; display: flex; flex-direction: column; gap: var(--k-space-2xs, 4px); font-size: 0.9rem; }
+.k-dt-field {
+    display: grid;
+    grid-template-columns: minmax(5rem, 38%) minmax(0, 1fr);
+    gap: var(--k-space-s, 8px);
+    align-items: baseline;
+    min-height: 1.6em;
+}
+.k-dt-field-label { color: var(--k-color-text-muted, #666); overflow-wrap: anywhere; }
+.k-dt-field-value { margin: 0; display: flex; align-items: center; gap: var(--k-space-2xs, 4px); min-width: 0; }
+.k-dt-field-value > :first-child { min-width: 0; }
+@container (max-width: 15rem) {
+    .k-dt-field { grid-template-columns: minmax(0, 1fr); gap: 0; }
+    .k-dt-field + .k-dt-field { margin-top: var(--k-space-2xs, 4px); }
+}
 
 /* Footer / Pagination — base: stacked & trimmed for small screens */
 .k-dt-footer {
@@ -581,7 +596,7 @@ span.k-dt-th-label { cursor: default; }
     /* Copy button: hidden until row/cell hover */
     .k-dt-copy { opacity: 0; padding: 2px; }
     /* Also revealed for keyboard users (focused cell/card or the button itself). */
-    .k-dt-td:hover .k-dt-copy, .k-dt-card-row:hover .k-dt-copy,
+    .k-dt-td:hover .k-dt-copy, .k-dt-field:hover .k-dt-copy,
     .k-dt-td:focus-within .k-dt-copy, .k-dt-card:focus-within .k-dt-copy,
     .k-dt-copy:focus-visible { opacity: 1; }
     .k-dt-copy:hover { opacity: 1; background: var(--k-dt-hover); }

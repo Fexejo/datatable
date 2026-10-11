@@ -916,17 +916,7 @@ class JwDataTable extends HTMLElement {
                     this._valueNode(titleColumn, row, getCellValue(row, titleColumn), `${fk}:${titleColumn.key}`)
                 ]));
             }
-            columns.forEach((column) => {
-                if (titleColumn && column.key === titleColumn.key) return;
-                const value = getCellValue(row, column);
-                const valWrap = el("span", { class: "k-dt-card-val" }, [this._valueNode(column, row, value, `${fk}:${column.key}`)]);
-                if (column.copyable) valWrap.appendChild(this._copyButton(column, row, value, `${fk}:${column.key}`));
-                const cardRow = el("div", { class: "k-dt-card-row" }, [
-                    el("span", { class: "k-dt-card-label", text: column.label }),
-                    valWrap
-                ]);
-                card.appendChild(cardRow);
-            });
+            card.appendChild(this._renderFields(columns.filter((c) => c !== titleColumn), row, fk));
             this._bindContextTrigger(card, () => ({ column: columns[0], row, value: getCellValue(row, columns[0]) }));
             grid.appendChild(card);
         });
@@ -936,6 +926,23 @@ class JwDataTable extends HTMLElement {
         const fragment = document.createDocumentFragment();
         fragment.append(grid, el("p", { id: this._hintId("grid"), class: "k-dt-sr-only", text: this._t.gridKeyboardHint }));
         return fragment;
+    }
+
+    // Label/value pairs of one record as a description list (cards, detail dialog).
+    // `fk`: focus-key prefix, or null where focus keys are not needed.
+    _renderFields(columns, row, fk) {
+        const list = el("dl", { class: "k-dt-fields" });
+        columns.forEach((column) => {
+            const value = getCellValue(row, column);
+            const key = fk ? `${fk}:${column.key}` : null;
+            const val = el("dd", { class: "k-dt-field-value k-dt-card-val" }, [this._valueNode(column, row, value, key)]);
+            if (column.copyable) val.appendChild(this._copyButton(column, row, value, key));
+            list.appendChild(el("div", { class: "k-dt-field k-dt-card-row" }, [
+                el("dt", { class: "k-dt-field-label k-dt-card-label", text: column.label }),
+                val
+            ]));
+        });
+        return list;
     }
 
     _renderFooter() {

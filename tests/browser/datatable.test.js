@@ -845,3 +845,14 @@ test("cell overflow defaults to wrapping; columns can override the table setting
     assert.ok(!$(table, '[data-fk="cell:0:name"]').classList.contains("k-dt-truncate"));
     assert.ok($(table, '[data-fk="cell:0:fee"]').classList.contains("k-dt-truncate"));
 });
+
+// ---- Cards --------------------------------------------------------------------
+
+test("cards list their fields as label/value pairs (dl/dt/dd)", () => {
+    const table = mount({ features: { grid: true }, defaultView: "grid", grid: { titleColumn: "name" } });
+    const card = $(table, '[data-fk="card:0"]');
+    assert.equal(card.querySelector(".k-dt-card-title").textContent.trim(), "Anna");
+    const labels = Array.from(card.querySelectorAll("dl > div > dt")).map((dt) => dt.textContent);
+    assert.deepEqual(labels, ["ID", "Fee", "Active", "Joined"], "title column is not repeated");
+    assert.equal(card.querySelector("dl > div > dd").textContent.trim(), "1");
+});

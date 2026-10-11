@@ -13,7 +13,7 @@ written in Vanilla JS (ES modules, Shadow DOM). No external dependencies.
 - **Context menu** – sort, filter, copy (cell/row/column), pin/hide column, export
 - **Column pinning** – pin any columns to the left edge (sticky while scrolling horizontally); scroll shadows show where more content is
 - **CSV export** – in the browser, Excel-friendly (with BOM)
-- **Grid / card view** – compact cards as an alternative to the table
+- **Grid / card view** – cards with label/value pairs as an alternative to the table (two columns, stacked on narrow cards)
 - **Mobile First / responsive** – compact, touch-optimized layout; auto-switches to card view on small screens; bottom-sheet panels; long-press context menu
 - **Links** – href, SPA routing event, or custom handler (e.g. open a dialog)
 - **Copy button** – per column when `copyable` is set (shown on hover on desktop, always visible on touch)
@@ -689,7 +689,8 @@ sort order instead of re-reading the whole table.
 
 - Semantic `<table>`, named by `title`, with `scope="col"` and `aria-sort`;
   multi-sort priority is part of the header button's name.
-- Card view is a list (`role="list"` / `listitem`).
+- Card view is a list (`role="list"` / `listitem`); each card lists its
+  fields as a description list (`<dl>` with `<dt>` label / `<dd>` value).
 - Keyboard hints are linked to the table/list via `aria-describedby`.
 - Icon-only buttons have an `aria-label` (per column where it matters, e.g.
   “Filter: Name”, “Copy value: Name”); icons are decorative (`aria-hidden`).
