@@ -415,9 +415,10 @@ is re-measured whenever the table or its container resizes.
 - **Start state:** `pinned: true` on a column, or `initial.pinnedColumns: ["key", …]`.
 - **State:** `pinnedColumns` is part of `getState()` / `setState()` and of
   saved templates.
-- **Space limit:** when the pinned columns would take more than 60 % of the
-  visible width (e.g. on a phone), they temporarily scroll with the table
-  instead of covering it; pinning announces this.
+- **Space limit:** pinned columns cover at most 60 % of the visible width.
+  When they don't all fit (e.g. on a phone), the most recently pinned ones stay
+  in place and the older ones scroll with the table until there is room again;
+  pinning announces which columns scroll along.
 
 Horizontal **scroll shadows** appear on the edges that have more content
 (with pinned columns, on the edge of the last pinned column). This is

@@ -124,7 +124,7 @@ export const LOCALES = {
         unpinColumnNamed: (label) => `Unpin column: ${label}`,
         columnPinned: (label) => `Column “${label}” pinned`,
         columnUnpinned: (label) => `Column “${label}” unpinned`,
-        pinsSuspended: (label) => `Column “${label}” pinned. Not enough room: pinned columns scroll with the table for now.`,
+        pinsPaused: (label, paused) => `Column “${label}” pinned. Not enough room for all pinned columns; scrolling with the table for now: ${paused}.`,
         templateSaved: (name) => `Template “${name}” saved`,
         templateLoaded: (name) => `Template “${name}” loaded`,
 
@@ -269,7 +269,7 @@ export const LOCALES = {
         unpinColumnNamed: (label) => `Fixierung aufheben: ${label}`,
         columnPinned: (label) => `Spalte „${label}“ fixiert`,
         columnUnpinned: (label) => `Fixierung von „${label}“ aufgehoben`,
-        pinsSuspended: (label) => `Spalte „${label}“ fixiert. Zu wenig Platz: fixierte Spalten scrollen vorerst mit.`,
+        pinsPaused: (label, paused) => `Spalte „${label}“ fixiert. Zu wenig Platz für alle fixierten Spalten; vorerst scrollen mit: ${paused}.`,
         templateSaved: (name) => `Vorlage „${name}“ gespeichert`,
         templateLoaded: (name) => `Vorlage „${name}“ geladen`,
 

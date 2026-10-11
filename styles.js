@@ -163,7 +163,6 @@ export const datatableStyles = `
     background: var(--k-color-page, #fff);
 }
 .k-dt-th.k-dt-pinned { z-index: 3; background: var(--k-dt-surface); }
-.k-dt-pins-suspended .k-dt-pinned { left: auto; }
 .has-pins .k-dt-pinned-last { box-shadow: inset -1px 0 0 var(--k-dt-border); }
 .k-dt-viewport.has-pins.is-overflow-left .k-dt-pinned-last::after {
     content: "";

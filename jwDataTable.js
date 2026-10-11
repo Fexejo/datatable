@@ -100,8 +100,8 @@ const DEFAULT_FEATURES = {
     copyButtons: true
 };
 
-// Pinned columns stop sticking once they would cover more than this share of
-// the visible width (the rest of the table must stay usable).
+// Pinned columns may cover at most this share of the visible width (the rest
+// of the table must stay usable); beyond it, the oldest pins scroll along.
 const MAX_PINNED_SHARE = 0.6;
 
 class JwDataTable extends HTMLElement {
@@ -513,25 +513,36 @@ class JwDataTable extends HTMLElement {
     }
 
     // Pinned cells are `position: sticky`; each one's `left` is the summed
-    // width of the pinned columns before it (`--k-dt-pin-<index>` on the table).
+    // width of the sticky columns before it (`--k-dt-pin-<index>` on the table).
+    // When they don't all fit, the most recently pinned ones (the last ones)
+    // stay sticky and older ones are paused (`left: auto`, they scroll along).
     _layoutPinned() {
         const viewport = this.shadow.querySelector(".k-dt-viewport");
         if (!viewport) return;
         const body = viewport.querySelector(".k-dt-body");
         const table = viewport.querySelector(".k-dt-table");
-        let offset = 0;
-        let suspended = false;
+        let sticky = 0;
+        this._pausedPins = [];
         if (table) {
             const pinned = Array.from(table.tHead.rows[0].cells).filter((th) => th.classList.contains("k-dt-pinned"));
+            const widths = pinned.map((th) => th.getBoundingClientRect().width);
+            const limit = body.clientWidth * MAX_PINNED_SHARE;
+            let first = pinned.length;
+            let used = 0;
+            while (first > 0 && used + widths[first - 1] <= limit) used += widths[--first];
+            let offset = 0;
             pinned.forEach((th, i) => {
-                table.style.setProperty(`--k-dt-pin-${i}`, `${offset}px`);
-                offset += th.getBoundingClientRect().width;
+                if (i < first) {
+                    table.style.setProperty(`--k-dt-pin-${i}`, "auto");
+                    this._pausedPins.push(th.dataset.key);
+                } else {
+                    table.style.setProperty(`--k-dt-pin-${i}`, `${offset}px`);
+                    offset += widths[i];
+                }
             });
-            suspended = pinned.length > 0 && offset > body.clientWidth * MAX_PINNED_SHARE;
-            table.classList.toggle("k-dt-pins-suspended", suspended);
+            sticky = pinned.length - first;
         }
-        this._pinsSuspended = suspended;
-        viewport.classList.toggle("has-pins", offset > 0 && !suspended);
+        viewport.classList.toggle("has-pins", sticky > 0);
         this._updateScrollShadows();
     }
 
@@ -559,9 +570,10 @@ class JwDataTable extends HTMLElement {
         if (pinned) this._state.pinnedColumns.push(key);
         this._render();
         this._emitChange();
-        const label = this._columns.find((c) => c.key === key)?.label ?? key;
+        const labelOf = (k) => this._columns.find((c) => c.key === k)?.label ?? k;
+        const label = labelOf(key);
         // The chooser's toggle button announces its own state; everything else needs a message.
-        if (pinned && this._pinsSuspended) this._announce(this._t.pinsSuspended(label));
+        if (pinned && this._pausedPins.length) this._announce(this._t.pinsPaused(label, this._pausedPins.map(labelOf).join(", ")));
         else if (!this._overlay) this._announce(pinned ? this._t.columnPinned(label) : this._t.columnUnpinned(label));
     }
 

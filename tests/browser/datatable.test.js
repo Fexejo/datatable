@@ -796,15 +796,27 @@ test("header unpin button keeps focus on the moved column header", async () => {
     assert.equal($(table, '[data-fk="pin:joined"]'), null);
 }, { cdp: true });
 
-test("pins are suspended when they would cover most of the width", async () => {
-    const table = mount({ features: { columnPinning: true } });
+test("without room for all pins, the most recent ones stick and older ones scroll along", async () => {
+    const columns = [...COLUMNS, { key: "note", label: "A deliberately long column label that forces horizontal scrolling" }];
+    const table = mount({ columns, features: { columnPinning: true }, initial: { pinnedColumns: ["joined"] } });
     table.style.width = "300px";
-    table.setState({ pinnedColumns: ["joined", "fee", "name", "id"] });
-    await waitFor(() => $(table, ".k-dt-pins-suspended"), { message: "expected suspended pins" });
-    assert.ok(!$(table, ".k-dt-viewport").classList.contains("has-pins"));
-    table.setState({ pinnedColumns: ["id"] });
-    await waitFor(() => !$(table, ".k-dt-pins-suspended"), { message: "pins resume when there is room" });
+    const body = $(table, ".k-dt-body");
+    await waitFor(() => body.scrollWidth > body.clientWidth + 100, { message: "table should overflow" });
+
+    // Pinning "name" leaves no room for both: "name" sticks at the left edge, "joined" pauses.
+    rightClick($(table, '[data-fk="cell:0:name"]'));
+    menuItem(table, "Pin column").click();
+    assert.deepEqual(headerKeys(table).slice(0, 2), ["joined", "name"]);
+    await announced(table, "Column “Name” pinned. Not enough room for all pinned columns; scrolling with the table for now: Joined.");
     assert.ok($(table, ".k-dt-viewport").classList.contains("has-pins"));
+    $(table, ".k-dt-body").scrollLeft = 150;   // the body was re-rendered
+    await nextFrame();
+    assert.ok(Math.abs(cellLeft(table, "name")) < 1.5, `name sticks at the edge (${cellLeft(table, "name")})`);
+    assert.ok(cellLeft(table, "joined") < -50, "joined scrolls away");
+
+    table.style.width = "1600px";
+    await waitFor(() => Math.abs(cellLeft(table, "name") - $$(table, "thead th")[0].getBoundingClientRect().width) < 1.5,
+        { message: "with room again, both stick side by side" });
 });
 
 test("scroll shadows mark the edges with more content", async () => {
