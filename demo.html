@@ -144,6 +144,13 @@
         <button class="ctrl" id="state">Print state</button>
 
         <div class="ctrl-locale">
+            <label for="mobile-view-select">Mobile view:</label>
+            <select id="mobile-view-select">
+                <option value="grid">Cards</option>
+                <option value="compact">Compact + details</option>
+            </select>
+        </div>
+        <div class="ctrl-locale">
             <label for="locale-select">Language:</label>
             <select id="locale-select"></select>
         </div>
@@ -195,14 +202,15 @@
         const BASE_CONFIG = {
             id: "demo-members",
             title: "Members",
+            cellOverflow: "ellipsis",
             columns: [
                 { key: "id",           label: "ID",           type: "integer",  width: "64px", pinned: true },
                 {
-                    key: "firstName",  label: "First name",   type: "string",   copyable: true,
+                    key: "firstName",  label: "First name",   type: "string",   copyable: true, compact: true,
                     link: { spa: true, url: (row) => `/members/${row.id}` }
                 },
                 {
-                    key: "lastName",   label: "Last name",    type: "string",   copyable: true,
+                    key: "lastName",   label: "Last name",    type: "string",   copyable: true, compact: true,
                     action: (row) => log(`Action: ${row.firstName} ${row.lastName}`)
                 },
                 {
@@ -214,7 +222,7 @@
                 { key: "active",       label: "Active",       type: "boolean" },
                 { key: "joinedAt",     label: "Joined",       type: "date" },
                 { key: "email",        label: "Email",        type: "string",   copyable: true },
-                { key: "notes",        label: "Notes",        type: "string",   overflow: "ellipsis", maxWidth: "14rem" }
+                { key: "notes",        label: "Notes",        type: "string",   maxWidth: "14rem" }
             ],
             initial: {
                 sort: [{ key: "lastName", direction: "asc" }],
@@ -248,6 +256,7 @@
             ["contextMenu",      "Context menu",       false],
             ["csvExport",        "CSV export",         false],
             ["grid",             "Grid / card view",   false],
+            ["compactView",      "Compact view",       false],
             ["columnVisibility", "Column visibility",  false],
             ["columnPinning",    "Column pinning",     false],
             ["rowDetails",       "Row details",        false],
@@ -275,6 +284,9 @@
             FEATURE_DEFS.map(([key]) => [key, document.getElementById(`feat-${key}`).checked])
         );
 
+        const mobileViewSelect = document.getElementById("mobile-view-select");
+        const responsiveConfig = () => ({ mobileView: mobileViewSelect.value });
+
         // Reconfigure in place, preserving data + view state.
         function rebuildTable() {
             const savedState = table.getState();
@@ -283,6 +295,7 @@
                 ...BASE_CONFIG,
                 locale:   currentLocale,
                 features: readFeatures(),
+                responsive: responsiveConfig(),
                 data:     savedData,
                 initial:  savedState
             });
@@ -293,6 +306,7 @@
             ...BASE_CONFIG,
             locale: currentLocale,
             features: readFeatures(),
+            responsive: responsiveConfig(),
             data: makeRows(137)
         });
 
@@ -307,6 +321,20 @@
             rebuildTable();
             // Keep html[lang] in sync for screen readers.
             document.documentElement.lang = currentLocale.split("-")[0];
+        };
+
+        // A different mobile view only applies while the view follows the screen
+        // size, so start fresh from the responsive default instead of the saved view.
+        mobileViewSelect.onchange = () => {
+            const { viewMode, ...state } = table.getState();
+            table.configure({
+                ...BASE_CONFIG,
+                locale:   currentLocale,
+                features: readFeatures(),
+                responsive: responsiveConfig(),
+                data:     table.data,
+                initial:  state
+            });
         };
 
         // ── Other controls ───────────────────────────────────────────────────

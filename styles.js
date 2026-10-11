@@ -97,9 +97,21 @@ export const datatableStyles = `
 .k-dt-btn:focus-visible, .k-dt-icon-btn:focus-visible,
 .k-dt-page-btn:focus-visible, .k-dt-th-label:focus-visible,
 .k-dt-filter-btn:focus-visible, .k-dt-pin-btn:focus-visible,
-.k-dt-pin-toggle:focus-visible, .k-dt-copy:focus-visible {
+.k-dt-pin-toggle:focus-visible, .k-dt-details-btn:focus-visible, .k-dt-copy:focus-visible {
     outline: 2px solid var(--k-color-text, #222);
     outline-offset: 1px;
+}
+/* View switch: joined toggle buttons, the current view is filled. */
+.k-dt-view-switch { display: inline-flex; }
+.k-dt-view-switch .k-dt-btn { border-radius: 0; }
+.k-dt-view-switch .k-dt-btn + .k-dt-btn { margin-left: -1px; }
+.k-dt-view-switch .k-dt-btn:first-child { border-radius: var(--k-radius-s, 8px) 0 0 var(--k-radius-s, 8px); }
+.k-dt-view-switch .k-dt-btn:last-child { border-radius: 0 var(--k-radius-s, 8px) var(--k-radius-s, 8px) 0; }
+.k-dt-view-switch .k-dt-btn:focus-visible { position: relative; z-index: 1; }
+.k-dt-view-switch .k-dt-btn[aria-pressed="true"] {
+    background: var(--k-dt-accent);
+    border-color: var(--k-dt-accent);
+    color: var(--k-dt-accent-text);
 }
 .k-dt-btn-primary {
     background: var(--k-dt-accent);
@@ -220,6 +232,23 @@ span.k-dt-th-label { cursor: default; }
 .k-dt-filter-btn.is-active, .k-dt-pin-btn { color: var(--k-dt-accent); }
 
 .k-dt-tr:hover .k-dt-td { background: var(--k-dt-surface-muted); }
+
+/* Compact view: last column holds the details button. */
+.k-dt-details-col { width: 1%; padding-left: 0; padding-right: var(--k-space-2xs, 4px); text-align: right; vertical-align: middle; }
+.k-dt-details-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 44px;
+    min-height: 44px;
+    cursor: pointer;
+    color: var(--k-color-text-muted, #666);
+    background: none;
+    border: none;
+    border-radius: var(--k-radius-s, 8px);
+}
+.k-dt-details-btn:hover { background: var(--k-dt-hover); color: var(--k-color-text, #222); }
+.k-dt-table--compact .k-dt-td:not(.k-dt-details-col) { vertical-align: middle; }
 .k-dt-clickable { cursor: pointer; }
 .k-dt-cell { display: flex; align-items: center; gap: var(--k-space-xs, 6px); justify-content: inherit; }
 .k-dt-align-right .k-dt-cell { flex-direction: row-reverse; }
@@ -628,7 +657,7 @@ span.k-dt-th-label { cursor: default; }
     .k-dt-table { font-size: 0.92rem; }
     .k-dt-th, .k-dt-td { padding: var(--k-space-s, 8px) var(--k-space-l, 12px); }
     .k-dt-filter-btn, .k-dt-pin-btn { padding: 2px; }
-    .k-dt-pin-toggle { min-width: 32px; min-height: 32px; }
+    .k-dt-pin-toggle, .k-dt-details-btn { min-width: 32px; min-height: 32px; }
 
     /* Copy button: hidden until row/cell hover */
     .k-dt-copy { opacity: 0; padding: 2px; }

@@ -92,6 +92,7 @@ const DEFAULT_FEATURES = {
     contextMenu: true,
     csvExport: false,
     grid: false,
+    compactView: false,
     columnVisibility: false,
     columnPinning: false,
     rowDetails: false,
@@ -187,7 +188,7 @@ class JwDataTable extends HTMLElement {
             globalSearch: initial.globalSearch || "",
             page: initial.page || 1,
             pageSize: initial.pageSize || pagination.pageSize || this._pageSizeOptions[0] || 25,
-            viewMode: initial.viewMode || (this._features.grid ? config.defaultView || "table" : "table"),
+            viewMode: initial.viewMode || config.defaultView || "table",
             hiddenColumns: new Set(
                 initial.hiddenColumns || this._columns.filter((c) => c.hidden).map((c) => c.key)
             ),
@@ -208,15 +209,17 @@ class JwDataTable extends HTMLElement {
     // ---- Responsive (Mobile First) --------------------------------------
 
     // Sets up a matchMedia listener that, when `responsive.autoGridView` is on,
-    // switches to the card/grid view below the breakpoint and back on desktop —
-    // unless the developer/user pinned a view explicitly.
+    // switches to `responsive.mobileView` (cards by default) below the
+    // breakpoint and back to the table on desktop — unless the developer/user
+    // chose a view explicitly.
     _setupResponsive() {
         this._teardownResponsive();
         const r = this._config.responsive || {};
         this._responsive = {
             enabled: r.enabled !== false,
             breakpoint: typeof r.breakpoint === "number" ? r.breakpoint : 640,
-            autoGridView: r.autoGridView !== false
+            autoGridView: r.autoGridView !== false,
+            mobileView: r.mobileView || "grid"
         };
 
         if (!this._responsive.enabled || typeof window.matchMedia !== "function") {
@@ -239,8 +242,8 @@ class JwDataTable extends HTMLElement {
 
     _applyAutoView() {
         if (!this._responsive || !this._responsive.enabled || !this._responsive.autoGridView) return;
-        if (this._viewModeUserSet || !this._features.grid) return;
-        this._state.viewMode = this._isMobileView ? "grid" : "table";
+        if (this._viewModeUserSet || !this._availableViews().includes(this._responsive.mobileView)) return;
+        this._state.viewMode = this._isMobileView ? this._responsive.mobileView : "table";
     }
 
     _onBreakpointChange(matches) {
@@ -249,8 +252,9 @@ class JwDataTable extends HTMLElement {
         this._closeOverlay();
         closeContextMenu();
 
-        if (!this._responsive.autoGridView || this._viewModeUserSet || !this._features.grid) return;
-        const next = matches ? "grid" : "table";
+        const mobileView = this._responsive.mobileView;
+        if (!this._responsive.autoGridView || this._viewModeUserSet || !this._availableViews().includes(mobileView)) return;
+        const next = matches ? mobileView : "table";
         if (next !== this._state.viewMode) {
             this._state.viewMode = next;
             this._render();
@@ -260,6 +264,30 @@ class JwDataTable extends HTMLElement {
 
     _isMobile() {
         return !!this._isMobileView;
+    }
+
+    // ---- Views: table, cards ("grid"), compact table + details -------------
+
+    _availableViews() {
+        return ["table", this._features.grid && "grid", this._features.compactView && "compact"].filter(Boolean);
+    }
+
+    // The view to render: the chosen one if its feature is on, else the table.
+    _currentView() {
+        return this._availableViews().includes(this._state.viewMode) ? this._state.viewMode : "table";
+    }
+
+    _isCompact() {
+        return this._currentView() === "compact";
+    }
+
+    // Columns of the table view; the compact view shows only the columns
+    // marked `compact: true`, else the first two visible ones.
+    _tableColumns() {
+        const visible = this._visibleColumns();
+        if (!this._isCompact()) return visible;
+        const marked = visible.filter((c) => c.compact);
+        return marked.length ? marked : visible.slice(0, 2);
     }
 
     set data(rows) {
@@ -466,7 +494,7 @@ class JwDataTable extends HTMLElement {
     _renderBody() {
         const body = el("div", { class: "k-dt-body", part: "body", onscroll: () => this._updateScrollShadows() });
         if (this._config.maxHeight) body.style.maxHeight = this._config.maxHeight;
-        body.appendChild(this._state.viewMode === "grid" && this._features.grid ? this._renderGrid() : this._renderTable());
+        body.appendChild(this._currentView() === "grid" ? this._renderGrid() : this._renderTable());
         return body;
     }
 
@@ -571,24 +599,31 @@ class JwDataTable extends HTMLElement {
             }, [iconEl("x"), el("span", { text: this._t.filterCount(activeFilters) })]));
         }
 
-        if (this._features.grid) {
-            const isGrid = this._state.viewMode === "grid";
-            // Action button: label and icon name the view it switches to.
-            // No aria-pressed, which would contradict the changing label.
-            const switchLabel = isGrid ? this._t.tableView : this._t.gridView;
-            right.appendChild(el("button", {
-                type: "button",
-                class: "k-dt-btn",
-                "data-fk": "tb:view",
-                title: switchLabel,
-                "aria-label": switchLabel,
-                onclick: () => {
-                    this._state.viewMode = isGrid ? "table" : "grid";
-                    this._viewModeUserSet = true;
-                    this._render();
-                    this._emitChange();
-                }
-            }, [iconEl(isGrid ? "table" : "layout-grid")]));
+        const views = this._availableViews();
+        if (views.length > 1) {
+            // One toggle button per view; the current one is pressed.
+            const current = this._currentView();
+            const meta = {
+                table: { icon: "table", label: this._t.tableView },
+                grid: { icon: "layout-grid", label: this._t.gridView },
+                compact: { icon: "rows-3", label: this._t.compactView }
+            };
+            right.appendChild(el("div", { class: "k-dt-view-switch", role: "group", "aria-label": this._t.viewSwitch },
+                views.map((view) => el("button", {
+                    type: "button",
+                    class: "k-dt-btn",
+                    "data-fk": `tb:view:${view}`,
+                    title: meta[view].label,
+                    "aria-label": meta[view].label,
+                    "aria-pressed": String(view === current),
+                    onclick: () => {
+                        if (view === this._currentView()) return;
+                        this._state.viewMode = view;
+                        this._viewModeUserSet = true;
+                        this._render();
+                        this._emitChange();
+                    }
+                }, [iconEl(meta[view].icon)]))));
         }
 
         if (this._features.columnVisibility) {
@@ -641,19 +676,30 @@ class JwDataTable extends HTMLElement {
             // The toolbar title names the table for assistive tech.
             "aria-labelledby": this._config.title ? this._hintId("title") : null
         });
-        const columns = this._visibleColumns();
+        const columns = this._tableColumns();
+        const compact = this._isCompact();
+        if (compact) table.classList.add("k-dt-table--compact");
 
         // Header
         const thead = el("thead");
         const headRow = el("tr");
         columns.forEach((column, i) => headRow.appendChild(this._pinCell(this._renderHeaderCell(column), i, columns)));
+        if (compact) {
+            headRow.appendChild(el("th", { class: "k-dt-th k-dt-details-col", scope: "col" }, [
+                el("span", { class: "k-dt-sr-only", text: this._t.details })
+            ]));
+        }
         thead.appendChild(headRow);
         table.appendChild(thead);
 
         table.appendChild(this._renderTbody(columns));
         if (this._pageData.length > 0) {
             table.setAttribute("aria-describedby", this._hintId("table"));
-            wrap.appendChild(el("p", { id: this._hintId("table"), class: "k-dt-sr-only", text: this._t.tableKeyboardHint }));
+            wrap.appendChild(el("p", {
+                id: this._hintId("table"),
+                class: "k-dt-sr-only",
+                text: compact ? this._t.compactKeyboardHint : this._t.tableKeyboardHint
+            }));
         }
         wrap.appendChild(table);
         return wrap;
@@ -664,7 +710,7 @@ class JwDataTable extends HTMLElement {
         if (this._pageData.length === 0) {
             const message = this._sourceData.length === 0 ? this._config.emptyText : this._config.noResultsText;
             tbody.appendChild(el("tr", {}, [
-                el("td", { class: "k-dt-empty", colSpan: columns.length || 1 }, [message])
+                el("td", { class: "k-dt-empty", colSpan: (columns.length + (this._isCompact() ? 1 : 0)) || 1 }, [message])
             ]));
         } else {
             this._pageData.forEach((row, index) => tbody.appendChild(this._renderRow(row, index, columns)));
@@ -681,7 +727,7 @@ class JwDataTable extends HTMLElement {
         const table = this.shadow.querySelector(".k-dt-table");
         if (!table) { this._render(); return; }   // card view: no header to keep
         const focusKey = this._focusKey();
-        const columns = this._visibleColumns();
+        const columns = this._tableColumns();
         for (const th of table.tHead.rows[0].cells) {
             const column = columns.find((c) => c.key === th.dataset.key);
             if (!column) continue;
@@ -779,7 +825,16 @@ class JwDataTable extends HTMLElement {
             const cls = this._config.rowClass(row, index);
             if (cls) tr.classList.add(...String(cls).split(/\s+/));
         }
-        if (typeof this._config.onRowClick === "function") {
+        const compact = this._isCompact();
+        if (compact) {
+            // Compact view: the whole row opens the details (links and buttons
+            // inside keep their own action); onRowClick moves into the dialog.
+            tr.classList.add("k-dt-clickable");
+            tr.addEventListener("click", (event) => {
+                if (this._shouldSuppressClick() || event.target.closest("a, button")) return;
+                this._openDetails(row);
+            });
+        } else if (typeof this._config.onRowClick === "function") {
             tr.classList.add("k-dt-clickable");
             tr.addEventListener("click", () => {
                 if (this._shouldSuppressClick()) return;
@@ -787,7 +842,29 @@ class JwDataTable extends HTMLElement {
             });
         }
         columns.forEach((column, i) => tr.appendChild(this._pinCell(this._renderCell(column, row, index), i, columns)));
+        if (compact) tr.appendChild(this._renderDetailsCell(row, index));
         return tr;
+    }
+
+    // Last cell of a compact row: the button that opens the record's details.
+    _renderDetailsCell(row, index) {
+        const td = el("td", { class: "k-dt-td k-dt-details-col", tabIndex: -1, "data-fk": `cell:${index}:#details` });
+        const button = el("button", {
+            type: "button",
+            class: "k-dt-details-btn",
+            "data-fk": `details:${index}`,
+            "aria-haspopup": "dialog",
+            "aria-expanded": "false",
+            title: this._t.showDetails,
+            "aria-label": this._t.showDetailsFor(this._recordTitle(row)),
+            onclick: (event) => this._openDetails(row, { anchor: event.currentTarget })
+        }, [iconEl("maximize-2")]);
+        td.appendChild(button);
+        this._bindContextTrigger(td, () => {
+            const column = this._tableColumns()[0];
+            return { column, row, value: getCellValue(row, column) };
+        });
+        return td;
     }
 
     _renderCell(column, row, index) {
@@ -805,7 +882,7 @@ class JwDataTable extends HTMLElement {
         if ((column.overflow || this._config.cellOverflow) === "ellipsis") this._truncateCell(td, column, row, value);
 
         this._bindContextTrigger(td, () => ({ column, row, value }));
-        if (typeof this._config.onCellClick === "function") {
+        if (typeof this._config.onCellClick === "function" && !this._isCompact()) {
             td.addEventListener("click", () => {
                 if (this._shouldSuppressClick()) return;
                 this._config.onCellClick(value, row, column);
@@ -1129,10 +1206,10 @@ class JwDataTable extends HTMLElement {
             case "Home": c = 0; if (event.ctrlKey) r = 0; break;
             case "End": c = colCount - 1; if (event.ctrlKey) r = rows.length - 1; break;
             case "Enter": {
-                // Activate the cell's link/action, else cell/row click handlers.
-                const inner = cell.querySelector(".k-dt-link, .k-dt-cell-action");
+                // Activate the cell's link/action/details button, else the row's click.
+                const inner = cell.querySelector(".k-dt-link, .k-dt-cell-action, .k-dt-details-btn");
                 if (inner) inner.click();
-                else if (this._config.onCellClick || this._config.onRowClick) cell.click();
+                else if (this._isCompact() || this._config.onCellClick || this._config.onRowClick) cell.click();
                 else return;
                 event.preventDefault();
                 return;
@@ -1621,7 +1698,7 @@ class JwDataTable extends HTMLElement {
     // ---- Record details ------------------------------------------------------
 
     _detailsEnabled() {
-        return !!this._features.rowDetails;
+        return !!(this._features.rowDetails || this._features.compactView);
     }
 
     // All columns of a record: visible ones in display order, then hidden ones.

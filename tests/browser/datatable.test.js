@@ -203,16 +203,25 @@ test("form controls inside panels have accessible names", async () => {
 
 // ---- View toggle ----------------------------------------------------------
 
-test("view toggle names the target view and has no aria-pressed", () => {
-    const table = mount({ features: { grid: true } });
-    const toggle = () => $$(table, ".k-dt-toolbar button").find((b) => /view/i.test(accessibleName(b)));
-    assert.equal(accessibleName(toggle()), "Grid view");
-    assert.ok(!toggle().hasAttribute("aria-pressed"));
+test("view switch is a named group of toggle buttons, one per available view", () => {
+    let table = mount();
+    assert.equal($(table, ".k-dt-view-switch"), null, "no switch with only the table");
 
-    toggle().click();
+    table = mount({ features: { grid: true, compactView: true } });
+    const group = $(table, ".k-dt-view-switch");
+    assert.equal(group.getAttribute("role"), "group");
+    assert.equal(accessibleName(group), "View");
+    const buttons = () => $$(table, ".k-dt-view-switch button");
+    assert.deepEqual(buttons().map(accessibleName), ["Table view", "Grid view", "Compact view"]);
+    assert.deepEqual(buttons().map((b) => b.getAttribute("aria-pressed")), ["true", "false", "false"]);
+
+    buttons()[1].focus();
+    buttons()[1].click();
     assert.ok($(table, ".k-dt-grid"), "grid rendered");
     assert.equal($$(table, ".k-dt-card").length, 10);
-    assert.equal(accessibleName(toggle()), "Table view");
+    assert.deepEqual(buttons().map((b) => b.getAttribute("aria-pressed")), ["false", "true", "false"]);
+    assert.equal(deepActiveElement()?.dataset.fk, "tb:view:grid", "focus stays on the pressed button");
+    assert.equal(table.getState().viewMode, "grid");
 });
 
 // ---- Context menu ---------------------------------------------------------
@@ -929,3 +938,84 @@ test("no details entry without the feature", () => {
     rightClick($(table, '[data-fk="cell:0:name"]'));
     assert.equal(menuItem(table, "Show details"), undefined);
 });
+
+// ---- Compact view ---------------------------------------------------------------
+
+const COMPACT = { features: { compactView: true }, defaultView: "compact" };
+
+test("compact view: marked (or first two) columns plus a details button per row", () => {
+    let table = mount(COMPACT);
+    assert.deepEqual(headerKeys(table), ["id", "name", undefined], "first two columns + details column");
+    const detailsTh = $$(table, "thead th").at(-1);
+    assert.equal(detailsTh.textContent, "Details", "details column has a (visually hidden) header");
+
+    const columns = COLUMNS.map((c) => ["name", "fee"].includes(c.key) ? { ...c, compact: true } : c);
+    table = mount({ ...COMPACT, columns, grid: { titleColumn: "name" } });
+    assert.deepEqual(headerKeys(table).slice(0, 2), ["name", "fee"]);
+    const button = $(table, '[data-fk="details:0"]');
+    assert.equal(accessibleName(button), "Show details: Anna");
+    assert.equal(button.getAttribute("aria-haspopup"), "dialog");
+    assert.ok(/Enter opens the details/.test(table.shadowRoot.getElementById($(table, "table").getAttribute("aria-describedby")).textContent));
+
+    button.click();
+    assert.equal(button.getAttribute("aria-expanded"), "true");
+    assert.deepEqual(dialogLabels(table), ["ID", "Name", "Fee", "Active", "Joined"], "dialog shows all columns in table order");
+});
+
+test("compact view: tapping a row opens its details; links keep their action; onRowClick moves to Open", () => {
+    let linked = null;
+    let rowClicked = null;
+    const columns = COLUMNS.map((c) => c.key === "name" ? { ...c, link: { handler: (row) => { linked = row.id; } } } : c);
+    const table = mount({ ...COMPACT, columns, onRowClick: (row) => { rowClicked = row.id; } });
+    $(table, '[data-fk="cell:2:id"]').click();
+    assert.equal($(table, ".k-dt-details-pos")?.textContent, "Record 3 of 30");
+    assert.equal(rowClicked, null, "row tap does not run onRowClick");
+    $(table, ".k-dt-details-open").click();
+    assert.equal(rowClicked, 3);
+
+    $(table, '[data-fk="cell:4:name:link"]').click();
+    assert.equal(linked, 5);
+    assert.equal($(table, '[role="dialog"]'), null, "link click does not open the details");
+});
+
+test("compact view: Enter on a cell or the details button opens the dialog; focus returns", async () => {
+    const table = mount(COMPACT);
+    $(table, '[data-fk="cell:1:id"]').focus();
+    await input.press("Enter");
+    assert.equal($(table, ".k-dt-details-pos")?.textContent, "Record 2 of 30");
+    await input.press("Escape");
+    assert.equal(deepActiveElement()?.dataset.fk, "cell:1:id");
+
+    await input.press("End");
+    assert.equal(deepActiveElement()?.dataset.fk, "cell:1:#details", "details cell is part of the grid navigation");
+    await input.press("Enter");
+    assert.ok($(table, '[role="dialog"]'), "Enter on the details cell opens the dialog");
+    await input.press("Escape");
+    assert.equal(deepActiveElement()?.dataset.fk, "cell:1:#details");
+
+    const button = $(table, '[data-fk="details:1"]');
+    button.focus();
+    await input.press("Enter");
+    assert.equal(button.getAttribute("aria-expanded"), "true");
+    await input.press("Escape");
+    assert.equal(deepActiveElement(), button, "focus back on the details button");
+    assert.equal(button.getAttribute("aria-expanded"), "false");
+}, { cdp: true });
+
+test("compact view is part of the state and falls back to the table without the feature", () => {
+    let table = mount({ features: { compactView: true } });
+    table.setState({ viewMode: "compact" });
+    assert.ok($(table, ".k-dt-table--compact"));
+    assert.equal(table.getState().viewMode, "compact");
+
+    table = mount({ initial: { viewMode: "compact" } });
+    assert.ok($(table, "table") && !$(table, ".k-dt-table--compact"), "plain table without features.compactView");
+});
+
+test("responsive.mobileView picks the compact view below the breakpoint", async () => {
+    await input.viewport(390, 800);
+    const table = mount({ features: { grid: true, compactView: true }, responsive: { enabled: true, mobileView: "compact" } });
+    await waitFor(() => $(table, ".k-dt-table--compact"), { message: "expected compact view on mobile" });
+    await input.viewport(1280, 900);
+    await waitFor(() => $(table, "table:not(.k-dt-table--compact)"), { message: "expected full table on desktop" });
+}, { cdp: true });
