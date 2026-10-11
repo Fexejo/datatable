@@ -337,7 +337,16 @@ global feature is enabled.
 
 Per column (filter icon in header or context menu):
 
-- **Values** – checkbox list with counts, search field, “Select all”
+- **Values** – checkbox list with counts, search field, “Select all”.
+  Searching works like Excel's AutoFilter: the matching values start out
+  checked (“Select all search results”), and an option below the list decides
+  what “Apply” (or `Enter` in the search field or on an option) does:
+  - **Show only these values** (default) – the filter becomes exactly the
+    checked matches; values hidden by the search are not included.
+  - **Add these values to the filter** – the checked matches are added to the
+    selection from before the search.
+
+  Clearing the search field restores the selection from before the search.
 - **Pattern** – operator + operand(s), by type family:
 
 | Family | Operators |
@@ -616,6 +625,7 @@ or touch also works with the keyboard alone.
 | Sort header | `Enter` / `Space` (`Shift+Enter` adds a sort key) | Sort |
 | Panels (filter, columns, templates) | `Tab` / `Shift+Tab`, `Esc` | Focus stays inside the panel; `Esc` closes and returns focus to the button that opened it |
 | Filter panel tabs | `←` `→`, `Home` / `End` | Switch between “Values” and “Pattern” |
+| Filter panel, “Values” tab | `Enter` in the search field or on a search-result option | Apply (same as the “Apply” button); the search-result options are radio buttons (`↑` `↓`) |
 | Templates panel | `Enter` in the name field | Save |
 
 Focus is kept across re-renders (sorting, filtering, paging, …): the same

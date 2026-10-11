@@ -1292,6 +1292,16 @@ class JwDataTable extends HTMLElement {
         });
         setMode(mode);
 
+        const applyButton = el("button", {
+            type: "button",
+            class: "k-dt-btn k-dt-btn-primary",
+            text: this._t.apply,
+            onclick: () => {
+                const filter = mode === "value" ? bodyValue.collect() : bodyPattern.collect();
+                this._setFilter(column.key, filter);
+                this._closeOverlay();
+            }
+        });
         const actions = el("div", { class: "k-dt-panel-actions" }, [
             el("button", {
                 type: "button",
@@ -1299,18 +1309,17 @@ class JwDataTable extends HTMLElement {
                 text: this._t.reset,
                 onclick: () => { this._setFilter(column.key, null); this._closeOverlay(); }
             }),
-            el("button", {
-                type: "button",
-                class: "k-dt-btn k-dt-btn-primary",
-                text: this._t.apply,
-                onclick: () => {
-                    const filter = mode === "value" ? bodyValue.collect() : bodyPattern.collect();
-                    this._setFilter(column.key, filter);
-                    this._closeOverlay();
-                }
-            })
+            applyButton
         ]);
         panel.appendChild(actions);
+
+        // Enter in the value search or on a search-result option applies, like a click on "Apply".
+        bodyValue.el.addEventListener("keydown", (e) => {
+            if (e.key !== "Enter" || e.isComposing) return;
+            if (e.target !== bodyValue.focusTarget && e.target.type !== "radio") return;
+            e.preventDefault();
+            applyButton.click();
+        });
         return panel;
     }
 
@@ -1321,36 +1330,54 @@ class JwDataTable extends HTMLElement {
             existing && existing.kind === "value" ? existing.values.map((v) => String(v)) : values.map((v) => String(v.value))
         );
 
+        // Searching works like Excel: the matches start out checked, and the
+        // filter becomes either only the checked matches or (with "add") the
+        // checked matches plus the selection from before the search. Clearing
+        // the search restores that earlier selection.
+        let baseline = null;   // Map<label element, checked> captured when a search starts
+        const checkboxes = () => Array.from(list.querySelectorAll(".k-dt-check"));
+        const isVisible = (label) => label.style.display !== "none";
+        const boxOf = (label) => label.querySelector('input[type="checkbox"]');
+        const syncToggleAll = () => {
+            const visible = checkboxes().filter(isVisible);
+            toggleAllBox.checked = visible.length > 0 && visible.every((label) => boxOf(label).checked);
+        };
+
         const search = el("input", {
             type: "search",
             class: "k-dt-input",
             placeholder: this._t.searchValues,
             "aria-label": this._t.searchValues,
             oninput: (e) => {
-                const q = e.target.value.toLowerCase();
-                list.querySelectorAll(".k-dt-check").forEach((label) => {
-                    label.style.display = label.dataset.label.includes(q) ? "" : "none";
+                const q = e.target.value.trim().toLowerCase();
+                if (q && !baseline) baseline = new Map(checkboxes().map((label) => [label, boxOf(label).checked]));
+                checkboxes().forEach((label) => {
+                    const match = !q || label.dataset.label.includes(q);
+                    label.style.display = match ? "" : "none";
+                    // Matches start checked; everything else keeps the earlier selection.
+                    if (baseline) boxOf(label).checked = (q && match) || baseline.get(label);
                 });
+                if (!q) baseline = null;
+                toggleAllText.textContent = q ? this._t.selectAllResults : this._t.selectAll;
+                searchMode.hidden = !q;
+                syncToggleAll();
             }
         });
         container.appendChild(search);
 
-        const toggleAll = el("label", { class: "k-dt-check k-dt-check-all" }, [
-            el("input", {
-                type: "checkbox",
-                checked: selected.size === values.length,
-                onchange: (e) => {
-                    list.querySelectorAll('input[type="checkbox"]').forEach((cb) => {
-                        if (cb.closest(".k-dt-check").style.display === "none") return;
-                        cb.checked = e.target.checked;
-                    });
-                }
-            }),
-            el("span", { text: this._t.selectAll })
-        ]);
-        container.appendChild(toggleAll);
+        const toggleAllBox = el("input", {
+            type: "checkbox",
+            checked: selected.size === values.length,
+            onchange: (e) => {
+                checkboxes().forEach((label) => {
+                    if (isVisible(label)) boxOf(label).checked = e.target.checked;
+                });
+            }
+        });
+        const toggleAllText = el("span", { text: this._t.selectAll });
+        container.appendChild(el("label", { class: "k-dt-check k-dt-check-all" }, [toggleAllBox, toggleAllText]));
 
-        const list = el("div", { class: "k-dt-check-list" });
+        const list = el("div", { class: "k-dt-check-list", onchange: () => syncToggleAll() });
         values.forEach((entry) => {
             const labelText = String(entry.label || this._t.emptyValue);
             const label = el("label", { class: "k-dt-check", dataset: { label: labelText.toLowerCase(), value: String(entry.value) } }, [
@@ -1362,14 +1389,32 @@ class JwDataTable extends HTMLElement {
         });
         container.appendChild(list);
 
+        // Only shown while searching.
+        const modeName = uid("kdt-smode");
+        const radio = (value, text, checked) => el("label", { class: "k-dt-check" }, [
+            el("input", { type: "radio", name: modeName, value, checked }),
+            el("span", { class: "k-dt-check-label", text })
+        ]);
+        const searchMode = el("fieldset", { class: "k-dt-search-mode", hidden: true }, [
+            el("legend", { class: "k-dt-field-label", text: this._t.searchResultsMode }),
+            radio("replace", this._t.searchResultsOnly, true),
+            radio("add", this._t.searchResultsAdd, false)
+        ]);
+        container.appendChild(searchMode);
+
         return {
             el: container,
             focusTarget: search,
             collect: () => {
+                const add = !searchMode.hidden && searchMode.querySelector('input[value="add"]').checked;
                 const chosen = [];
-                list.querySelectorAll(".k-dt-check").forEach((label) => {
-                    const cb = label.querySelector('input[type="checkbox"]');
-                    if (cb.checked) {
+                checkboxes().forEach((label) => {
+                    const take = searchMode.hidden
+                        ? boxOf(label).checked
+                        : isVisible(label)
+                            ? boxOf(label).checked || (add && baseline.get(label))
+                            : add && boxOf(label).checked;
+                    if (take) {
                         const original = values.find((v) => String(v.value) === label.dataset.value);
                         chosen.push(original ? original.value : label.dataset.value);
                     }

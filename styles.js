@@ -422,7 +422,9 @@ span.k-dt-th-label { cursor: default; }
     cursor: pointer;
 }
 .k-dt-check:hover { background: var(--k-dt-hover); }
-.k-dt-check input[type="checkbox"] { width: 18px; height: 18px; flex: none; }
+.k-dt-check input[type="checkbox"], .k-dt-check input[type="radio"] { width: 18px; height: 18px; flex: none; }
+.k-dt-search-mode { border: none; border-top: 1px solid var(--k-dt-border); margin: 0; padding: var(--k-space-s, 8px) 0 0; min-width: 0; }
+.k-dt-search-mode legend { padding: 0; float: left; width: 100%; }
 .k-dt-check-all { font-weight: 600; border-bottom: 1px solid var(--k-dt-border); }
 .k-dt-check-label { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .k-dt-check-count { color: var(--k-color-text-muted, #666); font-size: 0.8rem; }

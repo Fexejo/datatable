@@ -417,6 +417,89 @@ test("filter panel is a labelled modal dialog with focus inside and focus return
     assert.equal(button().getAttribute("aria-expanded"), "false");
 }, { cdp: true });
 
+async function openNameFilter(table) {
+    const button = $(table, '[data-fk="filter:name"]');
+    button.focus();
+    await input.press("Enter");
+}
+async function type(text) {
+    for (const ch of text) await input.press(ch);
+}
+const valueBox = (table, value) => $(table, `.k-dt-overlay .k-dt-check[data-value="${value}"] input`);
+const visibleValues = (table) => $$(table, ".k-dt-overlay .k-dt-check[data-value]")
+    .filter((l) => l.style.display !== "none").map((l) => l.dataset.value);
+
+test("Enter in the value filter search applies only the matches", async () => {
+    const table = mount({ features: { filtering: true } });
+    await openNameFilter(table);
+    await type("ann");
+    assert.deepEqual(visibleValues(table), ["Anna"]);
+    await input.press("Enter");
+
+    assert.equal($(table, '[role="dialog"]'), null, "dialog closed");
+    assert.deepEqual(table.getState().filters.name?.values, ["Anna"], "hidden values are not part of the filter");
+    assert.equal($$(table, "tbody tr").length, 5);
+    assert.equal(deepActiveElement(), $(table, '[data-fk="filter:name"]'), "focus back on the filter button");
+}, { cdp: true });
+
+test("value search checks the matches and restores the selection when cleared", async () => {
+    const table = mount({ features: { filtering: true } });
+    table.setState({ filters: { name: { kind: "value", values: ["Ben"] } } });
+    await openNameFilter(table);
+    const mode = $(table, ".k-dt-search-mode");
+    const toggleAll = $(table, ".k-dt-check-all");
+    assert.ok(mode.hidden, "result options hidden without a search");
+    assert.equal(accessibleName(toggleAll), "Select all");
+
+    await type("a");
+    assert.deepEqual(visibleValues(table), ["Anna", "Clara", "David", "Emma"]);
+    assert.ok(visibleValues(table).every((v) => valueBox(table, v).checked), "matches start checked");
+    assert.equal(accessibleName(toggleAll), "Select all search results");
+    assert.ok(toggleAll.querySelector("input").checked);
+    assert.ok(!mode.hidden, "result options shown while searching");
+    assert.equal(mode.querySelector("legend").textContent, "Search results");
+    assert.deepEqual(Array.from(mode.querySelectorAll('input[type="radio"]')).map((r) => [accessibleName(r.closest("label")), r.checked]),
+        [["Show only these values", true], ["Add these values to the filter", false]]);
+
+    valueBox(table, "Emma").click();
+    assert.ok(!toggleAll.querySelector("input").checked, "select all follows the boxes");
+
+    const field = $(table, '.k-dt-overlay input[type="search"]');
+    field.value = "";
+    field.dispatchEvent(new Event("input"));
+    assert.ok(mode.hidden);
+    assert.deepEqual(["Anna", "Ben", "Emma"].map((v) => valueBox(table, v).checked), [false, true, false], "selection from before the search");
+}, { cdp: true });
+
+test("value search can add the matches to the existing filter", async () => {
+    const table = mount({ features: { filtering: true } });
+    table.setState({ filters: { name: { kind: "value", values: ["Ben", "Emma"] } } });
+    await openNameFilter(table);
+    await type("la");
+    assert.deepEqual(visibleValues(table), ["Clara"]);
+
+    // Keyboard: Tab from the search field to the radio group, arrow to "add".
+    const radios = $$(table, '.k-dt-search-mode input[type="radio"]');
+    radios[0].focus();
+    await input.press("ArrowDown");
+    assert.ok(radios[1].checked, "arrow keys select the option");
+    await input.press("Enter");
+    assert.equal($(table, '[role="dialog"]'), null, "Enter on the option applies");
+    assert.deepEqual(table.getState().filters.name?.values, ["Ben", "Clara", "Emma"]);
+}, { cdp: true });
+
+test("value search add keeps earlier values even if unchecked in the results", async () => {
+    const table = mount({ features: { filtering: true } });
+    table.setState({ filters: { name: { kind: "value", values: ["Anna", "Ben"] } } });
+    await openNameFilter(table);
+    await type("a");
+    valueBox(table, "Anna").click();     // unchecked in the results, but part of the earlier filter
+    valueBox(table, "David").click();    // unchecked, not part of it
+    $(table, '.k-dt-search-mode input[value="add"]').click();
+    $(table, ".k-dt-panel-actions .k-dt-btn-primary").click();
+    assert.deepEqual(table.getState().filters.name?.values, ["Anna", "Ben", "Clara", "Emma"]);
+}, { cdp: true });
+
 test("filter tabs follow the tabs pattern", async () => {
     const table = mount({ features: { filtering: true } });
     $(table, '[data-fk="filter:name"]').click();
