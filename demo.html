@@ -164,6 +164,12 @@
         const firstNames = ["Anna", "Ben", "Clara", "David", "Eva", "Felix", "Greta", "Hannes", "Ida", "Jonas"];
         const lastNames  = ["Miller", "Schmidt", "Schneider", "Fischer", "Weber", "Meyer", "Wagner", "Becker"];
         const roles = { admin: "Administrator", member: "Member", guest: "Guest" };
+        const NOTES = [
+            "Prefers e-mail contact, available on weekdays after 5 pm",
+            "Board member since the last general assembly",
+            "",
+            "Organizes the summer event together with the youth team and handles the bookings"
+        ];
 
         function makeRows(n) {
             const rows = [];
@@ -178,7 +184,8 @@
                     active:    Math.random() > 0.4,
                     joinedAt:  new Date(2020 + (i % 5), i % 12, (i % 27) + 1).toISOString(),
                     share:     Math.random(),
-                    email:     `${firstNames[i % firstNames.length]}.${lastNames[i % lastNames.length]}${i}@example.org`.toLowerCase()
+                    email:     `${firstNames[i % firstNames.length]}.${lastNames[i % lastNames.length]}${i}@example.org`.toLowerCase(),
+                    notes:     NOTES[i % NOTES.length]
                 });
             }
             return rows;
@@ -206,7 +213,8 @@
                 { key: "share",        label: "Share",        type: "percent",  format: { decimals: 0 } },
                 { key: "active",       label: "Active",       type: "boolean" },
                 { key: "joinedAt",     label: "Joined",       type: "date" },
-                { key: "email",        label: "Email",        type: "string",   copyable: true }
+                { key: "email",        label: "Email",        type: "string",   copyable: true },
+                { key: "notes",        label: "Notes",        type: "string",   overflow: "ellipsis", maxWidth: "14rem" }
             ],
             initial: {
                 sort: [{ key: "lastName", direction: "asc" }],
@@ -314,7 +322,7 @@
                 firstName: "New", lastName: "Entry",
                 role: "guest", contribution: 99.9,
                 active: true, joinedAt: new Date().toISOString(), share: 0.5,
-                email: "new.entry@example.org"
+                email: "new.entry@example.org", notes: ""
             });
             table.setData(data);
         };

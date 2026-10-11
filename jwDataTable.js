@@ -801,6 +801,7 @@ class JwDataTable extends HTMLElement {
         const content = el("div", { class: "k-dt-cell" }, [this._valueNode(column, row, value, fk)]);
         if (column.copyable) content.appendChild(this._copyButton(column, row, value, fk));
         td.appendChild(content);
+        if ((column.overflow || this._config.cellOverflow) === "ellipsis") this._truncateCell(td, column, row, value);
 
         this._bindContextTrigger(td, () => ({ column, row, value }));
         if (typeof this._config.onCellClick === "function") {
@@ -810,6 +811,20 @@ class JwDataTable extends HTMLElement {
             });
         }
         return td;
+    }
+
+    // Single-line cell with an ellipsis. Mouse users get the full text as a
+    // tooltip (only when it is actually cut off); keyboard and touch users see
+    // it in full while the cell has focus (CSS `:focus-within`).
+    _truncateCell(td, column, row, value) {
+        td.classList.add("k-dt-truncate");
+        if (column.maxWidth) td.style.setProperty("--k-dt-cell-max-width", column.maxWidth);
+        td.addEventListener("pointerenter", () => {
+            const node = td.querySelector(".k-dt-cell > :first-child");
+            if (!node) return;
+            if (node.scrollWidth > node.clientWidth) node.title = toText(value, column, this._config.locale, row);
+            else node.removeAttribute("title");
+        });
     }
 
     // Builds the display node including link logic (href / SPA / custom handler).

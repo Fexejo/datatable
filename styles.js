@@ -224,6 +224,17 @@ span.k-dt-th-label { cursor: default; }
 .k-dt-cell { display: flex; align-items: center; gap: var(--k-space-xs, 6px); justify-content: inherit; }
 .k-dt-align-right .k-dt-cell { flex-direction: row-reverse; }
 .k-dt-value { overflow-wrap: anywhere; }
+/* Opt-in single-line cells (cellOverflow / column.overflow = "ellipsis").
+   The focused cell shows its full content. */
+.k-dt-truncate .k-dt-cell { max-width: var(--k-dt-cell-max-width, 16rem); }
+.k-dt-truncate .k-dt-cell > :first-child {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    overflow-wrap: normal;
+}
+.k-dt-truncate:focus-within .k-dt-cell > :first-child { white-space: normal; overflow-wrap: anywhere; }
 .k-dt-link { color: var(--k-dt-accent); text-decoration: none; }
 .k-dt-link:hover { text-decoration: underline; }
 .k-dt-cell-action {

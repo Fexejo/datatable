@@ -163,6 +163,7 @@ table.configure({ /* … */ });
 | `grid` | `object` | — | `{ minWidth, titleColumn }` |
 | `responsive` | `object` | *(on)* | `{ enabled, breakpoint, autoGridView }` — see [Responsive & touch](#responsive--touch) |
 | `maxHeight` | `string` | — | e.g. `"60vh"`; scroll body, sticky header |
+| `cellOverflow` | `"wrap" \| "ellipsis"` | `"wrap"` | Long cell text wraps, or stays on one line with “…” (see [Long cell content](#long-cell-content)) |
 | `storage` | `object` | — | Templates: `{ adapter, namespace, key }` |
 | `searchPlaceholder` | `string` | *(from locale)* | Search input placeholder override |
 | `emptyText` | `string` | *(from locale)* | Override text shown when there are no rows |
@@ -192,6 +193,8 @@ Each column:
 | `options` | `{ value, label }[]` | Labels for `enum` / `select` |
 | `align` | `"left" \| "right" \| "center"` | Alignment (type-dependent default) |
 | `width` | `string` | Fixed width, e.g. `"80px"` |
+| `overflow` | `"wrap" \| "ellipsis"` | Overrides `cellOverflow` for this column |
+| `maxWidth` | `string` | Content width limit for `"ellipsis"` cells (default `16rem`), e.g. `"200px"` |
 | `hidden` | `boolean` | Initially hidden |
 | `pinned` | `boolean` | Initially pinned to the left edge (needs `features.columnPinning`; `initial.pinnedColumns` wins) |
 | `sortable` | `boolean` | Allow sort (default `true`) |
@@ -204,6 +207,19 @@ Each column:
 | `cellClass` | `(value, row) => string` | CSS class(es) per cell |
 
 Column flags apply only when the matching global feature is enabled.
+
+### Long cell content
+
+By default long values wrap inside the cell. With `cellOverflow: "ellipsis"`
+(or `overflow: "ellipsis"` per column) cells stay on one line, are capped at
+`maxWidth` (default `16rem`, CSS variable `--k-dt-cell-max-width`) and end in
+“…” when cut off:
+
+- **Mouse:** hovering a cut-off value shows the full text as a tooltip
+  (`title`, set only when the text is actually truncated).
+- **Keyboard / touch:** the focused (or tapped) cell shows its full content,
+  wrapping onto several lines until focus moves on.
+- Screen readers always get the full text.
 
 ---
 

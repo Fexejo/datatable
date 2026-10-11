@@ -812,3 +812,36 @@ test("scroll shadows mark the edges with more content", async () => {
     await waitFor(() => !viewport.classList.contains("is-overflow-left") && !viewport.classList.contains("is-overflow-right"),
         { message: "no shadows without overflow" });
 });
+
+// ---- Cell overflow -----------------------------------------------------------
+
+const LONG = "A remarkably long value that cannot possibly fit into a narrow column";
+
+test("cellOverflow ellipsis: single line, tooltip only when cut off, full text on focus", async () => {
+    const data = [{ ...DATA[0], name: LONG }, { ...DATA[1] }];
+    const columns = COLUMNS.map((c) => c.key === "name" ? { ...c, maxWidth: "80px" } : c);
+    const table = mount({ data, columns, cellOverflow: "ellipsis" });
+    const value = (row) => $(table, `[data-fk="cell:${row}:name"] .k-dt-cell > :first-child`);
+    const style = getComputedStyle(value(0));
+    assert.equal(style.whiteSpace, "nowrap");
+    assert.equal(style.textOverflow, "ellipsis");
+    assert.ok($(table, '[data-fk="cell:0:name"] .k-dt-cell').getBoundingClientRect().width <= 80.5, "maxWidth caps the content");
+
+    $(table, '[data-fk="cell:0:name"]').dispatchEvent(new PointerEvent("pointerenter"));
+    assert.equal(value(0).title, LONG, "tooltip with the full text");
+    $(table, '[data-fk="cell:1:name"]').dispatchEvent(new PointerEvent("pointerenter"));
+    assert.ok(!value(1).hasAttribute("title"), "no tooltip when the text fits");
+
+    $(table, '[data-fk="cell:0:name"]').focus();
+    assert.equal(getComputedStyle(value(0)).whiteSpace, "normal", "focused cell shows everything");
+});
+
+test("cell overflow defaults to wrapping; columns can override the table setting", () => {
+    const data = [{ ...DATA[0], name: LONG }];
+    let table = mount({ data });
+    assert.equal($$(table, ".k-dt-truncate").length, 0);
+    const columns = COLUMNS.map((c) => c.key === "name" ? { ...c, overflow: "wrap" } : c);
+    table = mount({ data, columns, cellOverflow: "ellipsis" });
+    assert.ok(!$(table, '[data-fk="cell:0:name"]').classList.contains("k-dt-truncate"));
+    assert.ok($(table, '[data-fk="cell:0:fee"]').classList.contains("k-dt-truncate"));
+});
