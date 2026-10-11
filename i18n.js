@@ -57,6 +57,8 @@ export const LOCALES = {
         copyRow: "Copy row",
         copyColumn: "Copy column",
         hideColumn: "Hide column",
+        pinColumn: "Pin column",
+        unpinColumn: "Unpin column",
 
         // Filter panel
         filterPanelTitle: (label) => `Filter: ${label}`,
@@ -102,6 +104,11 @@ export const LOCALES = {
         copied: "Copied to clipboard",
         copiedValue: (value) => `Copied to clipboard: ${value}`,
         columnHidden: (label) => `Column “${label}” hidden`,
+        pinColumnNamed: (label) => `Pin column: ${label}`,
+        unpinColumnNamed: (label) => `Unpin column: ${label}`,
+        columnPinned: (label) => `Column “${label}” pinned`,
+        columnUnpinned: (label) => `Column “${label}” unpinned`,
+        pinsSuspended: (label) => `Column “${label}” pinned. Not enough room: pinned columns scroll with the table for now.`,
         templateSaved: (name) => `Template “${name}” saved`,
         templateLoaded: (name) => `Template “${name}” loaded`,
 
@@ -179,6 +186,8 @@ export const LOCALES = {
         copyRow: "Zeile kopieren",
         copyColumn: "Spalte kopieren",
         hideColumn: "Spalte ausblenden",
+        pinColumn: "Spalte fixieren",
+        unpinColumn: "Fixierung aufheben",
 
         // Filter panel
         filterPanelTitle: (label) => `Filter: ${label}`,
@@ -224,6 +233,11 @@ export const LOCALES = {
         copied: "In die Zwischenablage kopiert",
         copiedValue: (value) => `In die Zwischenablage kopiert: ${value}`,
         columnHidden: (label) => `Spalte „${label}“ ausgeblendet`,
+        pinColumnNamed: (label) => `Spalte fixieren: ${label}`,
+        unpinColumnNamed: (label) => `Fixierung aufheben: ${label}`,
+        columnPinned: (label) => `Spalte „${label}“ fixiert`,
+        columnUnpinned: (label) => `Fixierung von „${label}“ aufgehoben`,
+        pinsSuspended: (label) => `Spalte „${label}“ fixiert. Zu wenig Platz: fixierte Spalten scrollen vorerst mit.`,
         templateSaved: (name) => `Vorlage „${name}“ gespeichert`,
         templateLoaded: (name) => `Vorlage „${name}“ geladen`,
 

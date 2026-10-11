@@ -96,7 +96,8 @@ export const datatableStyles = `
 .k-dt-btn:active, .k-dt-icon-btn:active { background: var(--k-dt-hover); }
 .k-dt-btn:focus-visible, .k-dt-icon-btn:focus-visible,
 .k-dt-page-btn:focus-visible, .k-dt-th-label:focus-visible,
-.k-dt-filter-btn:focus-visible, .k-dt-copy:focus-visible {
+.k-dt-filter-btn:focus-visible, .k-dt-pin-btn:focus-visible,
+.k-dt-pin-toggle:focus-visible, .k-dt-copy:focus-visible {
     outline: 2px solid var(--k-color-text, #222);
     outline-offset: 1px;
 }
@@ -113,12 +114,54 @@ export const datatableStyles = `
 }
 
 /* Table */
+.k-dt-viewport { position: relative; display: flex; flex-direction: column; min-height: 0; }
 .k-dt-body { overflow: auto; -webkit-overflow-scrolling: touch; }
 .k-dt-scroll { min-width: 100%; }
+/* Separate borders: with border-collapse, sticky cells leave their borders behind. */
 .k-dt-table {
     width: 100%;
-    border-collapse: collapse;
+    border-collapse: separate;
+    border-spacing: 0;
     font-size: 0.85rem;
+}
+
+/* Horizontal scroll shadows (classes set from JS on scroll/resize). With pinned
+   columns the left shadow sits on the edge of the last pinned column instead. */
+.k-dt-viewport::before, .k-dt-viewport::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 12px;
+    z-index: 4;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.15s;
+}
+.k-dt-viewport::before { left: 0; background: linear-gradient(to right, rgba(0,0,0,0.16), transparent); }
+.k-dt-viewport::after { right: 0; background: linear-gradient(to left, rgba(0,0,0,0.16), transparent); }
+.k-dt-viewport.is-overflow-left:not(.has-pins)::before,
+.k-dt-viewport.is-overflow-right::after { opacity: 1; }
+
+/* Pinned columns: sticky, offset = width of the pinned columns before them. */
+.k-dt-pinned {
+    position: sticky;
+    left: var(--k-dt-pin-left, 0px);
+    z-index: 1;
+    background: var(--k-color-page, #fff);
+}
+.k-dt-th.k-dt-pinned { z-index: 3; background: var(--k-dt-surface); }
+.k-dt-pins-suspended .k-dt-pinned { left: auto; }
+.has-pins .k-dt-pinned-last { box-shadow: inset -1px 0 0 var(--k-dt-border); }
+.k-dt-viewport.has-pins.is-overflow-left .k-dt-pinned-last::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    bottom: -1px;
+    right: -12px;
+    width: 12px;
+    pointer-events: none;
+    background: linear-gradient(to right, rgba(0,0,0,0.16), transparent);
 }
 .k-dt-th, .k-dt-td {
     text-align: left;
@@ -132,7 +175,7 @@ export const datatableStyles = `
     position: sticky;
     top: 0;
     background: var(--k-dt-surface);
-    z-index: 1;
+    z-index: 2;
     white-space: nowrap;
     font-weight: 700;
 }
@@ -162,7 +205,7 @@ span.k-dt-th-label { cursor: default; }
     padding: 0 5px;
     line-height: 1.4;
 }
-.k-dt-filter-btn {
+.k-dt-filter-btn, .k-dt-pin-btn {
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -173,8 +216,8 @@ span.k-dt-th-label { cursor: default; }
     padding: var(--k-space-xs, 6px);
     border-radius: var(--k-radius-s, 8px);
 }
-.k-dt-filter-btn:hover { background: var(--k-dt-hover); color: var(--k-color-text, #222); }
-.k-dt-filter-btn.is-active { color: var(--k-dt-accent); }
+.k-dt-filter-btn:hover, .k-dt-pin-btn:hover { background: var(--k-dt-hover); color: var(--k-color-text, #222); }
+.k-dt-filter-btn.is-active, .k-dt-pin-btn { color: var(--k-dt-accent); }
 
 .k-dt-tr:hover .k-dt-td { background: var(--k-dt-surface-muted); }
 .k-dt-clickable { cursor: pointer; }
@@ -425,6 +468,24 @@ span.k-dt-th-label { cursor: default; }
 .k-dt-check input[type="checkbox"], .k-dt-check input[type="radio"] { width: 18px; height: 18px; flex: none; }
 .k-dt-search-mode { border: none; border-top: 1px solid var(--k-dt-border); margin: 0; padding: var(--k-space-s, 8px) 0 0; min-width: 0; }
 .k-dt-search-mode legend { padding: 0; float: left; width: 100%; }
+.k-dt-col-row { display: flex; align-items: center; gap: var(--k-space-2xs, 4px); }
+.k-dt-col-row .k-dt-check { flex: 1; min-width: 0; }
+/* Pressed = filled accent (not color alone: background + border change). */
+.k-dt-pin-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: none;
+    min-width: 44px;
+    min-height: 44px;
+    cursor: pointer;
+    color: var(--k-color-text-muted, #666);
+    background: none;
+    border: 1px solid transparent;
+    border-radius: var(--k-radius-s, 8px);
+}
+.k-dt-pin-toggle:hover { background: var(--k-dt-hover); color: var(--k-color-text, #222); }
+.k-dt-pin-toggle[aria-pressed="true"] { background: var(--k-dt-accent); border-color: var(--k-dt-accent); color: var(--k-dt-accent-text); }
 .k-dt-check-all { font-weight: 600; border-bottom: 1px solid var(--k-dt-border); }
 .k-dt-check-label { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .k-dt-check-count { color: var(--k-color-text-muted, #666); font-size: 0.8rem; }
@@ -503,7 +564,8 @@ span.k-dt-th-label { cursor: default; }
 
     .k-dt-table { font-size: 0.92rem; }
     .k-dt-th, .k-dt-td { padding: var(--k-space-s, 8px) var(--k-space-l, 12px); }
-    .k-dt-filter-btn { padding: 2px; }
+    .k-dt-filter-btn, .k-dt-pin-btn { padding: 2px; }
+    .k-dt-pin-toggle { min-width: 32px; min-height: 32px; }
 
     /* Copy button: hidden until row/cell hover */
     .k-dt-copy { opacity: 0; padding: 2px; }

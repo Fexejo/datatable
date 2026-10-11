@@ -177,7 +177,8 @@
                     contribution: Math.round((Math.random() * 200 + 20) * 100) / 100,
                     active:    Math.random() > 0.4,
                     joinedAt:  new Date(2020 + (i % 5), i % 12, (i % 27) + 1).toISOString(),
-                    share:     Math.random()
+                    share:     Math.random(),
+                    email:     `${firstNames[i % firstNames.length]}.${lastNames[i % lastNames.length]}${i}@example.org`.toLowerCase()
                 });
             }
             return rows;
@@ -188,7 +189,7 @@
             id: "demo-members",
             title: "Members",
             columns: [
-                { key: "id",           label: "ID",           type: "integer",  width: "64px" },
+                { key: "id",           label: "ID",           type: "integer",  width: "64px", pinned: true },
                 {
                     key: "firstName",  label: "First name",   type: "string",   copyable: true,
                     link: { spa: true, url: (row) => `/members/${row.id}` }
@@ -204,7 +205,8 @@
                 { key: "contribution", label: "Contribution", type: "currency", format: { currency: "EUR" } },
                 { key: "share",        label: "Share",        type: "percent",  format: { decimals: 0 } },
                 { key: "active",       label: "Active",       type: "boolean" },
-                { key: "joinedAt",     label: "Joined",       type: "date" }
+                { key: "joinedAt",     label: "Joined",       type: "date" },
+                { key: "email",        label: "Email",        type: "string",   copyable: true }
             ],
             initial: {
                 sort: [{ key: "lastName", direction: "asc" }],
@@ -239,6 +241,7 @@
             ["csvExport",        "CSV export",         false],
             ["grid",             "Grid / card view",   false],
             ["columnVisibility", "Column visibility",  false],
+            ["columnPinning",    "Column pinning",     false],
             ["templates",        "Templates",          false],
             ["copyButtons",      "Copy buttons",       false]
         ];
@@ -310,7 +313,8 @@
                 id: Date.now() % 100000,
                 firstName: "New", lastName: "Entry",
                 role: "guest", contribution: 99.9,
-                active: true, joinedAt: new Date().toISOString(), share: 0.5
+                active: true, joinedAt: new Date().toISOString(), share: 0.5,
+                email: "new.entry@example.org"
             });
             table.setData(data);
         };

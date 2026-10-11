@@ -93,9 +93,14 @@ const DEFAULT_FEATURES = {
     csvExport: false,
     grid: false,
     columnVisibility: false,
+    columnPinning: false,
     templates: false,
     copyButtons: true
 };
+
+// Pinned columns stop sticking once they would cover more than this share of
+// the visible width (the rest of the table must stay usable).
+const MAX_PINNED_SHARE = 0.6;
 
 class JwDataTable extends HTMLElement {
     constructor() {
@@ -118,6 +123,7 @@ class JwDataTable extends HTMLElement {
         this._lpCleanup = null;
         this._suppressClickUntil = 0;
         this._suppressContextUntil = 0;
+        this._resizeObserver = null;
         this._debouncedSearch = debounce((value) => {
             this._state.globalSearch = value;
             this._state.page = 1;
@@ -145,6 +151,7 @@ class JwDataTable extends HTMLElement {
         this._closeOverlay();
         this._cancelLongPress();
         this._teardownResponsive();
+        this._resizeObserver?.disconnect();
     }
 
     // ---- Public API ------------------------------------------------------
@@ -182,7 +189,8 @@ class JwDataTable extends HTMLElement {
             viewMode: initial.viewMode || (this._features.grid ? config.defaultView || "table" : "table"),
             hiddenColumns: new Set(
                 initial.hiddenColumns || this._columns.filter((c) => c.hidden).map((c) => c.key)
-            )
+            ),
+            pinnedColumns: (initial.pinnedColumns || this._columns.filter((c) => c.pinned).map((c) => c.key)).slice()
         };
 
         // An explicit view choice (config or initial state) pins the view and
@@ -287,6 +295,7 @@ class JwDataTable extends HTMLElement {
         if (partial.page) this._state.page = partial.page;
         if (partial.viewMode) { this._state.viewMode = partial.viewMode; this._viewModeUserSet = true; }
         if (partial.hiddenColumns) this._state.hiddenColumns = new Set(partial.hiddenColumns);
+        if (partial.pinnedColumns) this._state.pinnedColumns = partial.pinnedColumns.slice();
         this._deriveView();
         this._render();
         this._emitChange();
@@ -353,6 +362,7 @@ class JwDataTable extends HTMLElement {
                 filterable: this._featureColumn("filtering", col.filterable),
                 copyable: this._features?.copyButtons !== false && !!col.copyable,
                 hidden: !!col.hidden,
+                pinned: !!col.pinned,
                 link,
                 optionsMap
             };
@@ -364,8 +374,16 @@ class JwDataTable extends HTMLElement {
         return enabled && columnFlag !== false;
     }
 
+    // Visible columns in display order: pinned columns first (in pin order).
     _visibleColumns() {
-        return this._columns.filter((c) => !this._state.hiddenColumns.has(c.key));
+        const visible = this._columns.filter((c) => !this._state.hiddenColumns.has(c.key));
+        if (!this._features.columnPinning) return visible;
+        const pinned = this._state.pinnedColumns.map((key) => visible.find((c) => c.key === key)).filter(Boolean);
+        return pinned.length ? [...pinned, ...visible.filter((c) => !pinned.includes(c))] : visible;
+    }
+
+    _isPinned(column) {
+        return !!column && this._features.columnPinning && this._state.pinnedColumns.includes(column.key);
     }
 
     _deriveView() {
@@ -396,12 +414,7 @@ class JwDataTable extends HTMLElement {
         if (!root) { this._render(); return; }
         const focusKey = this._focusKey();
 
-        const newBody = el("div", { class: "k-dt-body", part: "body" });
-        if (this._config.maxHeight) newBody.style.maxHeight = this._config.maxHeight;
-        newBody.appendChild(
-            this._state.viewMode === "grid" && this._features.grid ? this._renderGrid() : this._renderTable()
-        );
-        root.querySelector(".k-dt-body").replaceWith(newBody);
+        root.querySelector(".k-dt-body").replaceWith(this._renderBody());
 
         if (this._features.pagination) {
             const newFooter = this._renderFooter();
@@ -409,6 +422,7 @@ class JwDataTable extends HTMLElement {
             if (oldFooter) oldFooter.replaceWith(newFooter);
             else root.appendChild(newFooter);
         }
+        this._observeLayout();
         if (this._focusIsLost()) this._restoreFocus(focusKey);
     }
 
@@ -438,19 +452,88 @@ class JwDataTable extends HTMLElement {
             });
         }
         root.appendChild(this._renderToolbar());
-
-        const body = el("div", { class: "k-dt-body", part: "body" });
-        if (this._config.maxHeight) body.style.maxHeight = this._config.maxHeight;
-        if (this._state.viewMode === "grid" && this._features.grid) {
-            body.appendChild(this._renderGrid());
-        } else {
-            body.appendChild(this._renderTable());
-        }
-        root.appendChild(body);
+        // The viewport stays put while the body inside is replaced; it draws
+        // the horizontal scroll shadows.
+        root.appendChild(el("div", { class: "k-dt-viewport" }, [this._renderBody()]));
 
         if (this._features.pagination) root.appendChild(this._renderFooter());
         style.after(root);
+        this._observeLayout();
         this._restoreFocus(focusKey);
+    }
+
+    _renderBody() {
+        const body = el("div", { class: "k-dt-body", part: "body", onscroll: () => this._updateScrollShadows() });
+        if (this._config.maxHeight) body.style.maxHeight = this._config.maxHeight;
+        body.appendChild(this._state.viewMode === "grid" && this._features.grid ? this._renderGrid() : this._renderTable());
+        return body;
+    }
+
+    // ---- Layout: pinned columns & scroll shadows ---------------------------
+
+    // Lays out pinned columns now and again whenever the body or table resizes.
+    _observeLayout() {
+        this._layoutPinned();
+        if (typeof ResizeObserver !== "function") return;
+        this._resizeObserver ??= new ResizeObserver(() => this._layoutPinned());
+        this._resizeObserver.disconnect();
+        const body = this.shadow.querySelector(".k-dt-body");
+        const table = this.shadow.querySelector(".k-dt-table");
+        if (body) this._resizeObserver.observe(body);
+        if (table) this._resizeObserver.observe(table);
+    }
+
+    // Pinned cells are `position: sticky`; each one's `left` is the summed
+    // width of the pinned columns before it (`--k-dt-pin-<index>` on the table).
+    _layoutPinned() {
+        const viewport = this.shadow.querySelector(".k-dt-viewport");
+        if (!viewport) return;
+        const body = viewport.querySelector(".k-dt-body");
+        const table = viewport.querySelector(".k-dt-table");
+        let offset = 0;
+        let suspended = false;
+        if (table) {
+            const pinned = Array.from(table.tHead.rows[0].cells).filter((th) => th.classList.contains("k-dt-pinned"));
+            pinned.forEach((th, i) => {
+                table.style.setProperty(`--k-dt-pin-${i}`, `${offset}px`);
+                offset += th.getBoundingClientRect().width;
+            });
+            suspended = pinned.length > 0 && offset > body.clientWidth * MAX_PINNED_SHARE;
+            table.classList.toggle("k-dt-pins-suspended", suspended);
+        }
+        this._pinsSuspended = suspended;
+        viewport.classList.toggle("has-pins", offset > 0 && !suspended);
+        this._updateScrollShadows();
+    }
+
+    // Shadows on the edges that have more content to scroll to.
+    _updateScrollShadows() {
+        const viewport = this.shadow.querySelector(".k-dt-viewport");
+        const body = viewport?.querySelector(".k-dt-body");
+        if (!body) return;
+        const max = body.scrollWidth - body.clientWidth;
+        viewport.classList.toggle("is-overflow-left", body.scrollLeft > 1);
+        viewport.classList.toggle("is-overflow-right", body.scrollLeft < max - 1);
+    }
+
+    // Marks the cell at `index` as pinned (sticky offset + last-pinned edge).
+    _pinCell(cell, index, columns) {
+        if (!this._isPinned(columns[index])) return cell;
+        cell.classList.add("k-dt-pinned");
+        cell.style.setProperty("--k-dt-pin-left", `var(--k-dt-pin-${index})`);
+        if (!this._isPinned(columns[index + 1])) cell.classList.add("k-dt-pinned-last");
+        return cell;
+    }
+
+    _togglePin(key, pinned) {
+        this._state.pinnedColumns = this._state.pinnedColumns.filter((k) => k !== key);
+        if (pinned) this._state.pinnedColumns.push(key);
+        this._render();
+        this._emitChange();
+        const label = this._columns.find((c) => c.key === key)?.label ?? key;
+        // The chooser's toggle button announces its own state; everything else needs a message.
+        if (pinned && this._pinsSuspended) this._announce(this._t.pinsSuspended(label));
+        else if (!this._overlay) this._announce(pinned ? this._t.columnPinned(label) : this._t.columnUnpinned(label));
     }
 
     _renderToolbar() {
@@ -562,7 +645,7 @@ class JwDataTable extends HTMLElement {
         // Header
         const thead = el("thead");
         const headRow = el("tr");
-        columns.forEach((column) => headRow.appendChild(this._renderHeaderCell(column)));
+        columns.forEach((column, i) => headRow.appendChild(this._pinCell(this._renderHeaderCell(column), i, columns)));
         thead.appendChild(headRow);
         table.appendChild(thead);
 
@@ -606,6 +689,7 @@ class JwDataTable extends HTMLElement {
         }
         table.tBodies[0].replaceWith(this._renderTbody(columns));
         if (this._features.pagination) this.shadow.querySelector(".k-dt-footer")?.replaceWith(this._renderFooter());
+        this._layoutPinned();
         if (this._focusIsLost()) this._restoreFocus(focusKey);
     }
 
@@ -666,6 +750,22 @@ class JwDataTable extends HTMLElement {
             }, [iconEl("list-filter")]));
         }
 
+        if (this._isPinned(column)) {
+            inner.appendChild(el("button", {
+                type: "button",
+                class: "k-dt-pin-btn",
+                "data-fk": `pin:${column.key}`,
+                title: this._t.unpinColumn,
+                "aria-label": this._t.unpinColumnNamed(column.label),
+                onclick: () => {
+                    this._togglePin(column.key, false);
+                    // The column moves; keep focus on its header.
+                    this._restoreFocus(this.shadow.querySelector(`[data-fk="sort:${CSS.escape(column.key)}"]`)
+                        ? `sort:${column.key}` : `filter:${column.key}`);
+                }
+            }, [iconEl("pin")]));
+        }
+
         th.appendChild(inner);
 
         this._bindContextTrigger(th, () => ({ column, row: null, value: null }));
@@ -685,7 +785,7 @@ class JwDataTable extends HTMLElement {
                 this._config.onRowClick(row, index);
             });
         }
-        columns.forEach((column) => tr.appendChild(this._renderCell(column, row, index)));
+        columns.forEach((column, i) => tr.appendChild(this._pinCell(this._renderCell(column, row, index), i, columns)));
         return tr;
     }
 
@@ -1210,8 +1310,13 @@ class JwDataTable extends HTMLElement {
             items.push({ label: this._t.copyColumn, icon: "copy", onSelect: () => this._copyColumn(column) });
         }
 
+        if (this._features.columnVisibility || this._features.columnPinning) items.push({ separator: true });
+        if (this._features.columnPinning) {
+            items.push(this._isPinned(column)
+                ? { label: this._t.unpinColumn, icon: "pin-off", onSelect: () => this._togglePin(column.key, false) }
+                : { label: this._t.pinColumn, icon: "pin", onSelect: () => this._togglePin(column.key, true) });
+        }
         if (this._features.columnVisibility) {
-            items.push({ separator: true });
             items.push({ label: this._t.hideColumn, icon: "eye-off", onSelect: () => this._toggleColumn(column.key, false) });
         }
 
@@ -1493,14 +1598,28 @@ class JwDataTable extends HTMLElement {
         const list = el("div", { class: "k-dt-check-list" });
         this._columns.forEach((column) => {
             const visible = !this._state.hiddenColumns.has(column.key);
-            list.appendChild(el("label", { class: "k-dt-check" }, [
+            const check = el("label", { class: "k-dt-check" }, [
                 el("input", {
                     type: "checkbox",
                     checked: visible,
                     onchange: (e) => this._toggleColumn(column.key, e.target.checked)
                 }),
                 el("span", { class: "k-dt-check-label", text: column.label })
-            ]));
+            ]);
+            if (!this._features.columnPinning) { list.appendChild(check); return; }
+            // Toggle button: constant name, state in aria-pressed.
+            const pin = el("button", {
+                type: "button",
+                class: "k-dt-pin-toggle",
+                title: this._t.pinColumn,
+                "aria-label": this._t.pinColumnNamed(column.label),
+                "aria-pressed": String(this._isPinned(column)),
+                onclick: () => {
+                    this._togglePin(column.key, !this._isPinned(column));
+                    pin.setAttribute("aria-pressed", String(this._isPinned(column)));
+                }
+            }, [iconEl("pin")]);
+            list.appendChild(el("div", { class: "k-dt-col-row" }, [check, pin]));
         });
         panel.appendChild(list);
         this._showOverlay(panel, anchor);
@@ -1789,7 +1908,8 @@ class JwDataTable extends HTMLElement {
             globalSearch: this._state.globalSearch,
             pageSize: this._state.pageSize,
             viewMode: this._state.viewMode,
-            hiddenColumns: Array.from(this._state.hiddenColumns)
+            hiddenColumns: Array.from(this._state.hiddenColumns),
+            pinnedColumns: this._state.pinnedColumns.slice()
         };
         if (includePage) state.page = this._state.page;
         return state;

@@ -10,7 +10,8 @@ written in Vanilla JS (ES modules, Shadow DOM). No external dependencies.
 - **Filters** – value filter (pick values) and pattern filter (type-specific operators)
 - **Quick filters** – right-click a cell → “Filter by value” / “Exclude value”
 - **Global search** – full-text across searchable columns
-- **Context menu** – sort, filter, copy (cell/row/column), hide column, export
+- **Context menu** – sort, filter, copy (cell/row/column), pin/hide column, export
+- **Column pinning** – pin any columns to the left edge (sticky while scrolling horizontally); scroll shadows show where more content is
 - **CSV export** – in the browser, Excel-friendly (with BOM)
 - **Grid / card view** – compact cards as an alternative to the table
 - **Mobile First / responsive** – compact, touch-optimized layout; auto-switches to card view on small screens; bottom-sheet panels; long-press context menu
@@ -33,17 +34,18 @@ written in Vanilla JS (ES modules, Shadow DOM). No external dependencies.
 7. [Links behind values](#links-behind-values)
 8. [Enabling / disabling features](#enabling--disabling-features)
 9. [Filters](#filters)
-10. [Templates & storage adapter](#templates--storage-adapter)
-11. [Events](#events)
-12. [Instance API](#instance-api)
-13. [Theming & styling](#theming--styling)
+10. [Column pinning](#column-pinning)
+11. [Templates & storage adapter](#templates--storage-adapter)
+12. [Events](#events)
+13. [Instance API](#instance-api)
+14. [Theming & styling](#theming--styling)
     - [Icons](#icons)
-14. [Responsive & touch](#responsive--touch)
-15. [i18n / Localization](#i18n--localization)
-16. [Accessibility](#accessibility)
-17. [Demo](#demo)
-18. [Development & tests](#development--tests)
-19. [Releases & build](#releases--build)
+15. [Responsive & touch](#responsive--touch)
+16. [i18n / Localization](#i18n--localization)
+17. [Accessibility](#accessibility)
+18. [Demo](#demo)
+19. [Development & tests](#development--tests)
+20. [Releases & build](#releases--build)
 
 ---
 
@@ -156,7 +158,7 @@ table.configure({ /* … */ });
 | `locale` | `string` | `"en-US"` | BCP-47 locale — drives number/date formatting, sort, **and UI language** (see [i18n](#i18n--localization)) |
 | `features` | `object` | all on | Toggle features (see below) |
 | `pagination` | `object` | — | `{ pageSize, pageSizeOptions }` |
-| `initial` | `object` | — | `{ sort, filters, globalSearch, page, pageSize, viewMode, hiddenColumns }` |
+| `initial` | `object` | — | `{ sort, filters, globalSearch, page, pageSize, viewMode, hiddenColumns, pinnedColumns }` |
 | `defaultView` | `"table" \| "grid"` | `"table"` | Initial view (pins the view — disables auto-switching) |
 | `grid` | `object` | — | `{ minWidth, titleColumn }` |
 | `responsive` | `object` | *(on)* | `{ enabled, breakpoint, autoGridView }` — see [Responsive & touch](#responsive--touch) |
@@ -191,6 +193,7 @@ Each column:
 | `align` | `"left" \| "right" \| "center"` | Alignment (type-dependent default) |
 | `width` | `string` | Fixed width, e.g. `"80px"` |
 | `hidden` | `boolean` | Initially hidden |
+| `pinned` | `boolean` | Initially pinned to the left edge (needs `features.columnPinning`; `initial.pinnedColumns` wins) |
 | `sortable` | `boolean` | Allow sort (default `true`) |
 | `filterable` | `boolean` | Allow filter (default `true`) |
 | `searchable` | `boolean` | Include in global search (default `true`) |
@@ -310,6 +313,7 @@ by default.
 | `globalSearch` | off | Full-text search box in the toolbar |
 | `grid` | off | Table ↔ card/grid view toggle (also drives responsive auto-view) |
 | `columnVisibility` | off | Show/hide columns chooser |
+| `columnPinning` | off | Pin columns to the left edge (context menu, column chooser) |
 | `templates` | off | Save/load views (needs storage) |
 | `csvExport` | off | CSV export button |
 
@@ -322,6 +326,7 @@ features: {
     globalSearch: true,
     grid: true,
     columnVisibility: true,
+    columnPinning: true,
     templates: true,
     csvExport: true
 }
@@ -367,6 +372,35 @@ table.setState({ filters: {
 }});
 table.clearFilters();
 ```
+
+---
+
+## Column pinning
+
+With `features.columnPinning`, users can pin any column to the left edge. Pinned
+columns move to the front (in the order they were pinned) and stay in place
+(`position: sticky`) while the rest of the table scrolls horizontally. Each
+pinned column's offset is the summed width of the pinned columns before it; it
+is re-measured whenever the table or its container resizes.
+
+- **Pin / unpin:** context menu of a header or cell (“Pin column” / “Unpin
+  column”), or the pin toggle next to each column in the column chooser
+  (`features.columnVisibility`). Pinned columns show a pin button in their
+  header that unpins them.
+- **Start state:** `pinned: true` on a column, or `initial.pinnedColumns: ["key", …]`.
+- **State:** `pinnedColumns` is part of `getState()` / `setState()` and of
+  saved templates.
+- **Space limit:** when the pinned columns would take more than 60 % of the
+  visible width (e.g. on a phone), they temporarily scroll with the table
+  instead of covering it; pinning announces this.
+
+Horizontal **scroll shadows** appear on the edges that have more content
+(with pinned columns, on the edge of the last pinned column). This is
+independent of pinning and always on.
+
+Pinned cells need an opaque background. They use `--k-color-page` (header:
+`--k-color-surface`); if you color rows via `rowClass`, set the color on the
+cells (`.my-row > td`), not on the `<tr>`, so pinned cells match.
 
 ---
 
@@ -442,7 +476,8 @@ All events are `composed` and `bubbles`.
     pageSize: 25,
     page: 1,
     viewMode: "table",            // or "grid"
-    hiddenColumns: ["internalId"]
+    hiddenColumns: ["internalId"],
+    pinnedColumns: ["name"]       // display order of the pinned columns
 }
 ```
 
@@ -643,6 +678,10 @@ sort order instead of re-reading the whole table.
 - Icon-only buttons have an `aria-label` (per column where it matters, e.g.
   “Filter: Name”, “Copy value: Name”); icons are decorative (`aria-hidden`).
 - The table/grid toggle is an action button whose label names the view it switches to.
+- Column pinning: the pin toggles in the column chooser are toggle buttons
+  (`aria-pressed`, named “Pin column: <column>”); the pin button in a pinned
+  column's header is named “Unpin column: <column>”. After unpinning from the
+  header, focus moves to the column's header button at its new position.
 - Pagination is a `navigation` landmark; page buttons are named “Page n”, the
   current one has `aria-current="page"`.
 - Actions menu: `role="menu"` / `menuitem`, named “Actions: <column>”.
@@ -657,7 +696,8 @@ shared by all tables — live regions inside shadow roots are not reliably
 announced by screen readers. While a panel (modal dialog) is open, messages go
 to a live region inside the panel instead. Messages: number of results after
 search/filter, sort order, page range, “Copied to clipboard: <value>”, hidden
-column, saved/loaded template. Repeated identical messages are announced again.
+column, pinned/unpinned column (including when there is not enough room to keep
+pinned columns in place), saved/loaded template. Repeated identical messages are announced again.
 All texts come from `i18n.js`.
 
 The result count of the global search is announced once typing pauses (1 s),
