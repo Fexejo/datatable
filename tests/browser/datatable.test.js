@@ -1031,3 +1031,34 @@ test("responsive.mobileView picks the compact view below the breakpoint", async 
     await input.viewport(1280, 900);
     await waitFor(() => $(table, "table:not(.k-dt-table--compact)"), { message: "expected full table on desktop" });
 }, { cdp: true });
+
+// ---- In-place column updates & row layout ---------------------------------------
+
+test("pinning keeps the table and the focused header button (no re-announced table)", async () => {
+    const table = mount({ features: { columnPinning: true, sorting: true }, initial: { pinnedColumns: ["joined"] } });
+    const tableEl = $(table, "table");
+    const sortButton = $(table, '[data-fk="sort:joined"]');
+    $(table, '[data-fk="pin:joined"]').focus();
+    await input.press("Enter");
+    assert.equal($(table, "table"), tableEl, "same table element");
+    assert.equal(deepActiveElement(), sortButton, "focus on the same sort button");
+    assert.equal(headerKeys(table).at(-1), "joined", "column moved back");
+
+    rightClick($(table, '[data-fk="cell:0:fee"]'));
+    menuItem(table, "Pin column").click();
+    assert.equal($(table, "table"), tableEl, "context menu: same table element");
+    assert.equal(headerKeys(table)[0], "fee");
+    assert.ok($(table, '[data-fk="pin:fee"]'), "unpin button added in place");
+}, { cdp: true });
+
+test("hiding and showing a column keeps the table element", () => {
+    const table = mount({ features: { columnVisibility: true } });
+    const tableEl = $(table, "table");
+    $(table, '[data-fk="tb:columns"]').click();
+    const box = $$(table, '.k-dt-overlay input[type="checkbox"]')[2];
+    box.click();
+    assert.deepEqual(headerKeys(table), ["id", "name", "active", "joined"]);
+    box.click();
+    assert.deepEqual(headerKeys(table), COLUMNS.map((c) => c.key));
+    assert.equal($(table, "table"), tableEl);
+});

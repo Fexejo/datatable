@@ -750,9 +750,11 @@ or touch also works with the keyboard alone.
 
 Focus is kept across re-renders (sorting, filtering, paging, …): the same
 control — or its closest equivalent, e.g. the current page when “next” becomes
-disabled — gets focus again. Sorting updates the table in place, so the focused
-header button stays the same element and screen readers only announce the new
-sort order instead of re-reading the whole table.
+disabled — gets focus again. Sorting, pinning/unpinning and showing/hiding
+columns update the table in place (header cells are reused and reordered, the
+`<table>` element stays), so the focused header button stays the same element
+and screen readers only announce the change instead of re-reading the whole
+table.
 
 **Semantics**
 

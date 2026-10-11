@@ -568,7 +568,7 @@ class JwDataTable extends HTMLElement {
     _togglePin(key, pinned) {
         this._state.pinnedColumns = this._state.pinnedColumns.filter((k) => k !== key);
         if (pinned) this._state.pinnedColumns.push(key);
-        this._render();
+        this._updateColumnsView();
         this._emitChange();
         const labelOf = (k) => this._columns.find((c) => c.key === k)?.label ?? k;
         const label = labelOf(key);
@@ -752,6 +752,54 @@ class JwDataTable extends HTMLElement {
         if (this._focusIsLost()) this._restoreFocus(focusKey);
     }
 
+    // Column changes (pin, show/hide) also update the existing table in place:
+    // header cells are reused and reordered around the focused one (moving a
+    // focused element would drop focus), so the table and the focused control
+    // stay the same elements and screen readers don't re-announce the table.
+    _updateColumnsView() {
+        const table = this.shadow.querySelector(".k-dt-table");
+        if (!table) { this._render(); return; }   // card view: rebuilt as a whole
+        this._deriveView();
+        const focusKey = this._focusKey();
+        const columns = this._tableColumns();
+        const headRow = table.tHead.rows[0];
+        const existing = new Map(Array.from(headRow.cells).filter((th) => th.dataset.key).map((th) => [th.dataset.key, th]));
+        const cells = columns.map((column, i) => {
+            const th = existing.get(column.key) || this._renderHeaderCell(column);
+            existing.delete(column.key);
+            this._setHeaderPin(th, column, i, columns);
+            return th;
+        });
+        const detailsTh = headRow.querySelector(".k-dt-details-col");
+        if (detailsTh) cells.push(detailsTh);
+        existing.forEach((th) => th.remove());
+
+        const active = deepActiveElement();
+        const anchor = cells.find((th) => th.contains(active));
+        const at = cells.indexOf(anchor);
+        cells.forEach((th, i) => {
+            if (i < at) headRow.insertBefore(th, anchor);
+            else if (i > at) headRow.appendChild(th);
+        });
+
+        table.tBodies[0].replaceWith(this._renderTbody(columns));
+        this._layoutPinned();
+        if (this._focusIsLost()) this._restoreFocus(focusKey);
+    }
+
+    // Brings a reused header cell's pinned state (sticky offset, unpin button) up to date.
+    _setHeaderPin(th, column, index, columns) {
+        th.classList.remove("k-dt-pinned", "k-dt-pinned-last");
+        th.style.removeProperty("--k-dt-pin-left");
+        this._pinCell(th, index, columns);
+        const button = th.querySelector(".k-dt-pin-btn");
+        if (this._isPinned(column)) {
+            if (!button) th.querySelector(".k-dt-th-inner").appendChild(this._unpinButton(column));
+        } else {
+            button?.remove();
+        }
+    }
+
     _ariaSort(column) {
         const sort = this._state.sort.find((s) => s.key === column.key);
         return sort ? (sort.direction === "asc" ? "ascending" : "descending") : "none";
@@ -809,26 +857,30 @@ class JwDataTable extends HTMLElement {
             }, [iconEl("list-filter")]));
         }
 
-        if (this._isPinned(column)) {
-            inner.appendChild(el("button", {
-                type: "button",
-                class: "k-dt-pin-btn",
-                "data-fk": `pin:${column.key}`,
-                title: this._t.unpinColumn,
-                "aria-label": this._t.unpinColumnNamed(column.label),
-                onclick: () => {
-                    this._togglePin(column.key, false);
-                    // The column moves; keep focus on its header.
-                    this._restoreFocus(this.shadow.querySelector(`[data-fk="sort:${CSS.escape(column.key)}"]`)
-                        ? `sort:${column.key}` : `filter:${column.key}`);
-                }
-            }, [iconEl("pin")]));
-        }
+        if (this._isPinned(column)) inner.appendChild(this._unpinButton(column));
 
         th.appendChild(inner);
 
         this._bindContextTrigger(th, () => ({ column, row: null, value: null }));
         return th;
+    }
+
+    // Shown in the header of pinned columns.
+    _unpinButton(column) {
+        return el("button", {
+            type: "button",
+            class: "k-dt-pin-btn",
+            "data-fk": `pin:${column.key}`,
+            title: this._t.unpinColumn,
+            "aria-label": this._t.unpinColumnNamed(column.label),
+            onclick: (event) => {
+                // This button goes away: move focus to the column's header
+                // button first, so it stays on the same element while the
+                // column moves.
+                event.currentTarget.closest("th").querySelector("button.k-dt-th-label, .k-dt-filter-btn")?.focus();
+                this._togglePin(column.key, false);
+            }
+        }, [iconEl("pin")]);
     }
 
     _renderRow(row, index, columns) {
@@ -1851,7 +1903,7 @@ class JwDataTable extends HTMLElement {
     _toggleColumn(key, visible) {
         if (visible) this._state.hiddenColumns.delete(key);
         else this._state.hiddenColumns.add(key);
-        this._render();
+        this._updateColumnsView();
         this._emitChange();
         // The chooser's checkbox announces itself; the context menu needs a message.
         if (!visible && !this._overlay) {
