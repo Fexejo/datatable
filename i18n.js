@@ -55,6 +55,7 @@ export const LOCALES = {
         clearColumnFilter: "Clear column filter",
         copyCell: "Copy cell",
         copyRow: "Copy row",
+        showDetails: "Show details",
         copyColumn: "Copy column",
         hideColumn: "Hide column",
         pinColumn: "Pin column",
@@ -77,6 +78,17 @@ export const LOCALES = {
 
         // Column chooser panel
         columnsPanel: "Columns",
+
+        // Record details dialog
+        details: "Details",
+        detailsTitle: (title) => `Details: ${title}`,
+        recordPosition: (n, total) => `Record ${n} of ${total}`,
+        previous: "Previous",
+        next: "Next",
+        prevRecord: "Previous record",
+        nextRecord: "Next record",
+        openRecord: "Open",
+        close: "Close",
 
         // Templates panel
         templatesPanel: "View templates",
@@ -184,6 +196,7 @@ export const LOCALES = {
         clearColumnFilter: "Spaltenfilter zurücksetzen",
         copyCell: "Zelle kopieren",
         copyRow: "Zeile kopieren",
+        showDetails: "Details anzeigen",
         copyColumn: "Spalte kopieren",
         hideColumn: "Spalte ausblenden",
         pinColumn: "Spalte fixieren",
@@ -206,6 +219,17 @@ export const LOCALES = {
 
         // Column chooser panel
         columnsPanel: "Spalten",
+
+        // Record details dialog
+        details: "Details",
+        detailsTitle: (title) => `Details: ${title}`,
+        recordPosition: (n, total) => `Datensatz ${n} von ${total}`,
+        previous: "Zurück",
+        next: "Weiter",
+        prevRecord: "Vorheriger Datensatz",
+        nextRecord: "Nächster Datensatz",
+        openRecord: "Öffnen",
+        close: "Schließen",
 
         // Templates panel
         templatesPanel: "Ansichts-Vorlagen",

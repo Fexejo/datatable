@@ -94,6 +94,7 @@ const DEFAULT_FEATURES = {
     grid: false,
     columnVisibility: false,
     columnPinning: false,
+    rowDetails: false,
     templates: false,
     copyButtons: true
 };
@@ -1286,6 +1287,11 @@ class JwDataTable extends HTMLElement {
         const returnKey = this._focusKey();
         const group = typeGroup(column.type);
 
+        if (row && this._detailsEnabled()) {
+            items.push({ label: this._t.showDetails, icon: "maximize-2", onSelect: () => this._openDetails(row, { returnKey }) });
+            items.push({ separator: true });
+        }
+
         if (column.sortable) {
             items.push({ label: this._t.sortAsc, icon: "arrow-up", onSelect: () => this._setSortDirection(column.key, "asc") });
             items.push({ label: this._t.sortDesc, icon: "arrow-down", onSelect: () => this._setSortDirection(column.key, "desc") });
@@ -1612,6 +1618,112 @@ class JwDataTable extends HTMLElement {
         this._announceResults();
     }
 
+    // ---- Record details ------------------------------------------------------
+
+    _detailsEnabled() {
+        return !!this._features.rowDetails;
+    }
+
+    // All columns of a record: visible ones in display order, then hidden ones.
+    _detailColumns() {
+        const visible = this._visibleColumns();
+        return [...visible, ...this._columns.filter((c) => !visible.includes(c))];
+    }
+
+    // Short name of a record: the card title column, else the first visible column.
+    _recordTitle(row) {
+        const key = this._config.grid?.titleColumn;
+        const column = (key && this._columns.find((c) => c.key === key)) || this._visibleColumns()[0];
+        return column ? toText(getCellValue(row, column), column, this._config.locale, row) : "";
+    }
+
+    // Modal dialog with every field of `row`. Previous/next walk through all
+    // filtered and sorted rows (across pages; the table follows along so focus
+    // returns to the right row when the dialog closes).
+    _openDetails(row, { returnKey = this._focusKey(), anchor = null } = {}) {
+        closeContextMenu();
+        let current = this._viewData.indexOf(row);
+        if (current < 0) return;
+
+        const head = el("h2", { class: "k-dt-panel-head", tabIndex: -1, "data-autofocus": "" });
+        const position = el("p", { class: "k-dt-details-pos" });
+        const body = el("div", { class: "k-dt-details-body" });
+        const navButton = (icon, text, label, step) => el("button", {
+            type: "button",
+            class: "k-dt-btn",
+            "aria-label": label,
+            onclick: () => show(current + step, true)
+        }, icon === "chevron-left" ? [iconEl(icon), el("span", { text })] : [el("span", { text }), iconEl(icon)]);
+        const prev = navButton("chevron-left", this._t.previous, this._t.prevRecord, -1);
+        const next = navButton("chevron-right", this._t.next, this._t.nextRecord, 1);
+        const actions = el("div", { class: "k-dt-panel-actions k-dt-details-actions" }, [prev, next]);
+        if (typeof this._config.onRowClick === "function") {
+            actions.prepend(el("button", {
+                type: "button",
+                class: "k-dt-btn k-dt-btn-primary k-dt-details-open",
+                text: this._t.openRecord,
+                onclick: () => {
+                    const record = this._viewData[current];
+                    const pageIndex = this._pageData.indexOf(record);
+                    this._closeOverlay();
+                    this._config.onRowClick(record, pageIndex);
+                }
+            }));
+        }
+
+        const show = (index, navigated) => {
+            const total = this._viewData.length;
+            current = clamp(index, 0, total - 1);
+            const record = this._viewData[current];
+            const title = this._recordTitle(record);
+            head.textContent = title ? this._t.detailsTitle(title) : this._t.details;
+            position.textContent = this._t.recordPosition(current + 1, total);
+            body.replaceChildren(this._renderFields(this._detailColumns(), record, null));
+            prev.disabled = current <= 0;
+            next.disabled = current >= total - 1;
+            if (!navigated) return;
+            // Focus stays on the pressed button, or moves to the other one at an end.
+            if (deepActiveElement()?.disabled || !deepActiveElement()) (prev.disabled ? next : prev).focus();
+            this._followDetails(record);
+            this._announce(title ? `${position.textContent}: ${title}` : position.textContent);
+        };
+
+        const panel = el("div", { class: "k-dt-panel k-dt-details" }, [
+            el("div", { class: "k-dt-details-head" }, [
+                head,
+                el("button", {
+                    type: "button",
+                    class: "k-dt-icon-btn",
+                    title: this._t.close,
+                    "aria-label": this._t.close,
+                    onclick: () => this._closeOverlay()
+                }, [iconEl("x")])
+            ]),
+            position,
+            body,
+            actions
+        ]);
+        show(current, false);
+        this._showOverlay(panel, anchor, returnKey, { centered: true });
+    }
+
+    // Shows the page that contains `record` and points the dialog's focus
+    // return at that record's row/card.
+    _followDetails(record) {
+        if (this._features.pagination) {
+            const page = Math.floor(this._viewData.indexOf(record) / this._state.pageSize) + 1;
+            if (page !== this._state.page) {
+                this._state.page = page;
+                this._updateView();
+                this._emitChange();
+            }
+        }
+        const pageIndex = this._pageData.indexOf(record);
+        const retarget = (key) => key?.replace(/^(cell|card|details):\d+/, (_, kind) => `${kind}:${pageIndex}`);
+        this._overlayReturnKey = retarget(this._overlayReturnKey);
+        this._rovingKey = retarget(this._rovingKey);
+    }
+
     // ---- Column visibility & templates -----------------------------------
 
     _openColumnChooser(anchor) {
@@ -1726,7 +1838,9 @@ class JwDataTable extends HTMLElement {
     // Panels are modal dialogs: focus moves in (to `[data-autofocus]` or the
     // first control), Tab cycles inside, Escape closes, and focus returns to
     // the opener (`returnKey`, default: the element focused at open time).
-    _showOverlay(panel, anchor, returnKey = this._focusKey()) {
+    // `centered`: a dialog in the middle of the screen (desktop) instead of a
+    // popover at the anchor; on mobile every panel is a bottom sheet.
+    _showOverlay(panel, anchor, returnKey = this._focusKey(), { centered = false } = {}) {
         this._closeOverlay();
         closeContextMenu();
         panel.classList.add("k-dt-overlay");
@@ -1742,6 +1856,9 @@ class JwDataTable extends HTMLElement {
         if (this._isMobile()) {
             // Bottom sheet: CSS handles positioning, no anchoring needed.
             panel.classList.add("k-dt-overlay--sheet");
+            this.shadow.appendChild(panel);
+        } else if (centered) {
+            panel.classList.add("k-dt-overlay--dialog");
             this.shadow.appendChild(panel);
         } else {
             // Position synchronously so the panel can take focus right away.

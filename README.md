@@ -11,6 +11,7 @@ written in Vanilla JS (ES modules, Shadow DOM). No external dependencies.
 - **Quick filters** – right-click a cell → “Filter by value” / “Exclude value”
 - **Global search** – full-text across searchable columns
 - **Context menu** – sort, filter, copy (cell/row/column), pin/hide column, export
+- **Record details** – dialog with all fields of a row (including hidden columns), previous/next through all results
 - **Column pinning** – pin any columns to the left edge (sticky while scrolling horizontally); scroll shadows show where more content is
 - **CSV export** – in the browser, Excel-friendly (with BOM)
 - **Grid / card view** – cards with label/value pairs as an alternative to the table (two columns, stacked on narrow cards)
@@ -330,6 +331,7 @@ by default.
 | `grid` | off | Table ↔ card/grid view toggle (also drives responsive auto-view) |
 | `columnVisibility` | off | Show/hide columns chooser |
 | `columnPinning` | off | Pin columns to the left edge (context menu, column chooser) |
+| `rowDetails` | off | “Show details” in the context menu of cells/cards: dialog with all fields of the record |
 | `templates` | off | Save/load views (needs storage) |
 | `csvExport` | off | CSV export button |
 
@@ -343,6 +345,7 @@ features: {
     grid: true,
     columnVisibility: true,
     columnPinning: true,
+    rowDetails: true,
     templates: true,
     csvExport: true
 }
@@ -417,6 +420,23 @@ independent of pinning and always on.
 Pinned cells need an opaque background. They use `--k-color-page` (header:
 `--k-color-surface`); if you color rows via `rowClass`, set the color on the
 cells (`.my-row > td`), not on the `<tr>`, so pinned cells match.
+
+---
+
+## Record details
+
+With `features.rowDetails`, the context menu of every cell and card has
+**“Show details”**. It opens a modal dialog (centered on desktop, bottom sheet on
+mobile) with every field of the record as label/value pairs — visible columns in
+display order, then hidden ones. Values are formatted as in the table, links and
+copy buttons work.
+
+- **Previous / Next** walk through all filtered and sorted rows, across pages:
+  the table turns the page along, and when the dialog closes, focus returns to
+  the shown record's row (or card).
+- **Open** (only with `onRowClick`) closes the dialog and calls
+  `onRowClick(row, index)` for the shown record.
+- The dialog title uses `grid.titleColumn`, else the first visible column.
 
 ---
 
@@ -674,7 +694,8 @@ or touch also works with the keyboard alone.
 | Cell, card, header button | `Shift+F10` or context-menu key | Open the actions menu (same as right-click / long-press) |
 | Actions menu | `↑` `↓`, `Home` / `End`, `Enter` / `Space`, `Esc` / `Tab` | Navigate, activate, close (focus returns to where the menu was opened) |
 | Sort header | `Enter` / `Space` (`Shift+Enter` adds a sort key) | Sort |
-| Panels (filter, columns, templates) | `Tab` / `Shift+Tab`, `Esc` | Focus stays inside the panel; `Esc` closes and returns focus to the button that opened it |
+| Panels (filter, columns, templates, details) | `Tab` / `Shift+Tab`, `Esc` | Focus stays inside the panel; `Esc` closes and returns focus to the button that opened it |
+| Details dialog | `Shift+F10` on a cell/card → “Show details”; `Enter` on “Previous” / “Next” | Opens with focus on the dialog heading; focus stays on the pressed button (moves to the other one at the first/last record); closing returns focus to the shown record |
 | Filter panel tabs | `←` `→`, `Home` / `End` | Switch between “Values” and “Pattern” |
 | Filter panel, “Values” tab | `Enter` in the search field or on a search-result option | Apply (same as the “Apply” button); the search-result options are radio buttons (`↑` `↓`) |
 | Templates panel | `Enter` in the name field | Save |
@@ -705,6 +726,9 @@ sort order instead of re-reading the whole table.
 - Panels are modal dialogs (`role="dialog"`, `aria-modal`, named by their
   heading); opener buttons carry `aria-haspopup="dialog"` and `aria-expanded`.
   The filter panel uses the tabs pattern (`tablist` / `tab` / `tabpanel`).
+- Details dialog: named “Details: <record>” by its `<h2>` heading, fields as a
+  description list, “Previous” / “Next” named “Previous record” / “Next
+  record”; moving to another record announces “Record n of total: <record>”.
 - All inputs and selects have accessible names.
 
 **Status messages** (polite live region, WCAG 4.1.3). The region is a single
@@ -714,7 +738,7 @@ announced by screen readers. While a panel (modal dialog) is open, messages go
 to a live region inside the panel instead. Messages: number of results after
 search/filter, sort order, page range, “Copied to clipboard: <value>”, hidden
 column, pinned/unpinned column (including when there is not enough room to keep
-pinned columns in place), saved/loaded template. Repeated identical messages are announced again.
+pinned columns in place), record shown in the details dialog, saved/loaded template. Repeated identical messages are announced again.
 All texts come from `i18n.js`.
 
 The result count of the global search is announced once typing pauses (1 s),

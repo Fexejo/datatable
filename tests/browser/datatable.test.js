@@ -856,3 +856,76 @@ test("cards list their fields as label/value pairs (dl/dt/dd)", () => {
     assert.deepEqual(labels, ["ID", "Fee", "Active", "Joined"], "title column is not repeated");
     assert.equal(card.querySelector("dl > div > dd").textContent.trim(), "1");
 });
+
+// ---- Record details -----------------------------------------------------------
+
+const menuItem = (table, text) => $$(table, '[role="menuitem"]').find((i) => i.textContent.trim() === text);
+const dialogLabels = (table) => $$(table, ".k-dt-details dt").map((dt) => dt.textContent);
+
+test("details dialog: opened from the context menu, labelled, lists hidden columns too", async () => {
+    const table = mount({ features: { rowDetails: true }, initial: { hiddenColumns: ["joined"] } });
+    $(table, '[data-fk="cell:1:fee"]').focus();
+    rightClick($(table, '[data-fk="cell:1:fee"]'));
+    menuItem(table, "Show details").click();
+
+    const dialog = $(table, '[role="dialog"]');
+    assert.ok(dialog?.classList.contains("k-dt-details"), "details dialog open");
+    assert.equal(dialog.getAttribute("aria-modal"), "true");
+    assert.equal(accessibleName(dialog), "Details: 2");
+    assert.deepEqual(dialogLabels(table), ["ID", "Name", "Fee", "Active", "Joined"]);
+    assert.equal($(table, ".k-dt-details-pos").textContent, "Record 2 of 30");
+    assert.equal(deepActiveElement(), dialog.querySelector("h2"), "focus on the dialog heading");
+
+    await sleep(10);
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    assert.equal($(table, '[role="dialog"]'), null);
+    assert.equal(deepActiveElement()?.dataset.fk, "cell:1:fee", "focus back on the cell");
+});
+
+test("details dialog: previous/next walk across pages and focus returns to that row", async () => {
+    const table = mount({ features: { rowDetails: true }, grid: { titleColumn: "name" } });
+    $(table, '[data-fk="cell:9:id"]').focus();
+    await input.press("F10", ["Shift"]);
+    await input.press("Enter");   // "Show details" is the first item
+    let [, next] = $$(table, ".k-dt-details-actions button");
+    assert.equal(accessibleName(next), "Next record");
+    assert.equal(accessibleName($(table, '[role="dialog"]')), "Details: David");
+
+    next.focus();
+    await input.press("Enter");
+    assert.equal($(table, ".k-dt-details-pos").textContent, "Record 11 of 30");
+    assert.equal(table.getState().page, 2, "table follows to page 2");
+    assert.equal(deepActiveElement(), next, "focus stays on Next");
+    await announced(table, "Record 11 of 30: Emma");
+
+    await input.press("Escape");
+    assert.equal(deepActiveElement()?.dataset.fk, "cell:0:id", "focus on the shown record's row");
+
+    await input.press("F10", ["Shift"]);
+    await input.press("Enter");
+    const [prev, next2] = $$(table, ".k-dt-details-actions button");
+    next = next2;
+
+    // At the first record "Previous" is disabled and focus moves to "Next".
+    prev.focus();
+    for (let i = 0; i < 10; i++) prev.click();
+    assert.equal($(table, ".k-dt-details-pos").textContent, "Record 1 of 30");
+    assert.ok(prev.disabled, "Previous disabled on the first record");
+    assert.equal(deepActiveElement(), next);
+}, { cdp: true });
+
+test("details dialog: Open runs onRowClick for the shown record", () => {
+    let opened = null;
+    const table = mount({ features: { rowDetails: true }, onRowClick: (row, index) => { opened = [row.id, index]; } });
+    rightClick($(table, '[data-fk="cell:3:name"]'));
+    menuItem(table, "Show details").click();
+    $(table, ".k-dt-details-open").click();
+    assert.deepEqual(opened, [4, 3]);
+    assert.equal($(table, '[role="dialog"]'), null, "dialog closed");
+});
+
+test("no details entry without the feature", () => {
+    const table = mount();
+    rightClick($(table, '[data-fk="cell:0:name"]'));
+    assert.equal(menuItem(table, "Show details"), undefined);
+});
