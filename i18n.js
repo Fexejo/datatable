@@ -28,7 +28,6 @@ export const LOCALES = {
         sortHint: "Sort (Shift+click for multi-column)",
         filterActive: "Filter active — edit",
         filter: "Filter",
-        filterAriaLabel: "Filter column",
         copyValue: "Copy value",
 
         // Table body
@@ -81,6 +80,26 @@ export const LOCALES = {
         loadTemplate: "Load template",
         deleteTemplate: "Delete template",
 
+        // Accessibility: keyboard hints, accessible names, screen-reader announcements
+        tableKeyboardHint: "Arrow keys move between cells, Enter opens a link, Shift+F10 opens the actions menu.",
+        gridKeyboardHint: "Arrow keys move between cards, Shift+F10 opens the actions menu.",
+        actionsFor: (label) => `Actions: ${label}`,
+        pageN: (n) => `Page ${n}`,
+        filterMode: "Filter type",
+        operandValue: "Value",
+        operandFrom: "From",
+        operandTo: "To",
+        resultsCount: (n) => (n === 1 ? "1 row" : `${n} rows`),
+        sortedBy: (list) => `Sorted by ${list}`,
+        sortCleared: "Sorting removed",
+        ascending: "ascending",
+        sortPriority: (n) => `, sort priority ${n}`,
+        descending: "descending",
+        copied: "Copied to clipboard",
+        columnHidden: (label) => `Column “${label}” hidden`,
+        templateSaved: (name) => `Template “${name}” saved`,
+        templateLoaded: (name) => `Template “${name}” loaded`,
+
         // Boolean cell display (overridable per column via format.trueLabel / format.falseLabel)
         boolTrue: "Yes",
         boolFalse: "No",
@@ -126,7 +145,6 @@ export const LOCALES = {
         sortHint: "Sortieren (Umschalt+Klick für Mehrspaltigkeit)",
         filterActive: "Filter aktiv – bearbeiten",
         filter: "Filtern",
-        filterAriaLabel: "Spalte filtern",
         copyValue: "Wert kopieren",
 
         // Table body
@@ -178,6 +196,26 @@ export const LOCALES = {
         noTemplates: "Noch keine Vorlagen gespeichert.",
         loadTemplate: "Vorlage laden",
         deleteTemplate: "Vorlage löschen",
+
+        // Accessibility: keyboard hints, accessible names, screen-reader announcements
+        tableKeyboardHint: "Pfeiltasten wechseln zwischen Zellen, Enter öffnet einen Link, Umschalt+F10 öffnet das Aktionsmenü.",
+        gridKeyboardHint: "Pfeiltasten wechseln zwischen Karten, Umschalt+F10 öffnet das Aktionsmenü.",
+        actionsFor: (label) => `Aktionen: ${label}`,
+        pageN: (n) => `Seite ${n}`,
+        filterMode: "Filterart",
+        operandValue: "Wert",
+        operandFrom: "Von",
+        operandTo: "Bis",
+        resultsCount: (n) => (n === 1 ? "1 Zeile" : `${n} Zeilen`),
+        sortedBy: (list) => `Sortiert nach ${list}`,
+        sortCleared: "Sortierung entfernt",
+        ascending: "aufsteigend",
+        sortPriority: (n) => `, Sortierpriorität ${n}`,
+        descending: "absteigend",
+        copied: "In die Zwischenablage kopiert",
+        columnHidden: (label) => `Spalte „${label}“ ausgeblendet`,
+        templateSaved: (name) => `Vorlage „${name}“ gespeichert`,
+        templateLoaded: (name) => `Vorlage „${name}“ geladen`,
 
         // Boolean cell display
         boolTrue: "Ja",

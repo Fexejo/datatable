@@ -179,6 +179,24 @@ test("form controls have accessible names", () => {
     assert.deepEqual(unnamed.map((c) => c.outerHTML), []);
 });
 
+test("form controls inside panels have accessible names", async () => {
+    const table = mount({ features: ALL_FEATURES });
+    const check = (what) => {
+        const unnamed = $$(table, ".k-dt-overlay input, .k-dt-overlay select")
+            .filter((c) => !c.getAttribute("aria-label") && !c.labels?.length);
+        assert.deepEqual(unnamed.map((c) => c.outerHTML), [], what);
+    };
+    $(table, '[data-fk="filter:fee"]').click();          // number column → pattern tab
+    check("filter panel (pattern)");
+    $(table, '.k-dt-overlay [role="tab"]').click();     // values tab
+    check("filter panel (values)");
+    $(table, '[data-fk="tb:columns"]').click();
+    check("column chooser");
+    $(table, '[data-fk="tb:templates"]').click();
+    await waitFor(() => $(table, ".k-dt-overlay .k-dt-tpl-save"));
+    check("templates panel");
+});
+
 // ---- View toggle ----------------------------------------------------------
 
 test("view toggle names the target view and has no aria-pressed", () => {
@@ -229,8 +247,8 @@ test("sort header is operable with Enter and Space", async () => {
     th().querySelector("button").focus();
     await input.press("Enter");
     assert.equal(th().getAttribute("aria-sort"), "ascending");
-    // Re-render replaces the button; focus it again.
-    th().querySelector("button").focus();
+    // The re-render keeps focus on the (new) sort button.
+    assert.equal(deepActiveElement(), th().querySelector("button"), "focus kept after re-render");
     await input.press(" ");
     assert.equal(th().getAttribute("aria-sort"), "descending");
 }, { cdp: true });
@@ -252,4 +270,254 @@ test("switches to card view below the breakpoint", async () => {
     await waitFor(() => $(table, ".k-dt-grid"), { message: "expected grid view on mobile" });
     await input.viewport(1280, 900);
     await waitFor(() => $(table, "table"), { message: "expected table view on desktop" });
+}, { cdp: true });
+
+// ---- Focus management -----------------------------------------------------
+
+const status = (table) => $(table, '[role="status"]');
+const announced = (table, text) => waitFor(() => status(table)?.textContent === text, {
+    message: `expected announcement "${text}", got "${status(table)?.textContent}"`
+});
+
+test("pagination keeps focus on the pressed button, then on the current page", () => {
+    const table = mount();
+    $(table, '[data-fk="page:chevron-right"]').focus();
+    $(table, '[data-fk="page:chevron-right"]').click();
+    assert.equal(deepActiveElement()?.dataset.fk, "page:chevron-right");
+    $(table, '[data-fk="page:chevron-right"]').click();   // page 3 = last → "next" disabled
+    assert.equal(deepActiveElement()?.getAttribute("aria-current"), "page");
+    assert.equal(deepActiveElement()?.getAttribute("aria-label"), "Page 3");
+});
+
+test("empty state spans all columns", () => {
+    const table = mount({ data: [] });
+    assert.equal($(table, ".k-dt-empty").colSpan, COLUMNS.length);
+});
+
+// ---- Table cells: roving focus -------------------------------------------
+
+test("table body is a single tab stop with arrow-key navigation", async () => {
+    const table = mount();
+    const stops = $$(table, "tbody td").filter((td) => td.tabIndex === 0);
+    assert.equal(stops.length, 1, "exactly one cell in tab order");
+    stops[0].focus();
+    await input.press("ArrowRight");
+    assert.equal(deepActiveElement()?.dataset.fk, "cell:0:name");
+    await input.press("ArrowDown");
+    assert.equal(deepActiveElement()?.dataset.fk, "cell:1:name");
+    await input.press("End");
+    assert.equal(deepActiveElement()?.dataset.fk, "cell:1:joined");
+    await input.press("End", ["Control"]);
+    assert.equal(deepActiveElement()?.dataset.fk, "cell:9:joined");
+    await input.press("Home", ["Control"]);
+    assert.equal(deepActiveElement()?.dataset.fk, "cell:0:id");
+    assert.equal($$(table, "tbody td").filter((td) => td.tabIndex === 0).length, 1);
+    assert.ok($(table, "table").getAttribute("aria-describedby"), "keyboard hint");
+}, { cdp: true });
+
+test("Enter on a cell activates its link or the row handler", async () => {
+    let linked = null;
+    let rowClicked = null;
+    const columns = COLUMNS.map((c) => c.key === "name" ? { ...c, link: { handler: (row) => { linked = row.id; } } } : c);
+    const table = mount({ columns, onRowClick: (row) => { rowClicked = row.id; } });
+    $(table, '[data-fk="cell:2:name"]').focus();
+    await input.press("Enter");
+    assert.equal(linked, 3);
+    $(table, '[data-fk="cell:4:fee"]').focus();
+    await input.press("Enter");
+    assert.equal(rowClicked, 5);
+}, { cdp: true });
+
+test("cards: single tab stop, arrow navigation, Enter triggers onRowClick", async () => {
+    let clicked = null;
+    const table = mount({ features: { grid: true }, defaultView: "grid", onRowClick: (row) => { clicked = row.id; } });
+    assert.equal($(table, ".k-dt-grid").getAttribute("role"), "list");
+    assert.equal($$(table, ".k-dt-card").filter((c) => c.tabIndex === 0).length, 1);
+    $(table, '[data-fk="card:0"]').focus();
+    await input.press("ArrowDown");
+    await input.press("ArrowRight");
+    assert.equal(deepActiveElement()?.dataset.fk, "card:2");
+    await input.press("Enter");
+    assert.equal(clicked, 3);
+}, { cdp: true });
+
+// ---- Context menu: keyboard ----------------------------------------------
+
+test("Shift+F10 on a cell opens the menu; arrows, Home/End navigate; Escape returns focus", async () => {
+    const table = mount({ features: { sorting: true, filtering: true } });
+    $(table, '[data-fk="cell:1:name"]').focus();
+    await input.press("F10", ["Shift"]);
+    const menu = $(table, '[role="menu"]');
+    assert.ok(menu, "menu opened");
+    assert.equal(menu.getAttribute("aria-label"), "Actions: Name");
+    const items = Array.from(menu.querySelectorAll('[role="menuitem"]'));
+    assert.equal(deepActiveElement(), items[0], "first item focused");
+    await input.press("ArrowDown");
+    assert.equal(deepActiveElement(), items[1]);
+    await input.press("End");
+    assert.equal(deepActiveElement(), items.at(-1));
+    await input.press("ArrowDown");
+    assert.equal(deepActiveElement(), items[0], "wraps around");
+    await input.press("Escape");
+    assert.equal($(table, '[role="menu"]'), null, "closed");
+    assert.equal(deepActiveElement()?.dataset.fk, "cell:1:name", "focus back on the cell");
+}, { cdp: true });
+
+test("context-menu key on a header opens the column menu; activating keeps focus", async () => {
+    const table = mount({ features: { sorting: true } });
+    $(table, '[data-fk="sort:fee"]').focus();
+    await input.press("ContextMenu");
+    const items = $$(table, '[role="menuitem"]');
+    assert.ok(items.length > 0, "menu opened");
+    await input.press("ArrowDown");                     // "Sort descending"
+    await input.press("Enter");
+    assert.equal($(table, '[role="menu"]'), null);
+    assert.equal($$(table, "thead th")[2].getAttribute("aria-sort"), "descending");
+    assert.equal(deepActiveElement()?.dataset.fk, "sort:fee", "focus back on the header");
+}, { cdp: true });
+
+test("Tab closes the context menu and returns focus", async () => {
+    const table = mount();
+    $(table, '[data-fk="cell:0:id"]').focus();
+    await input.press("F10", ["Shift"]);
+    assert.ok($(table, '[role="menu"]'));
+    await input.press("Tab");
+    assert.equal($(table, '[role="menu"]'), null);
+    assert.equal(deepActiveElement()?.dataset.fk, "cell:0:id");
+}, { cdp: true });
+
+// ---- Panels as dialogs -----------------------------------------------------
+
+test("filter panel is a labelled modal dialog with focus inside and focus return", async () => {
+    const table = mount({ features: { filtering: true } });
+    const button = () => $(table, '[data-fk="filter:name"]');
+    assert.equal(button().getAttribute("aria-label"), "Filter: Name");
+    assert.equal(button().getAttribute("aria-haspopup"), "dialog");
+    button().focus();
+    await input.press("Enter");
+
+    const dialog = $(table, '[role="dialog"]');
+    assert.ok(dialog, "dialog opened");
+    assert.equal(dialog.getAttribute("aria-modal"), "true");
+    assert.equal(table.shadowRoot.getElementById(dialog.getAttribute("aria-labelledby"))?.textContent, "Filter: Name");
+    assert.equal(button().getAttribute("aria-expanded"), "true");
+    assert.equal(deepActiveElement()?.getAttribute("type"), "search", "focus in the value search");
+
+    await input.press("Escape");
+    assert.equal($(table, '[role="dialog"]'), null, "closed");
+    assert.equal(deepActiveElement(), button(), "focus back on the filter button");
+    assert.equal(button().getAttribute("aria-expanded"), "false");
+}, { cdp: true });
+
+test("filter tabs follow the tabs pattern", async () => {
+    const table = mount({ features: { filtering: true } });
+    $(table, '[data-fk="filter:name"]').click();
+    const tabs = $$(table, '[role="tab"]');
+    assert.equal($(table, '[role="tablist"]').getAttribute("aria-label"), "Filter type");
+    assert.deepEqual(tabs.map((t) => t.getAttribute("aria-selected")), ["true", "false"]);
+    assert.deepEqual(tabs.map((t) => t.tabIndex), [0, -1]);
+    tabs[0].focus();
+    await input.press("ArrowRight");
+    assert.deepEqual(tabs.map((t) => t.getAttribute("aria-selected")), ["false", "true"]);
+    assert.equal(deepActiveElement(), tabs[1]);
+    const panels = $$(table, '[role="tabpanel"]');
+    assert.deepEqual(panels.map((p) => p.hidden), [true, false]);
+    assert.equal(panels[1].getAttribute("aria-labelledby"), tabs[1].id);
+    assert.ok($(table, ".k-dt-overlay select").labels.length === 1, "operator select has a label");
+}, { cdp: true });
+
+test("Tab is trapped inside an open panel", async () => {
+    const table = mount({ features: { columnVisibility: true } });
+    $(table, '[data-fk="tb:columns"]').focus();
+    await input.press("Enter");
+    const boxes = $$(table, '.k-dt-overlay input[type="checkbox"]');
+    assert.equal(deepActiveElement(), boxes[0]);
+    boxes.at(-1).focus();
+    await input.press("Tab");
+    assert.equal(deepActiveElement(), boxes[0], "wraps to first");
+    await input.press("Tab", ["Shift"]);
+    assert.equal(deepActiveElement(), boxes.at(-1), "wraps to last");
+}, { cdp: true });
+
+test("column chooser stays open while toggling columns", () => {
+    const table = mount({ features: { columnVisibility: true } });
+    $(table, '[data-fk="tb:columns"]').click();
+    const box = $$(table, '.k-dt-overlay input[type="checkbox"]')[1];
+    box.focus();
+    box.click();
+    assert.ok($(table, '[role="dialog"]'), "still open");
+    assert.equal($$(table, "thead th").length, COLUMNS.length - 1);
+    assert.equal(deepActiveElement(), box, "focus stays on the checkbox");
+    assert.equal($(table, '[data-fk="tb:columns"]').getAttribute("aria-expanded"), "true");
+});
+
+test("applying a filter closes the panel and returns focus to the filter button", async () => {
+    const table = mount({ features: { filtering: true } });
+    $(table, '[data-fk="filter:fee"]').focus();
+    $(table, '[data-fk="filter:fee"]').click();
+    const [operand] = $$(table, ".k-dt-overlay .k-dt-operands input");
+    $(table, ".k-dt-overlay select").value = "gt";
+    $(table, ".k-dt-overlay select").dispatchEvent(new Event("change"));
+    operand.value = "150";
+    $$(table, ".k-dt-overlay .k-dt-panel-actions button").at(-1).click();   // Apply
+    assert.equal($(table, '[role="dialog"]'), null);
+    assert.equal(deepActiveElement()?.dataset.fk, "filter:fee");
+    await announced(table, `${$$(table, "tbody tr").length} rows`);
+});
+
+// ---- Announcements ---------------------------------------------------------
+
+test("status messages: search results, sort, page, copy", async () => {
+    const table = mount({ features: { globalSearch: true, sorting: true } });
+    assert.equal(status(table).getAttribute("aria-live"), "polite");
+
+    const search = $(table, "input[type=search]");
+    search.value = "clara";
+    search.dispatchEvent(new Event("input", { bubbles: true }));
+    await announced(table, "5 rows");
+
+    search.value = "nobody";
+    search.dispatchEvent(new Event("input", { bubbles: true }));
+    await announced(table, "No rows match the current filters.");
+
+    table.clearFilters();
+    await announced(table, "30 rows");
+
+    $(table, '[data-fk="sort:name"]').click();
+    await announced(table, "Sorted by Name ascending");
+
+    $(table, '[data-fk="page:chevron-right"]').click();
+    await announced(table, "11–20 of 30");
+
+    $(table, '[data-fk="cell:0:name:copy"]').click();
+    await announced(table, "Copied to clipboard");
+});
+
+test("German announcements", async () => {
+    const table = mount({ locale: "de-DE", features: { sorting: true } });
+    $(table, '[data-fk="sort:fee"]').click();
+    $(table, '[data-fk="sort:fee"]').click();
+    await announced(table, "Sortiert nach Fee absteigend");
+});
+
+test("table is named by the title; multi-sort priority is announced, not the bare digit", () => {
+    const table = mount({ title: "Members", features: { sorting: true } });
+    const labelId = $(table, "table").getAttribute("aria-labelledby");
+    assert.equal(table.shadowRoot.getElementById(labelId)?.textContent, "Members");
+    table.setState({ sort: [{ key: "name", direction: "asc" }, { key: "fee", direction: "desc" }] });
+    assert.equal(accessibleName($(table, '[data-fk="sort:fee"]')), "Fee, sort priority 2");
+});
+
+test("copy buttons name their column", () => {
+    const table = mount();
+    assert.equal($(table, '[data-fk="cell:0:name:copy"]').getAttribute("aria-label"), "Copy value: Name");
+});
+
+test("Shift+Enter on a sort header adds a secondary sort key", async () => {
+    const table = mount({ features: { sorting: true } });
+    $(table, '[data-fk="sort:name"]').focus();
+    await input.press("Enter");
+    $(table, '[data-fk="sort:fee"]').focus();
+    await input.press("Enter", ["Shift"]);
+    assert.deepEqual(table.getState().sort.map((s) => s.key), ["name", "fee"]);
 }, { cdp: true });

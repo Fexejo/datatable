@@ -63,7 +63,7 @@ export const datatableStyles = `
     border-radius: var(--k-radius-s, 8px);
     padding: 0 var(--k-space-s, 8px);
 }
-.k-dt-search-ic { color: var(--k-color-text-muted, #888); display: inline-flex; }
+.k-dt-search-ic { color: var(--k-color-text-muted, #666); display: inline-flex; }
 .k-dt-search-input {
     font: inherit;
     color: inherit;
@@ -168,7 +168,7 @@ span.k-dt-th-label { cursor: default; }
     border: none;
     background: none;
     cursor: pointer;
-    color: var(--k-color-text-muted, #888);
+    color: var(--k-color-text-muted, #666);
     padding: var(--k-space-xs, 6px);
     border-radius: var(--k-radius-s, 8px);
 }
@@ -196,8 +196,7 @@ span.k-dt-th-label { cursor: default; }
     border: none;
     background: none;
     cursor: pointer;
-    color: var(--k-color-text-muted, #888);
-    opacity: 0.75;
+    color: var(--k-color-text-muted, #666);
     padding: var(--k-space-xs, 6px);
     border-radius: var(--k-radius-s, 8px);
     transition: opacity 0.1s;
@@ -207,7 +206,7 @@ span.k-dt-th-label { cursor: default; }
 
 .k-dt-empty {
     text-align: center;
-    color: var(--k-color-text-muted, #888);
+    color: var(--k-color-text-muted, #666);
     padding: var(--k-space-4xl, 24px);
 }
 
@@ -228,7 +227,7 @@ span.k-dt-th-label { cursor: default; }
 }
 .k-dt-card-title { font-weight: 700; font-size: 1.05rem; margin-bottom: var(--k-space-2xs, 4px); }
 .k-dt-card-row { display: flex; justify-content: space-between; gap: var(--k-space-s, 8px); font-size: 0.9rem; }
-.k-dt-card-label { color: var(--k-color-text-muted, #888); }
+.k-dt-card-label { color: var(--k-color-text-muted, #666); }
 .k-dt-card-val { display: inline-flex; align-items: center; gap: var(--k-space-2xs, 4px); text-align: right; }
 
 /* Footer / Pagination — base: stacked & trimmed for small screens */
@@ -242,7 +241,7 @@ span.k-dt-th-label { cursor: default; }
     background: var(--k-dt-surface-muted);
     font-size: 0.85rem;
 }
-.k-dt-info { display: flex; align-items: center; justify-content: center; gap: var(--k-space-l, 12px); color: var(--k-color-text-muted, #888); }
+.k-dt-info { display: flex; align-items: center; justify-content: center; gap: var(--k-space-l, 12px); color: var(--k-color-text-muted, #666); }
 .k-dt-pagesize { display: none; align-items: center; gap: var(--k-space-2xs, 4px); }
 .k-dt-select {
     font: inherit;
@@ -276,7 +275,7 @@ span.k-dt-th-label { cursor: default; }
 }
 /* On phones the pager keeps only first/prev/active/next/last. */
 .k-dt-page-num:not(.is-active) { display: none; }
-.k-dt-page-gap { display: none; padding: 0 var(--k-space-2xs, 4px); color: var(--k-color-text-muted, #888); }
+.k-dt-page-gap { display: none; padding: 0 var(--k-space-2xs, 4px); color: var(--k-color-text-muted, #666); }
 
 /* Context menu */
 .k-ctx-menu {
@@ -305,13 +304,14 @@ span.k-dt-th-label { cursor: default; }
     padding: var(--k-space-s, 8px) var(--k-space-s, 8px);
     cursor: pointer;
 }
-.k-ctx-item:hover, .k-ctx-item:focus-visible, .k-ctx-item:active { background: var(--k-dt-hover); outline: none; }
+.k-ctx-item:hover, .k-ctx-item:focus-visible, .k-ctx-item:active { background: var(--k-dt-hover); }
+.k-ctx-item:focus-visible { outline: 2px solid var(--k-color-text, #222); outline-offset: -2px; }
 .k-ctx-item[aria-disabled="true"] { opacity: 0.4; cursor: default; }
 .k-ctx-danger { color: var(--k-color-schicht-vertretung-bg, #c0392b); }
 .k-ctx-icon { display: inline-flex; width: 1.1em; }
 .k-ctx-icon svg { width: 1.1em; height: 1.1em; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .k-ctx-label { flex: 1; }
-.k-ctx-arrow { color: var(--k-color-text-muted, #888); }
+.k-ctx-arrow { color: var(--k-color-text-muted, #666); }
 .k-ctx-sep { height: 1px; background: var(--k-dt-border); margin: var(--k-space-2xs, 4px) 0; }
 .k-ctx-haschild { position: relative; }
 .k-ctx-haschild > .k-ctx-submenu {
@@ -320,7 +320,8 @@ span.k-dt-th-label { cursor: default; }
     top: 0;
     display: none;
 }
-.k-ctx-haschild:hover > .k-ctx-submenu { display: flex; }
+.k-ctx-haschild:hover > .k-ctx-submenu,
+.k-ctx-haschild.is-open > .k-ctx-submenu { display: flex; }
 
 /* Context menu as a bottom sheet (mobile, toggled from JS) */
 .k-ctx-menu--sheet {
@@ -423,7 +424,7 @@ span.k-dt-th-label { cursor: default; }
 .k-dt-check input[type="checkbox"] { width: 18px; height: 18px; flex: none; }
 .k-dt-check-all { font-weight: 600; border-bottom: 1px solid var(--k-dt-border); }
 .k-dt-check-label { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.k-dt-check-count { color: var(--k-color-text-muted, #888); font-size: 0.8rem; }
+.k-dt-check-count { color: var(--k-color-text-muted, #666); font-size: 0.8rem; }
 .k-dt-panel-actions { display: flex; justify-content: flex-end; gap: var(--k-space-s, 8px); }
 .k-dt-tpl-save { display: flex; gap: var(--k-space-2xs, 4px); }
 .k-dt-tpl-list { display: flex; flex-direction: column; gap: 2px; }
@@ -434,9 +435,33 @@ span.k-dt-th-label { cursor: default; }
     padding: var(--k-space-s, 8px); border-radius: var(--k-radius-s, 8px);
 }
 .k-dt-tpl-load:hover { background: var(--k-dt-hover); }
-.k-dt-tpl-empty { color: var(--k-color-text-muted, #888); font-size: 0.88rem; }
+.k-dt-tpl-empty { color: var(--k-color-text-muted, #666); font-size: 0.88rem; }
 
 /* Suppress the long-press text selection / callout on touch so our context menu wins. */
+/* Accessibility */
+[hidden] { display: none !important; }
+.k-dt-sr-only {
+    position: absolute !important;
+    width: 1px; height: 1px;
+    padding: 0; margin: -1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    white-space: nowrap;
+    border: 0;
+}
+.k-dt-search:focus-within,
+.k-dt-td:focus-visible, .k-dt-card:focus-visible,
+.k-dt-link:focus-visible, .k-dt-cell-action:focus-visible,
+.k-dt-tab:focus-visible, .k-dt-tpl-load:focus-visible,
+.k-dt-input:focus-visible, .k-dt-select:focus-visible,
+.k-dt-check input:focus-visible {
+    outline: 2px solid var(--k-color-text, #222);
+    outline-offset: 1px;
+}
+.k-dt-td:focus-visible, .k-dt-card:focus-visible { outline-offset: -2px; }
+.k-dt-overlay:focus { outline: none; }
+
 @media (pointer: coarse) {
     .k-dt-th, .k-dt-td, .k-dt-card {
         -webkit-touch-callout: none;
@@ -479,7 +504,10 @@ span.k-dt-th-label { cursor: default; }
 
     /* Copy button: hidden until row/cell hover */
     .k-dt-copy { opacity: 0; padding: 2px; }
-    .k-dt-td:hover .k-dt-copy, .k-dt-card-row:hover .k-dt-copy { opacity: 0.7; }
+    /* Also revealed for keyboard users (focused cell/card or the button itself). */
+    .k-dt-td:hover .k-dt-copy, .k-dt-card-row:hover .k-dt-copy,
+    .k-dt-td:focus-within .k-dt-copy, .k-dt-card:focus-within .k-dt-copy,
+    .k-dt-copy:focus-visible { opacity: 1; }
     .k-dt-copy:hover { opacity: 1; background: var(--k-dt-hover); }
 
     .k-dt-grid { gap: var(--k-space-l, 12px); padding: var(--k-space-l, 12px); }

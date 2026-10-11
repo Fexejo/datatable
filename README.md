@@ -599,13 +599,62 @@ export const LOCALES = {
 
 ## Accessibility
 
-- Semantic `<table>` with `scope="col"` and `aria-sort` on headers
-- Controls are real `<button>` / `<input>` with `aria-label` / `title`
-- Icon-only buttons have an `aria-label`; icons themselves are decorative (`aria-hidden`)
-- The table/grid toggle is an action button whose label names the view it switches to
-- Pagination uses `role="navigation"`; current page has `aria-current="page"`
-- Context menu: `role="menu"` / `role="menuitem"`; closes on Esc and outside click; overlays too
-- Focus styles via `:focus-visible`
+The component targets **WCAG 2.2 level AA**. Everything that works with a mouse
+or touch also works with the keyboard alone.
+
+**Keyboard**
+
+| Where | Keys | Action |
+|-------|------|--------|
+| Table body | `Tab` | Enters/leaves the body as **one** tab stop (roving focus; links and buttons inside cells stay in the tab order) |
+| Table cell | `←` `→` `↑` `↓` | Move between cells |
+| Table cell | `Home` / `End` | First / last cell of the row (`Ctrl` + key: first / last cell of the page) |
+| Table cell | `Enter` | Activate the cell's link or action, otherwise `onCellClick` / `onRowClick` |
+| Card view | `←` `→` `↑` `↓`, `Home` / `End`, `Enter` | Move between cards, `Enter` triggers `onRowClick` |
+| Cell, card, header button | `Shift+F10` or context-menu key | Open the actions menu (same as right-click / long-press) |
+| Actions menu | `↑` `↓`, `Home` / `End`, `Enter` / `Space`, `Esc` / `Tab` | Navigate, activate, close (focus returns to where the menu was opened) |
+| Sort header | `Enter` / `Space` (`Shift+Enter` adds a sort key) | Sort |
+| Panels (filter, columns, templates) | `Tab` / `Shift+Tab`, `Esc` | Focus stays inside the panel; `Esc` closes and returns focus to the button that opened it |
+| Filter panel tabs | `←` `→`, `Home` / `End` | Switch between “Values” and “Pattern” |
+| Templates panel | `Enter` in the name field | Save |
+
+Focus is kept across re-renders (sorting, filtering, paging, …): the same
+control — or its closest equivalent, e.g. the current page when “next” becomes
+disabled — gets focus again.
+
+**Semantics**
+
+- Semantic `<table>`, named by `title`, with `scope="col"` and `aria-sort`;
+  multi-sort priority is part of the header button's name.
+- Card view is a list (`role="list"` / `listitem`).
+- Keyboard hints are linked to the table/list via `aria-describedby`.
+- Icon-only buttons have an `aria-label` (per column where it matters, e.g.
+  “Filter: Name”, “Copy value: Name”); icons are decorative (`aria-hidden`).
+- The table/grid toggle is an action button whose label names the view it switches to.
+- Pagination is a `navigation` landmark; page buttons are named “Page n”, the
+  current one has `aria-current="page"`.
+- Actions menu: `role="menu"` / `menuitem`, named “Actions: <column>”.
+- Panels are modal dialogs (`role="dialog"`, `aria-modal`, named by their
+  heading); opener buttons carry `aria-haspopup="dialog"` and `aria-expanded`.
+  The filter panel uses the tabs pattern (`tablist` / `tab` / `tabpanel`).
+- All inputs and selects have accessible names.
+
+**Status messages** (polite live region, WCAG 4.1.3): number of results after
+search/filter, sort order, page range, “Copied to clipboard”, hidden column,
+saved/loaded template. All texts come from `i18n.js`.
+
+**Visual**
+
+- Visible focus indicator (`:focus-visible` outline) on every interactive
+  element, including cells, cards and menu items; copy buttons that are hidden
+  until hover become visible on keyboard focus.
+- Touch targets ≥ 44px on touch layouts.
+- Default colors meet contrast requirements (muted text fallback `#666`, 5.7:1
+  on white). When overriding `--k-*` tokens, keep ≥ 4.5:1 for text and ≥ 3:1
+  for UI components and focus indicators.
+
+**Not covered by the component:** content you render yourself via `formatter`,
+`action` or `config.styles` — keep it accessible (names, contrast).
 
 ---
 
@@ -702,7 +751,7 @@ node tests/run.js --browser --dist     # browser tests against the bundle
 Don't commit a locally built `dist/` — CI owns it.
 
 The build minifies the CSS and icon markup, then bundles and minifies all
-modules with esbuild into one ES module (≈ 60 KB, ≈ 17 KB gzipped).
+modules with esbuild into one ES module (≈ 70 KB, ≈ 20 KB gzipped).
 
 **Repository setup:** Actions need write access (*Settings → Actions →
 General → Workflow permissions → Read and write*). If `main` is protected

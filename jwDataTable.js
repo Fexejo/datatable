@@ -26,7 +26,7 @@ import {
     isActiveFilter
 } from "./filtering.js";
 import { buildCSV, downloadCSV } from "./csv.js";
-import { openContextMenu, closeContextMenu } from "./contextMenu.js";
+import { openContextMenu, closeContextMenu, deepActiveElement } from "./contextMenu.js";
 import { TemplateStore, LocalStorageAdapter } from "./templateStore.js";
 import { datatableStyles } from "./styles.js";
 
@@ -102,6 +102,7 @@ class JwDataTable extends HTMLElement {
             this._state.page = 1;
             // Rebuild body/footer only so the focused search field is preserved.
             this._updateView();
+            this._announceResults();
             this._emitChange();
         }, 200);
     }
@@ -270,6 +271,7 @@ class JwDataTable extends HTMLElement {
         this._state.page = 1;
         this._deriveView();
         this._render();
+        this._announceResults();
         this._emitChange();
     }
 
@@ -365,6 +367,7 @@ class JwDataTable extends HTMLElement {
         this._deriveView();
         const root = this.shadow.querySelector(".k-dt");
         if (!root) { this._render(); return; }
+        const focusKey = this._focusKey();
 
         const newBody = el("div", { class: "k-dt-body", part: "body" });
         if (this._config.maxHeight) newBody.style.maxHeight = this._config.maxHeight;
@@ -379,14 +382,26 @@ class JwDataTable extends HTMLElement {
             if (oldFooter) oldFooter.replaceWith(newFooter);
             else root.appendChild(newFooter);
         }
+        if (this._focusIsLost()) this._restoreFocus(focusKey);
     }
 
     // ---- Rendering -------------------------------------------------------
 
     _render() {
         if (!this._configured) return;
-        this.shadow.innerHTML = "";
-        this.shadow.appendChild(el("style", { html: datatableStyles + (this._config.styles || "") }));
+        const focusKey = this._focusKey();
+        // Replace only style + table root; open panels, the context menu and the
+        // live region stay in place.
+        for (const child of Array.from(this.shadow.children)) {
+            if (child.tagName === "STYLE" || child.classList.contains("k-dt")) child.remove();
+        }
+        const style = el("style", { html: datatableStyles + (this._config.styles || "") });
+        this.shadow.prepend(style);
+        if (!this._live) {
+            // Persistent live region (re-creating it on every render would drop announcements).
+            this._live = el("div", { class: "k-dt-sr-only", role: "status", "aria-live": "polite" });
+            this.shadow.appendChild(this._live);
+        }
 
         const root = el("div", { class: "k-dt", part: "root" });
         // Suppress the browser's native context menu anywhere in the table (incl.
@@ -412,7 +427,8 @@ class JwDataTable extends HTMLElement {
         root.appendChild(body);
 
         if (this._features.pagination) root.appendChild(this._renderFooter());
-        this.shadow.appendChild(root);
+        style.after(root);
+        this._restoreFocus(focusKey);
     }
 
     _renderToolbar() {
@@ -420,7 +436,7 @@ class JwDataTable extends HTMLElement {
         const left = el("div", { class: "k-dt-toolbar-left" });
         const right = el("div", { class: "k-dt-toolbar-right" });
 
-        if (this._config.title) left.appendChild(el("div", { class: "k-dt-title", text: this._config.title }));
+        if (this._config.title) left.appendChild(el("div", { class: "k-dt-title", id: this._hintId("title"), text: this._config.title }));
 
         if (this._features.globalSearch) {
             const search = el("div", { class: "k-dt-search" }, [
@@ -428,6 +444,7 @@ class JwDataTable extends HTMLElement {
                 el("input", {
                     type: "search",
                     class: "k-dt-search-input",
+                    "data-fk": "search",
                     placeholder: this._config.searchPlaceholder || this._t.searchPlaceholder,
                     value: this._state.globalSearch,
                     "aria-label": this._t.searchAriaLabel,
@@ -442,6 +459,7 @@ class JwDataTable extends HTMLElement {
             right.appendChild(el("button", {
                 type: "button",
                 class: "k-dt-btn",
+                "data-fk": "tb:clear",
                 title: this._t.clearFilters,
                 onclick: () => this.clearFilters()
             }, [iconEl("x"), el("span", { text: this._t.filterCount(activeFilters) })]));
@@ -455,6 +473,7 @@ class JwDataTable extends HTMLElement {
             right.appendChild(el("button", {
                 type: "button",
                 class: "k-dt-btn",
+                "data-fk": "tb:view",
                 title: switchLabel,
                 "aria-label": switchLabel,
                 onclick: () => {
@@ -470,6 +489,9 @@ class JwDataTable extends HTMLElement {
             right.appendChild(el("button", {
                 type: "button",
                 class: "k-dt-btn",
+                "data-fk": "tb:columns",
+                "aria-haspopup": "dialog",
+                "aria-expanded": String(this._overlayFk === "tb:columns"),
                 title: this._t.showHideColumns,
                 "aria-label": this._t.showHideColumns,
                 onclick: (e) => this._openColumnChooser(e.currentTarget)
@@ -480,6 +502,9 @@ class JwDataTable extends HTMLElement {
             right.appendChild(el("button", {
                 type: "button",
                 class: "k-dt-btn",
+                "data-fk": "tb:templates",
+                "aria-haspopup": "dialog",
+                "aria-expanded": String(this._overlayFk === "tb:templates"),
                 title: this._t.viewTemplates,
                 "aria-label": this._t.viewTemplates,
                 onclick: (e) => this._openTemplatesMenu(e.currentTarget)
@@ -490,6 +515,7 @@ class JwDataTable extends HTMLElement {
             right.appendChild(el("button", {
                 type: "button",
                 class: "k-dt-btn",
+                "data-fk": "tb:export",
                 title: this._t.exportCsv,
                 "aria-label": this._t.exportCsv,
                 onclick: () => this.exportCSV()
@@ -503,7 +529,12 @@ class JwDataTable extends HTMLElement {
 
     _renderTable() {
         const wrap = el("div", { class: "k-dt-scroll" });
-        const table = el("table", { class: "k-dt-table", part: "table" });
+        const table = el("table", {
+            class: "k-dt-table",
+            part: "table",
+            // The toolbar title names the table for assistive tech.
+            "aria-labelledby": this._config.title ? this._hintId("title") : null
+        });
         const columns = this._visibleColumns();
 
         // Header
@@ -518,10 +549,13 @@ class JwDataTable extends HTMLElement {
         if (this._pageData.length === 0) {
             const message = this._sourceData.length === 0 ? this._config.emptyText : this._config.noResultsText;
             tbody.appendChild(el("tr", {}, [
-                el("td", { class: "k-dt-empty", colspan: String(columns.length || 1) }, [message])
+                el("td", { class: "k-dt-empty", colSpan: columns.length || 1 }, [message])
             ]));
         } else {
             this._pageData.forEach((row, index) => tbody.appendChild(this._renderRow(row, index, columns)));
+            this._initRoving(tbody, ".k-dt-td", (event, cell) => this._onCellKey(event, cell, tbody));
+            table.setAttribute("aria-describedby", this._hintId("table"));
+            wrap.appendChild(el("p", { id: this._hintId("table"), class: "k-dt-sr-only", text: this._t.tableKeyboardHint }));
         }
         table.appendChild(tbody);
         wrap.appendChild(table);
@@ -544,6 +578,7 @@ class JwDataTable extends HTMLElement {
         const labelBtn = el(column.sortable ? "button" : "span", {
             class: "k-dt-th-label",
             type: column.sortable ? "button" : null,
+            "data-fk": column.sortable ? `sort:${column.key}` : null,
             title: column.sortable ? this._t.sortHint : null,
             onclick: column.sortable
                 ? (e) => this._applySort(column.key, { additive: e.shiftKey && this._features.multiSort })
@@ -555,7 +590,8 @@ class JwDataTable extends HTMLElement {
             const ind = iconEl(icon, "k-dt-sort-ic" + (sort ? " is-active" : ""));
             labelBtn.appendChild(ind);
             if (sort && this._state.sort.length > 1) {
-                labelBtn.appendChild(el("span", { class: "k-dt-sort-rank", text: String(sortIndex + 1) }));
+                labelBtn.appendChild(el("span", { class: "k-dt-sort-rank", "aria-hidden": "true", text: String(sortIndex + 1) }));
+                labelBtn.appendChild(el("span", { class: "k-dt-sr-only", text: this._t.sortPriority(sortIndex + 1) }));
             }
         }
         inner.appendChild(labelBtn);
@@ -565,8 +601,11 @@ class JwDataTable extends HTMLElement {
             inner.appendChild(el("button", {
                 type: "button",
                 class: "k-dt-filter-btn" + (active ? " is-active" : ""),
+                "data-fk": `filter:${column.key}`,
+                "aria-haspopup": "dialog",
+                "aria-expanded": String(this._overlayFk === `filter:${column.key}`),
                 title: active ? this._t.filterActive : this._t.filter,
-                "aria-label": this._t.filterAriaLabel,
+                "aria-label": this._t.filterPanelTitle(column.label),
                 onclick: (e) => this._openFilterPanel(column, e.currentTarget)
             }, [iconEl("list-filter")]));
         }
@@ -596,14 +635,15 @@ class JwDataTable extends HTMLElement {
 
     _renderCell(column, row, index) {
         const value = getCellValue(row, column);
-        const td = el("td", { class: "k-dt-td k-dt-align-" + column.align });
+        const fk = `cell:${index}:${column.key}`;
+        const td = el("td", { class: "k-dt-td k-dt-align-" + column.align, tabIndex: -1, "data-fk": fk });
         if (typeof column.cellClass === "function") {
             const cls = column.cellClass(value, row);
             if (cls) td.classList.add(...String(cls).split(/\s+/));
         }
 
-        const content = el("div", { class: "k-dt-cell" }, [this._valueNode(column, row, value)]);
-        if (column.copyable) content.appendChild(this._copyButton(column, row, value));
+        const content = el("div", { class: "k-dt-cell" }, [this._valueNode(column, row, value, fk)]);
+        if (column.copyable) content.appendChild(this._copyButton(column, row, value, fk));
         td.appendChild(content);
 
         this._bindContextTrigger(td, () => ({ column, row, value }));
@@ -617,14 +657,15 @@ class JwDataTable extends HTMLElement {
     }
 
     // Builds the display node including link logic (href / SPA / custom handler).
-    _valueNode(column, row, value) {
+    // `fk`: focus-key prefix of the containing cell/card (keeps focus across re-renders).
+    _valueNode(column, row, value, fk) {
         const display = formatValue(value, column, this._config.locale, row);
         const content = display instanceof Node ? display : document.createTextNode(display);
 
         const link = column.link;
         if (link && (link.url || link.spa || typeof link.handler === "function")) {
             const href = typeof link.url === "function" ? link.url(row, value) : (typeof link.url === "string" ? link.url : null);
-            const anchor = el("a", { class: "k-dt-link", href: href || "#" });
+            const anchor = el("a", { class: "k-dt-link", href: href || "#", "data-fk": fk ? `${fk}:link` : null });
             anchor.appendChild(content);
             anchor.addEventListener("click", (e) => {
                 if (this._shouldSuppressClick()) { e.preventDefault(); return; }
@@ -640,7 +681,7 @@ class JwDataTable extends HTMLElement {
         }
 
         if (typeof column.action === "function") {
-            const btn = el("button", { type: "button", class: "k-dt-cell-action" });
+            const btn = el("button", { type: "button", class: "k-dt-cell-action", "data-fk": fk ? `${fk}:action` : null });
             btn.appendChild(content);
             btn.addEventListener("click", (e) => {
                 e.stopPropagation();
@@ -652,12 +693,13 @@ class JwDataTable extends HTMLElement {
         return el("span", { class: "k-dt-value" }, [content]);
     }
 
-    _copyButton(column, row, value) {
+    _copyButton(column, row, value, fk) {
         return el("button", {
             type: "button",
             class: "k-dt-copy",
+            "data-fk": fk ? `${fk}:copy` : null,
             title: this._t.copyValue,
-            "aria-label": this._t.copyValue,
+            "aria-label": `${this._t.copyValue}: ${column.label}`,
             onclick: (e) => {
                 e.stopPropagation();
                 this._copyText(toText(value, column, this._config.locale, row), e.currentTarget);
@@ -667,7 +709,12 @@ class JwDataTable extends HTMLElement {
 
     _renderGrid() {
         const columns = this._visibleColumns();
-        const grid = el("div", { class: "k-dt-grid", part: "grid" });
+        const grid = el("div", {
+            class: "k-dt-grid",
+            part: "grid",
+            role: "list",
+            "aria-labelledby": this._config.title ? this._hintId("title") : null
+        });
         const min = (this._config.grid && this._config.grid.minWidth) || "240px";
         grid.style.gridTemplateColumns = `repeat(auto-fill, minmax(${min}, 1fr))`;
 
@@ -679,7 +726,8 @@ class JwDataTable extends HTMLElement {
 
         const titleKey = this._config.grid && this._config.grid.titleColumn;
         this._pageData.forEach((row, index) => {
-            const card = el("div", { class: "k-dt-card", part: "card" });
+            const fk = `card:${index}`;
+            const card = el("div", { class: "k-dt-card", part: "card", role: "listitem", tabIndex: -1, "data-fk": fk });
             if (typeof this._config.onRowClick === "function") {
                 card.classList.add("k-dt-clickable");
                 card.addEventListener("click", () => {
@@ -690,14 +738,14 @@ class JwDataTable extends HTMLElement {
             const titleColumn = titleKey ? columns.find((c) => c.key === titleKey) : null;
             if (titleColumn) {
                 card.appendChild(el("div", { class: "k-dt-card-title" }, [
-                    this._valueNode(titleColumn, row, getCellValue(row, titleColumn))
+                    this._valueNode(titleColumn, row, getCellValue(row, titleColumn), `${fk}:${titleColumn.key}`)
                 ]));
             }
             columns.forEach((column) => {
                 if (titleColumn && column.key === titleColumn.key) return;
                 const value = getCellValue(row, column);
-                const valWrap = el("span", { class: "k-dt-card-val" }, [this._valueNode(column, row, value)]);
-                if (column.copyable) valWrap.appendChild(this._copyButton(column, row, value));
+                const valWrap = el("span", { class: "k-dt-card-val" }, [this._valueNode(column, row, value, `${fk}:${column.key}`)]);
+                if (column.copyable) valWrap.appendChild(this._copyButton(column, row, value, `${fk}:${column.key}`));
                 const cardRow = el("div", { class: "k-dt-card-row" }, [
                     el("span", { class: "k-dt-card-label", text: column.label }),
                     valWrap
@@ -707,7 +755,12 @@ class JwDataTable extends HTMLElement {
             this._bindContextTrigger(card, () => ({ column: columns[0], row, value: getCellValue(row, columns[0]) }));
             grid.appendChild(card);
         });
-        return grid;
+        this._initRoving(grid, ".k-dt-card", (event, card) => this._onCardKey(event, card, grid));
+        grid.setAttribute("aria-describedby", this._hintId("grid"));
+        // The hint sits next to the list (a list may only contain list items).
+        const fragment = document.createDocumentFragment();
+        fragment.append(grid, el("p", { id: this._hintId("grid"), class: "k-dt-sr-only", text: this._t.gridKeyboardHint }));
+        return fragment;
     }
 
     _renderFooter() {
@@ -726,11 +779,13 @@ class JwDataTable extends HTMLElement {
             el("span", { text: this._t.perPage }),
             el("select", {
                 class: "k-dt-select",
+                "data-fk": "pagesize",
                 "aria-label": this._t.rowsPerPage,
                 onchange: (e) => {
                     this._state.pageSize = Number(e.target.value);
                     this._state.page = 1;
                     this._deriveAndRenderBody();
+                    this._announcePage();
                 }
             }, this._pageSizeOptions.map((size) =>
                 el("option", { value: String(size), text: String(size), selected: size === pageSize })
@@ -745,6 +800,7 @@ class JwDataTable extends HTMLElement {
         const navBtn = (icon, label, target, disabled) => el("button", {
             type: "button",
             class: "k-dt-page-btn",
+            "data-fk": `page:${icon}`,
             title: label,
             "aria-label": label,
             disabled,
@@ -761,6 +817,8 @@ class JwDataTable extends HTMLElement {
                 nav.appendChild(el("button", {
                     type: "button",
                     class: "k-dt-page-btn k-dt-page-num" + (item === page ? " is-active" : ""),
+                    "data-fk": `page:n:${item}`,
+                    "aria-label": this._t.pageN(item),
                     "aria-current": item === page ? "page" : null,
                     text: String(item),
                     onclick: () => this._goToPage(item)
@@ -789,6 +847,7 @@ class JwDataTable extends HTMLElement {
     _goToPage(page) {
         this._state.page = clamp(page, 1, this._pageCount);
         this._deriveAndRenderBody();
+        this._announcePage();
     }
 
     // ---- Sorting ---------------------------------------------------------
@@ -797,6 +856,7 @@ class JwDataTable extends HTMLElement {
         this._state.sort = toggleSort(this._state.sort, key, options);
         this._state.page = 1;
         this._deriveAndRenderBody();
+        this._announceSort();
     }
 
     _setSortDirection(key, direction, additive = false) {
@@ -804,6 +864,148 @@ class JwDataTable extends HTMLElement {
         this._state.sort = direction ? [...rest, { key, direction }] : rest;
         this._state.page = 1;
         this._deriveAndRenderBody();
+        this._announceSort();
+    }
+
+    // ---- Focus & keyboard ------------------------------------------------
+
+    // Interactive elements carry a stable `data-fk` key, so focus survives the
+    // re-render that follows most interactions (sort, filter, page, …).
+    _focusKey() {
+        const active = deepActiveElement();
+        if (!active || active.getRootNode() !== this.shadow) return null;
+        return active.closest("[data-fk]")?.dataset.fk ?? null;
+    }
+
+    _focusIsLost() {
+        const active = deepActiveElement();
+        return !active || active === document.body || !active.isConnected;
+    }
+
+    // Focuses the element with `key`. Fallbacks: the enclosing item
+    // ("cell:3:name:link" → "cell:3:name"), the current page for pager keys,
+    // any element of the same kind (a removed header → first header), and
+    // finally the body's roving tab stop.
+    _restoreFocus(key) {
+        if (!key) return false;
+        const usable = (node) => node && node.isConnected && !node.disabled && node.getClientRects().length > 0;
+        const find = (selector) => Array.from(this.shadow.querySelectorAll(selector)).find(usable);
+        const parts = key.split(":");
+        let target = null;
+        for (let n = parts.length; n >= 2 && !target; n -= 1) {
+            target = find(`[data-fk="${CSS.escape(parts.slice(0, n).join(":"))}"]`);
+        }
+        target = target
+            || find(`[data-fk="${CSS.escape(key)}"]`)
+            || (parts[0] === "page" && find('.k-dt-pager [aria-current="page"]'))
+            || find(`[data-fk^="${CSS.escape(parts[0])}:"]`)
+            || find('.k-dt-body [tabindex="0"]');
+        if (!target) return false;
+        target.focus();
+        return true;
+    }
+
+    _hintId(kind) {
+        return `${this._instanceId}-${kind}-hint`;
+    }
+
+    // Roving tabindex: the container is a single tab stop; arrow keys move
+    // between items. The last focused item is remembered across re-renders.
+    _initRoving(container, selector, onKey) {
+        const items = Array.from(container.querySelectorAll(selector));
+        if (!items.length) return;
+        const remembered = this._rovingKey && items.find((i) => i.dataset.fk === this._rovingKey);
+        (remembered || items[0]).tabIndex = 0;
+
+        container.addEventListener("focusin", (event) => {
+            const item = event.target.closest(selector);
+            if (!item || !container.contains(item)) return;
+            items.forEach((i) => { i.tabIndex = i === item ? 0 : -1; });
+            this._rovingKey = item.dataset.fk;
+        });
+        container.addEventListener("keydown", (event) => {
+            const item = event.target.closest(selector);
+            // Only when the item itself has focus — links/buttons inside keep their keys.
+            if (item && event.target === item) onKey(event, item);
+        });
+    }
+
+    _onCellKey(event, cell, tbody) {
+        const rows = Array.from(tbody.rows);
+        const rowIndex = rows.indexOf(cell.parentElement);
+        const colCount = cell.parentElement.cells.length;
+        let r = rowIndex;
+        let c = cell.cellIndex;
+        switch (event.key) {
+            case "ArrowRight": c += 1; break;
+            case "ArrowLeft": c -= 1; break;
+            case "ArrowDown": r += 1; break;
+            case "ArrowUp": r -= 1; break;
+            case "Home": c = 0; if (event.ctrlKey) r = 0; break;
+            case "End": c = colCount - 1; if (event.ctrlKey) r = rows.length - 1; break;
+            case "Enter": {
+                // Activate the cell's link/action, else cell/row click handlers.
+                const inner = cell.querySelector(".k-dt-link, .k-dt-cell-action");
+                if (inner) inner.click();
+                else if (this._config.onCellClick || this._config.onRowClick) cell.click();
+                else return;
+                event.preventDefault();
+                return;
+            }
+            default: return;
+        }
+        event.preventDefault();
+        r = clamp(r, 0, rows.length - 1);
+        c = clamp(c, 0, colCount - 1);
+        rows[r].cells[c].focus();
+    }
+
+    _onCardKey(event, card, grid) {
+        const cards = Array.from(grid.querySelectorAll(".k-dt-card"));
+        let i = cards.indexOf(card);
+        switch (event.key) {
+            case "ArrowRight": case "ArrowDown": i += 1; break;
+            case "ArrowLeft": case "ArrowUp": i -= 1; break;
+            case "Home": i = 0; break;
+            case "End": i = cards.length - 1; break;
+            case "Enter":
+                if (!this._config.onRowClick) return;
+                event.preventDefault();
+                card.click();
+                return;
+            default: return;
+        }
+        event.preventDefault();
+        cards[clamp(i, 0, cards.length - 1)].focus();
+    }
+
+    // Polite screen-reader announcement (status messages, WCAG 4.1.3).
+    _announce(message) {
+        if (!this._live || !message) return;
+        clearTimeout(this._announceTimer);
+        this._live.textContent = "";
+        // A short delay makes repeated identical messages announce again.
+        this._announceTimer = setTimeout(() => { this._live.textContent = message; }, 50);
+    }
+
+    _announceResults() {
+        const total = this._viewData.length;
+        this._announce(total === 0 ? this._config.noResultsText : this._t.resultsCount(total));
+    }
+
+    _announcePage() {
+        const total = this._viewData.length;
+        const start = total === 0 ? 0 : (this._state.page - 1) * this._state.pageSize + 1;
+        const end = Math.min(this._state.page * this._state.pageSize, total);
+        this._announce(this._t.pageInfo(start, end, total));
+    }
+
+    _announceSort() {
+        const parts = this._state.sort.map((spec) => {
+            const column = this._columns.find((c) => c.key === spec.key);
+            return `${column?.label ?? spec.key} ${spec.direction === "asc" ? this._t.ascending : this._t.descending}`;
+        });
+        this._announce(parts.length ? this._t.sortedBy(parts.join(", ")) : this._t.sortCleared);
     }
 
     // ---- Context menu ----------------------------------------------------
@@ -812,6 +1014,21 @@ class JwDataTable extends HTMLElement {
     // `getArgs` returns { column, row, value } lazily so cells share one binder.
     _bindContextTrigger(node, getArgs) {
         if (!this._features.contextMenu) return;
+
+        // Keyboard: Shift+F10 or the context-menu key on a focused cell, card,
+        // or header control. Browsers may follow up with a native `contextmenu`
+        // event, which is suppressed below.
+        node.addEventListener("keydown", (event) => {
+            if (!(event.key === "ContextMenu" || (event.key === "F10" && event.shiftKey))) return;
+            const target = event.composedPath()[0];
+            if (target?.matches?.("input, textarea, select")) return;
+            event.preventDefault();
+            event.stopPropagation();
+            this._suppressContextUntil = Date.now() + 500;
+            const rect = (target instanceof Element ? target : node).getBoundingClientRect();
+            const args = getArgs();
+            this._openContextMenu({ clientX: rect.left + 4, clientY: rect.bottom, target: node }, args.column, args.row, args.value);
+        });
 
         node.addEventListener("contextmenu", (event) => {
             event.preventDefault();
@@ -873,6 +1090,8 @@ class JwDataTable extends HTMLElement {
 
     _openContextMenu(event, column, row, value) {
         const items = [];
+        // Where focus returns after the menu (or a panel opened from it) closes.
+        const returnKey = this._focusKey();
         const group = typeGroup(column.type);
 
         if (column.sortable) {
@@ -903,7 +1122,7 @@ class JwDataTable extends HTMLElement {
                     });
                 }
             }
-            items.push({ label: this._t.openFilter, icon: "list-filter", onSelect: () => this._openFilterPanel(column, event.target) });
+            items.push({ label: this._t.openFilter, icon: "list-filter", onSelect: () => this._openFilterPanel(column, event.target, returnKey) });
             if (isActiveFilter(this._state.filters[column.key])) {
                 items.push({ label: this._t.clearColumnFilter, icon: "x", onSelect: () => this._setFilter(column.key, null) });
             }
@@ -928,15 +1147,22 @@ class JwDataTable extends HTMLElement {
             items.push({ label: this._t.exportCsv, icon: "download", onSelect: () => this.exportCSV() });
         }
 
-        openContextMenu(this.shadow, { x: event.clientX, y: event.clientY, items, sheet: this._isMobile() });
+        openContextMenu(this.shadow, {
+            x: event.clientX,
+            y: event.clientY,
+            items,
+            label: this._t.actionsFor(column.label),
+            sheet: this._isMobile(),
+            restoreFocus: () => this._restoreFocus(returnKey)
+        });
     }
 
     // ---- Filter panel ----------------------------------------------------
 
-    _openFilterPanel(column, anchor) {
+    _openFilterPanel(column, anchor, returnKey) {
         closeContextMenu();
         const panel = this._buildFilterPanel(column);
-        this._showOverlay(panel, anchor);
+        this._showOverlay(panel, anchor, returnKey);
     }
 
     _buildFilterPanel(column) {
@@ -947,27 +1173,50 @@ class JwDataTable extends HTMLElement {
         const panel = el("div", { class: "k-dt-panel" });
         panel.appendChild(el("div", { class: "k-dt-panel-head", text: this._t.filterPanelTitle(column.label) }));
 
-        const tabs = el("div", { class: "k-dt-tabs" });
-        const valueTab = el("button", { type: "button", class: "k-dt-tab", text: this._t.valuesTab });
-        const patternTab = el("button", { type: "button", class: "k-dt-tab", text: this._t.patternTab });
+        // Tabs (WAI-ARIA tabs pattern): Left/Right/Home/End switch, one tab stop.
+        const id = uid("kdt-flt");
+        const tabs = el("div", { class: "k-dt-tabs", role: "tablist", "aria-label": this._t.filterMode });
+        const makeTab = (name, text) => el("button", {
+            type: "button", class: "k-dt-tab", role: "tab", id: `${id}-${name}-tab`,
+            "aria-controls": `${id}-${name}`, text
+        });
+        const valueTab = makeTab("value", this._t.valuesTab);
+        const patternTab = makeTab("pattern", this._t.patternTab);
         tabs.appendChild(valueTab);
         tabs.appendChild(patternTab);
         panel.appendChild(tabs);
 
         const bodyValue = this._buildValueFilter(column, existing);
         const bodyPattern = this._buildPatternFilter(column, existing);
-        panel.appendChild(bodyValue.el);
-        panel.appendChild(bodyPattern.el);
+        for (const [name, body] of [["value", bodyValue], ["pattern", bodyPattern]]) {
+            body.el.id = `${id}-${name}`;
+            body.el.setAttribute("role", "tabpanel");
+            body.el.setAttribute("aria-labelledby", `${id}-${name}-tab`);
+            panel.appendChild(body.el);
+        }
 
-        const setMode = (next) => {
+        const setMode = (next, focusTab = false) => {
             mode = next;
-            valueTab.classList.toggle("is-active", next === "value");
-            patternTab.classList.toggle("is-active", next === "pattern");
-            bodyValue.el.style.display = next === "value" ? "" : "none";
-            bodyPattern.el.style.display = next === "pattern" ? "" : "none";
+            for (const [tab, body, name] of [[valueTab, bodyValue, "value"], [patternTab, bodyPattern, "pattern"]]) {
+                const selected = next === name;
+                tab.classList.toggle("is-active", selected);
+                tab.setAttribute("aria-selected", String(selected));
+                tab.tabIndex = selected ? 0 : -1;
+                body.el.hidden = !selected;
+                body.focusTarget.toggleAttribute("data-autofocus", selected);
+                if (selected && focusTab) tab.focus();
+            }
         };
         valueTab.addEventListener("click", () => setMode("value"));
         patternTab.addEventListener("click", () => setMode("pattern"));
+        tabs.addEventListener("keydown", (event) => {
+            if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+            event.preventDefault();
+            const next = event.key === "Home" ? "value"
+                : event.key === "End" ? "pattern"
+                : mode === "value" ? "pattern" : "value";
+            setMode(next, true);
+        });
         setMode(mode);
 
         const actions = el("div", { class: "k-dt-panel-actions" }, [
@@ -1003,6 +1252,7 @@ class JwDataTable extends HTMLElement {
             type: "search",
             class: "k-dt-input",
             placeholder: this._t.searchValues,
+            "aria-label": this._t.searchValues,
             oninput: (e) => {
                 const q = e.target.value.toLowerCase();
                 list.querySelectorAll(".k-dt-check").forEach((label) => {
@@ -1041,6 +1291,7 @@ class JwDataTable extends HTMLElement {
 
         return {
             el: container,
+            focusTarget: search,
             collect: () => {
                 const chosen = [];
                 list.querySelectorAll(".k-dt-check").forEach((label) => {
@@ -1068,9 +1319,11 @@ class JwDataTable extends HTMLElement {
         const operandWrap = el("div", { class: "k-dt-operands" });
         const operand1 = el("input", { type: inputType, class: "k-dt-input", value: current ? (current.operand ?? "") : "" });
         const operand2 = el("input", { type: inputType, class: "k-dt-input", value: current ? (current.operand2 ?? "") : "" });
+        const selectId = uid("kdt-op");
 
         const select = el("select", {
             class: "k-dt-select",
+            id: selectId,
             onchange: () => renderOperands()
         }, operators.map((op) => el("option", { value: op.id, text: this._t.operators[op.id] ?? op.label, selected: current && current.operator === op.id })));
 
@@ -1078,17 +1331,20 @@ class JwDataTable extends HTMLElement {
             const meta = operatorMeta(column.type, select.value);
             const arity = meta ? meta.arity : 1;
             operandWrap.innerHTML = "";
+            operand1.setAttribute("aria-label", arity >= 2 ? this._t.operandFrom : this._t.operandValue);
+            operand2.setAttribute("aria-label", this._t.operandTo);
             if (arity >= 1) operandWrap.appendChild(operand1);
             if (arity >= 2) operandWrap.appendChild(operand2);
         };
         renderOperands();
 
-        container.appendChild(el("label", { class: "k-dt-field-label", text: this._t.condition }));
+        container.appendChild(el("label", { class: "k-dt-field-label", for: selectId, text: this._t.condition }));
         container.appendChild(select);
         container.appendChild(operandWrap);
 
         return {
             el: container,
+            focusTarget: select,
             collect: () => {
                 const meta = operatorMeta(column.type, select.value);
                 const arity = meta ? meta.arity : 1;
@@ -1108,6 +1364,7 @@ class JwDataTable extends HTMLElement {
         }
         this._state.page = 1;
         this._deriveAndRenderBody();
+        this._announceResults();
     }
 
     // ---- Column visibility & templates -----------------------------------
@@ -1136,13 +1393,25 @@ class JwDataTable extends HTMLElement {
         else this._state.hiddenColumns.add(key);
         this._render();
         this._emitChange();
+        // The chooser's checkbox announces itself; the context menu needs a message.
+        if (!visible && !this._overlay) {
+            const column = this._columns.find((c) => c.key === key);
+            this._announce(this._t.columnHidden(column?.label ?? key));
+        }
     }
 
     async _openTemplatesMenu(anchor) {
         const panel = el("div", { class: "k-dt-panel" });
         panel.appendChild(el("div", { class: "k-dt-panel-head", text: this._t.templatesPanel }));
 
-        const nameInput = el("input", { type: "text", class: "k-dt-input", placeholder: this._t.templateNamePlaceholder });
+        const nameInput = el("input", {
+            type: "text",
+            class: "k-dt-input",
+            placeholder: this._t.templateNamePlaceholder,
+            "aria-label": this._t.templateNamePlaceholder,
+            // Enter in the name field saves.
+            onkeydown: (e) => { if (e.key === "Enter") { e.preventDefault(); saveRow.querySelector("button").click(); } }
+        });
         const saveRow = el("div", { class: "k-dt-tpl-save" }, [
             nameInput,
             el("button", {
@@ -1153,6 +1422,7 @@ class JwDataTable extends HTMLElement {
                     const name = nameInput.value.trim();
                     if (!name) return;
                     await this.saveTemplate(name);
+                    this._announce(this._t.templateSaved(name));
                     this._closeOverlay();
                     this._openTemplatesMenu(anchor);
                 }
@@ -1172,13 +1442,17 @@ class JwDataTable extends HTMLElement {
                     class: "k-dt-tpl-load",
                     text: name,
                     title: this._t.loadTemplate,
-                    onclick: async () => { await this.loadTemplate(name); this._closeOverlay(); }
+                    onclick: async () => {
+                        await this.loadTemplate(name);
+                        this._closeOverlay();
+                        this._announce(this._t.templateLoaded(name));
+                    }
                 }),
                 el("button", {
                     type: "button",
                     class: "k-dt-icon-btn",
                     title: this._t.deleteTemplate,
-                    "aria-label": this._t.deleteTemplate,
+                    "aria-label": `${this._t.deleteTemplate}: ${name}`,
                     onclick: async () => { await this.removeTemplate(name); this._closeOverlay(); this._openTemplatesMenu(anchor); }
                 }, [iconEl("trash")])
             ]));
@@ -1189,55 +1463,102 @@ class JwDataTable extends HTMLElement {
 
     // ---- Overlay (Panels) ------------------------------------------------
 
-    _showOverlay(panel, anchor) {
+    // Panels are modal dialogs: focus moves in (to `[data-autofocus]` or the
+    // first control), Tab cycles inside, Escape closes, and focus returns to
+    // the opener (`returnKey`, default: the element focused at open time).
+    _showOverlay(panel, anchor, returnKey = this._focusKey()) {
         this._closeOverlay();
         closeContextMenu();
         panel.classList.add("k-dt-overlay");
+        panel.setAttribute("role", "dialog");
+        panel.setAttribute("aria-modal", "true");
+        const head = panel.querySelector(".k-dt-panel-head");
+        if (head) {
+            head.id = uid("kdt-dlg");
+            panel.setAttribute("aria-labelledby", head.id);
+        }
 
         if (this._isMobile()) {
             // Bottom sheet: CSS handles positioning, no anchoring needed.
             panel.classList.add("k-dt-overlay--sheet");
             this.shadow.appendChild(panel);
         } else {
-            panel.style.visibility = "hidden";
+            // Position synchronously so the panel can take focus right away.
             this.shadow.appendChild(panel);
-            requestAnimationFrame(() => {
-                const rect = panel.getBoundingClientRect();
-                const aRect = anchor ? anchor.getBoundingClientRect() : { left: 0, bottom: 0, right: 0 };
-                let left = aRect.left;
-                let top = aRect.bottom + 4;
-                if (left + rect.width > window.innerWidth) left = Math.max(4, window.innerWidth - rect.width - 4);
-                if (top + rect.height > window.innerHeight) top = Math.max(4, aRect.top - rect.height - 4);
-                panel.style.left = `${Math.max(4, left)}px`;
-                panel.style.top = `${Math.max(4, top)}px`;
-                panel.style.visibility = "visible";
-            });
+            const rect = panel.getBoundingClientRect();
+            const aRect = anchor && anchor.isConnected ? anchor.getBoundingClientRect() : { left: 0, top: 0, bottom: 0 };
+            let left = aRect.left;
+            let top = aRect.bottom + 4;
+            if (left + rect.width > window.innerWidth) left = Math.max(4, window.innerWidth - rect.width - 4);
+            if (top + rect.height > window.innerHeight) top = Math.max(4, aRect.top - rect.height - 4);
+            panel.style.left = `${Math.max(4, left)}px`;
+            panel.style.top = `${Math.max(4, top)}px`;
         }
 
         this._overlay = panel;
+        this._overlayReturnKey = returnKey;
+        this._overlayFk = anchor?.dataset?.fk ?? null;
+        if (this._overlayFk) anchor.setAttribute("aria-expanded", "true");
+
+        panel.addEventListener("keydown", (event) => {
+            if (event.key === "Escape") {
+                event.preventDefault();
+                event.stopPropagation();
+                this._closeOverlay();
+            } else if (event.key === "Tab") {
+                const focusables = this._focusables(panel);
+                if (!focusables.length) return;
+                const first = focusables[0];
+                const last = focusables[focusables.length - 1];
+                const active = deepActiveElement();
+                if (event.shiftKey && active === first) { event.preventDefault(); last.focus(); }
+                else if (!event.shiftKey && active === last) { event.preventDefault(); first.focus(); }
+            }
+        });
+        const initial = panel.querySelector("[data-autofocus]") || this._focusables(panel)[0];
+        if (initial) initial.focus();
+        else { panel.tabIndex = -1; panel.focus(); }
+
         this._overlayOutside = (event) => {
             const path = event.composedPath ? event.composedPath() : [event.target];
-            if (!path.includes(panel) && event.target !== anchor) this._closeOverlay();
+            if (!path.includes(panel) && !path.includes(anchor)) this._closeOverlay({ restoreFocus: false });
         };
         this._overlayKey = (event) => { if (event.key === "Escape") this._closeOverlay(); };
         setTimeout(() => {
+            if (this._overlay !== panel) return;
             document.addEventListener("pointerdown", this._overlayOutside, true);
             document.addEventListener("keydown", this._overlayKey, true);
         }, 0);
     }
 
-    _closeOverlay() {
+    _focusables(container) {
+        return Array.from(container.querySelectorAll(
+            'button, input, select, textarea, a[href], [tabindex]:not([tabindex="-1"])'
+        )).filter((n) => !n.disabled && n.getClientRects().length > 0);
+    }
+
+    // restoreFocus: return focus to the opener if it was inside the panel or got
+    // lost (not when the user clicked elsewhere).
+    _closeOverlay({ restoreFocus = true } = {}) {
         if (!this._overlay) return;
-        this._overlay.remove();
+        const panel = this._overlay;
+        const hadFocus = panel.contains(deepActiveElement());
         this._overlay = null;
+        panel.remove();
         document.removeEventListener("pointerdown", this._overlayOutside, true);
         document.removeEventListener("keydown", this._overlayKey, true);
+        if (this._overlayFk) {
+            this.shadow.querySelector(`[data-fk="${CSS.escape(this._overlayFk)}"]`)?.setAttribute("aria-expanded", "false");
+        }
+        this._overlayFk = null;
+        if (restoreFocus && (hadFocus || this._focusIsLost())) this._restoreFocus(this._overlayReturnKey);
     }
 
     // ---- Copy ------------------------------------------------------------
 
     _copyText(text, button) {
         const done = () => {
+            this._announce(this._t.copied);
             if (!button) return;
             button.classList.add("is-copied");
             setTimeout(() => button.classList.remove("is-copied"), 900);

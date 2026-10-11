@@ -29,6 +29,12 @@ kopiert und per `import` eingebunden.
   zurück zum Auslöser), ausreichende Kontraste (4.5:1 Text, 3:1 UI) einhalten
   und Touch-Ziele ≥ 44px behalten. Rechtsklick/Long-Press-Funktionen brauchen
   ein Tastatur-Äquivalent.
+- Barrierefreiheit im Code: interaktive Elemente bekommen einen stabilen
+  `data-fk`-Key (Fokus überlebt `_render()`), Tabellenkörper/Karten nutzen
+  roving tabindex (`_initRoving`), Panels laufen über `_showOverlay()`
+  (Dialog, Fokusfalle, Fokus-Rückgabe), Statusmeldungen über `_announce()`.
+  `_render()` ersetzt nur Style + `.k-dt`-Root; Overlays, Menü und
+  Live-Region bleiben bestehen. Die README-Tabelle „Keyboard“ aktuell halten.
 - Sprache im Code, Kommentaren und README: Englisch. UI-Texte nie hart
   codieren, sondern über `i18n.js` (alle Sprachen pflegen: `en`, `de`).
 
