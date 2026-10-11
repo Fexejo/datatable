@@ -37,6 +37,7 @@ written in Vanilla JS (ES modules, Shadow DOM). No external dependencies.
 11. [Events](#events)
 12. [Instance API](#instance-api)
 13. [Theming & styling](#theming--styling)
+    - [Icons](#icons)
 14. [Responsive & touch](#responsive--touch)
 15. [i18n / Localization](#i18n--localization)
 16. [Accessibility](#accessibility)
@@ -58,7 +59,7 @@ written in Vanilla JS (ES modules, Shadow DOM). No external dependencies.
 | `contextMenu.js` | Reusable context menu |
 | `styles.js` | Shadow DOM styles as a string |
 | `util.js` | Shared helpers |
-| `icons.js` | Inline SVG icons (no external icon package) |
+| `icons.js` | [Lucide](https://lucide.dev) icons, bundled inline (see [Icons](#icons)) |
 | `i18n.js` | UI translations + `getTranslations()` helper |
 | `columns.js` | Column inference from data |
 | `demo.html` | Runnable demo |
@@ -442,6 +443,25 @@ createDataTable("#c", { /* … */ styles: `
 ` });
 ```
 
+### Icons
+
+All icons are [Lucide](https://lucide.dev/icons) icons (ISC license), bundled
+in `icons.js` — no icon package or `.svg` files are loaded at runtime. They use
+`stroke="currentColor"`, so they follow the text color of their control, and
+are sized via CSS (`.k-dt-ic svg`, `.k-ctx-icon svg`).
+
+Icons are decorative (`aria-hidden="true"`); every icon-only button carries its
+own `aria-label` from the i18n bundle.
+
+**Adding an icon** (maintainers):
+
+1. Look up the canonical name on <https://lucide.dev/icons> (no aliases).
+2. `curl -sSL https://cdn.jsdelivr.net/npm/lucide-static@latest/icons/<name>.svg`
+3. Copy only the inner markup of `<svg>` (paths, circles, …) as one line into
+   `ICONS` in `icons.js`, keyed by the Lucide name.
+4. Use it via `createIcon("<name>")` (returns an `SVGSVGElement`), or the
+   `iconEl()` helper in `jwDataTable.js` / `icon:` in context-menu items.
+
 ---
 
 ## Responsive & touch
@@ -557,6 +577,8 @@ export const LOCALES = {
 
 - Semantic `<table>` with `scope="col"` and `aria-sort` on headers
 - Controls are real `<button>` / `<input>` with `aria-label` / `title`
+- Icon-only buttons have an `aria-label`; icons themselves are decorative (`aria-hidden`)
+- The table/grid toggle is an action button whose label names the view it switches to
 - Pagination uses `role="navigation"`; current page has `aria-current="page"`
 - Context menu: `role="menu"` / `role="menuitem"`; closes on Esc and outside click; overlays too
 - Focus styles via `:focus-visible`

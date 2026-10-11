@@ -2,7 +2,7 @@
 // Rendered in the table shadow root, positioned with `position: fixed` at the pointer.
 // Supports separators, icons, disabled/checked items, and one level of submenus.
 
-import { iconSvg } from "./icons.js";
+import { createIcon } from "./icons.js";
 
 let activeMenu = null;
 
@@ -108,8 +108,8 @@ function buildMenu(items, requestClose, isSubmenu = false) {
 
         const icon = document.createElement("span");
         icon.className = "k-ctx-icon";
-        if (item.icon) icon.innerHTML = iconSvg(item.icon, item.icon);
-        else if (item.checked) icon.innerHTML = iconSvg("calendarCheck", "calendarCheck");
+        if (item.icon) icon.appendChild(createIcon(item.icon));
+        else if (item.checked) icon.appendChild(createIcon("check"));
         entry.appendChild(icon);
 
         const label = document.createElement("span");

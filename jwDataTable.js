@@ -7,7 +7,7 @@
 //
 // The convenient public API lives in `datatable.js`. This file is the Web Component itself.
 
-import { iconSvg } from "./icons.js";
+import { createIcon } from "./icons.js";
 import { getTranslations } from "./i18n.js";
 import {
     getCellValue,
@@ -56,7 +56,7 @@ function el(tag, props = {}, children = []) {
 }
 
 function iconEl(name, className = "k-dt-ic") {
-    return el("span", { class: className, html: iconSvg(name, name) });
+    return el("span", { class: className }, [createIcon(name)]);
 }
 
 // Opt-in features default to `false` and must be enabled explicitly via
@@ -448,18 +448,21 @@ class JwDataTable extends HTMLElement {
 
         if (this._features.grid) {
             const isGrid = this._state.viewMode === "grid";
+            // Action button: label and icon name the view it switches to.
+            // No aria-pressed, which would contradict the changing label.
+            const switchLabel = isGrid ? this._t.tableView : this._t.gridView;
             right.appendChild(el("button", {
                 type: "button",
                 class: "k-dt-btn",
-                title: isGrid ? this._t.tableView : this._t.gridView,
-                "aria-pressed": String(isGrid),
+                title: switchLabel,
+                "aria-label": switchLabel,
                 onclick: () => {
                     this._state.viewMode = isGrid ? "table" : "grid";
                     this._viewModeUserSet = true;
                     this._render();
                     this._emitChange();
                 }
-            }, [iconEl(isGrid ? "table" : "grid")]));
+            }, [iconEl(isGrid ? "table" : "layout-grid")]));
         }
 
         if (this._features.columnVisibility) {
@@ -467,8 +470,9 @@ class JwDataTable extends HTMLElement {
                 type: "button",
                 class: "k-dt-btn",
                 title: this._t.showHideColumns,
+                "aria-label": this._t.showHideColumns,
                 onclick: (e) => this._openColumnChooser(e.currentTarget)
-            }, [iconEl("columns")]));
+            }, [iconEl("columns-3")]));
         }
 
         if (this._features.templates && this._templateStore) {
@@ -476,6 +480,7 @@ class JwDataTable extends HTMLElement {
                 type: "button",
                 class: "k-dt-btn",
                 title: this._t.viewTemplates,
+                "aria-label": this._t.viewTemplates,
                 onclick: (e) => this._openTemplatesMenu(e.currentTarget)
             }, [iconEl("save")]));
         }
@@ -485,6 +490,7 @@ class JwDataTable extends HTMLElement {
                 type: "button",
                 class: "k-dt-btn",
                 title: this._t.exportCsv,
+                "aria-label": this._t.exportCsv,
                 onclick: () => this.exportCSV()
             }, [iconEl("download")]));
         }
@@ -544,7 +550,7 @@ class JwDataTable extends HTMLElement {
         }, [el("span", { text: column.label })]);
 
         if (column.sortable) {
-            const icon = sort ? (sort.direction === "asc" ? "arrowUp" : "arrowDown") : "arrowUpDown";
+            const icon = sort ? (sort.direction === "asc" ? "arrow-up" : "arrow-down") : "arrow-up-down";
             const ind = iconEl(icon, "k-dt-sort-ic" + (sort ? " is-active" : ""));
             labelBtn.appendChild(ind);
             if (sort && this._state.sort.length > 1) {
@@ -561,7 +567,7 @@ class JwDataTable extends HTMLElement {
                 title: active ? this._t.filterActive : this._t.filter,
                 "aria-label": this._t.filterAriaLabel,
                 onclick: (e) => this._openFilterPanel(column, e.currentTarget)
-            }, [iconEl("filter")]));
+            }, [iconEl("list-filter")]));
         }
 
         th.appendChild(inner);
@@ -744,8 +750,8 @@ class JwDataTable extends HTMLElement {
             onclick: () => this._goToPage(target)
         }, [iconEl(icon)]);
 
-        nav.appendChild(navBtn("chevronsLeft", this._t.firstPage, 1, page <= 1));
-        nav.appendChild(navBtn("chevronLeft", this._t.prevPage, page - 1, page <= 1));
+        nav.appendChild(navBtn("chevrons-left", this._t.firstPage, 1, page <= 1));
+        nav.appendChild(navBtn("chevron-left", this._t.prevPage, page - 1, page <= 1));
 
         this._pageItems(page, pageCount).forEach((item) => {
             if (item === "…") {
@@ -761,8 +767,8 @@ class JwDataTable extends HTMLElement {
             }
         });
 
-        nav.appendChild(navBtn("chevronRight", this._t.nextPage, page + 1, page >= pageCount));
-        nav.appendChild(navBtn("chevronsRight", this._t.lastPage, pageCount, page >= pageCount));
+        nav.appendChild(navBtn("chevron-right", this._t.nextPage, page + 1, page >= pageCount));
+        nav.appendChild(navBtn("chevrons-right", this._t.lastPage, pageCount, page >= pageCount));
 
         footer.appendChild(info);
         footer.appendChild(nav);
@@ -869,10 +875,10 @@ class JwDataTable extends HTMLElement {
         const group = typeGroup(column.type);
 
         if (column.sortable) {
-            items.push({ label: this._t.sortAsc, icon: "arrowUp", onSelect: () => this._setSortDirection(column.key, "asc") });
-            items.push({ label: this._t.sortDesc, icon: "arrowDown", onSelect: () => this._setSortDirection(column.key, "desc") });
+            items.push({ label: this._t.sortAsc, icon: "arrow-up", onSelect: () => this._setSortDirection(column.key, "asc") });
+            items.push({ label: this._t.sortDesc, icon: "arrow-down", onSelect: () => this._setSortDirection(column.key, "desc") });
             if (this._features.multiSort) {
-                items.push({ label: this._t.addSortKey, icon: "arrowUpDown", onSelect: () => this._setSortDirection(column.key, "asc", true) });
+                items.push({ label: this._t.addSortKey, icon: "arrow-up-down", onSelect: () => this._setSortDirection(column.key, "asc", true) });
             }
             if (this._state.sort.some((s) => s.key === column.key)) {
                 items.push({ label: this._t.removeSortKey, icon: "x", onSelect: () => this._setSortDirection(column.key, null, true) });
@@ -884,19 +890,19 @@ class JwDataTable extends HTMLElement {
             if (row) {
                 const label = toText(value, column, this._config.locale, row);
                 items.push({
-                    label: `Filter by “${this._truncate(label)}”`,
-                    icon: "filter",
+                    label: this._t.filterByValue(this._truncate(label)),
+                    icon: "list-filter",
                     onSelect: () => this._setFilter(column.key, { kind: "value", values: [value] })
                 });
                 if (group === "text" || group === "number") {
                     items.push({
-                        label: `Exclude “${this._truncate(label)}”`,
+                        label: this._t.excludeValue(this._truncate(label)),
                         icon: "x",
                         onSelect: () => this._setFilter(column.key, { kind: "pattern", operator: "notEquals", operand: label, arity: 1 })
                     });
                 }
             }
-            items.push({ label: this._t.openFilter, icon: "filter", onSelect: () => this._openFilterPanel(column, event.target) });
+            items.push({ label: this._t.openFilter, icon: "list-filter", onSelect: () => this._openFilterPanel(column, event.target) });
             if (isActiveFilter(this._state.filters[column.key])) {
                 items.push({ label: this._t.clearColumnFilter, icon: "x", onSelect: () => this._setFilter(column.key, null) });
             }
@@ -913,7 +919,7 @@ class JwDataTable extends HTMLElement {
 
         if (this._features.columnVisibility) {
             items.push({ separator: true });
-            items.push({ label: this._t.hideColumn, icon: "columns", onSelect: () => this._toggleColumn(column.key, false) });
+            items.push({ label: this._t.hideColumn, icon: "eye-off", onSelect: () => this._toggleColumn(column.key, false) });
         }
 
         if (this._features.csvExport) {
