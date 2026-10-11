@@ -620,7 +620,9 @@ or touch also works with the keyboard alone.
 
 Focus is kept across re-renders (sorting, filtering, paging, …): the same
 control — or its closest equivalent, e.g. the current page when “next” becomes
-disabled — gets focus again.
+disabled — gets focus again. Sorting updates the table in place, so the focused
+header button stays the same element and screen readers only announce the new
+sort order instead of re-reading the whole table.
 
 **Semantics**
 
@@ -639,9 +641,27 @@ disabled — gets focus again.
   The filter panel uses the tabs pattern (`tablist` / `tab` / `tabpanel`).
 - All inputs and selects have accessible names.
 
-**Status messages** (polite live region, WCAG 4.1.3): number of results after
-search/filter, sort order, page range, “Copied to clipboard”, hidden column,
-saved/loaded template. All texts come from `i18n.js`.
+**Status messages** (polite live region, WCAG 4.1.3). The region is a single
+visually hidden `<div data-jw-datatable-announcer>` appended to `<body>` and
+shared by all tables — live regions inside shadow roots are not reliably
+announced by screen readers. While a panel (modal dialog) is open, messages go
+to a live region inside the panel instead. Messages: number of results after
+search/filter, sort order, page range, “Copied to clipboard: <value>”, hidden
+column, saved/loaded template. Repeated identical messages are announced again.
+All texts come from `i18n.js`.
+
+The result count of the global search is announced once typing pauses (1 s),
+not after every keystroke.
+
+**Copy confirmation.** With the keyboard, focus stays on the copy button and
+the button itself is renamed to “Copied to clipboard: <value>” and shows a
+check icon until it loses focus. Screen readers announce name changes of the focused element regardless
+of their live-region settings (e.g. NVDA “Report dynamic content changes”),
+and nothing is announced twice. A mouse click does not move focus (so the table
+context is not read out); the confirmation then goes to the live region and the
+check icon shows for about a second.
+Copying also works without the async Clipboard API (plain HTTP) and keeps
+focus in place.
 
 **Visual**
 

@@ -2,6 +2,7 @@
 // `?dist` in the page URL runs them against the built bundle instead of the sources.
 
 import { test, assert, nextFrame, sleep, waitFor, deepActiveElement, accessibleName, input } from "./harness.js";
+import { createIcon } from "../../icons.js";
 
 const ENTRY = new URLSearchParams(location.search).has("dist")
     ? "../../dist/jw-datatable.min.js"
@@ -30,6 +31,9 @@ const ALL_FEATURES = {
 };
 
 function mount(config = {}) {
+    // The shared announcer outlives tests; start each test with a clean slate.
+    const announcer = document.querySelector("[data-jw-datatable-announcer]");
+    if (announcer) announcer.textContent = "";
     return createDataTable("#fixture", {
         id: "test",
         columns: COLUMNS,
@@ -274,9 +278,13 @@ test("switches to card view below the breakpoint", async () => {
 
 // ---- Focus management -----------------------------------------------------
 
-const status = (table) => $(table, '[role="status"]');
-const announced = (table, text) => waitFor(() => status(table)?.textContent === text, {
-    message: `expected announcement "${text}", got "${status(table)?.textContent}"`
+// Active live region: the open panel's own region, else the shared one in <body>.
+const status = (table) => $(table, ".k-dt-overlay [data-live]")
+    || document.querySelector("body > [data-jw-datatable-announcer]");
+// Announcements may carry an invisible alternating suffix (see _announce).
+const statusText = (table) => (status(table)?.textContent ?? "").replace(/\u00a0$/, "");
+const announced = (table, text) => waitFor(() => statusText(table) === text, {
+    message: `expected announcement "${text}", got "${statusText(table)}"`
 });
 
 test("pagination keeps focus on the pressed button, then on the current page", () => {
@@ -465,11 +473,17 @@ test("applying a filter closes the panel and returns focus to the filter button"
     await announced(table, `${$$(table, "tbody tr").length} rows`);
 });
 
+// Identifies the Lucide icon inside `node` (same serialized markup as a fresh one).
+const hasIcon = (node, name) => node.querySelector("svg")?.innerHTML === createIcon(name).innerHTML;
+
 // ---- Announcements ---------------------------------------------------------
 
 test("status messages: search results, sort, page, copy", async () => {
     const table = mount({ features: { globalSearch: true, sorting: true } });
-    assert.equal(status(table).getAttribute("aria-live"), "polite");
+    const announcer = status(table);
+    assert.equal(announcer.parentElement, document.body, "live region lives in the light DOM");
+    assert.equal(announcer.getAttribute("aria-live"), "polite");
+    assert.equal(document.querySelectorAll("[data-jw-datatable-announcer]").length, 1, "one shared region");
 
     const search = $(table, "input[type=search]");
     search.value = "clara";
@@ -490,7 +504,7 @@ test("status messages: search results, sort, page, copy", async () => {
     await announced(table, "11–20 of 30");
 
     $(table, '[data-fk="cell:0:name:copy"]').click();
-    await announced(table, "Copied to clipboard");
+    await announced(table, `Copied to clipboard: ${columnTexts(table, 1)[0]}`);
 });
 
 test("German announcements", async () => {
@@ -521,3 +535,96 @@ test("Shift+Enter on a sort header adds a secondary sort key", async () => {
     await input.press("Enter", ["Shift"]);
     assert.deepEqual(table.getState().sort.map((s) => s.key), ["name", "fee"]);
 }, { cdp: true });
+
+test("mouse click on a copy button keeps focus and only announces the copy", async () => {
+    const table = mount({ features: { globalSearch: true } });
+    const search = $(table, "input[type=search]");
+    search.focus();
+    const button = $(table, '[data-fk="cell:1:name:copy"]');
+    await input.click(button);
+    assert.equal(deepActiveElement(), search, "focus did not move into the table");
+    await announced(table, "Copied to clipboard: Ben");
+    assert.ok(hasIcon(button, "check"), "check icon after copying");
+    await waitFor(() => hasIcon(button, "copy"), { timeout: 2500, message: "icon reverts after a moment" });
+}, { cdp: true });
+
+test("keyboard copy confirms on the focused button (no live region), every time", async () => {
+    const table = mount();
+    const button = $(table, '[data-fk="cell:0:name:copy"]');
+    button.focus();
+    await input.press("Enter");
+    await waitFor(() => button.getAttribute("aria-label") === "Copied to clipboard: Anna", {
+        message: `button name: ${button.getAttribute("aria-label")}`
+    });
+    assert.equal(deepActiveElement(), button, "focus stays on the copy button");
+    assert.ok(hasIcon(button, "check") && button.classList.contains("is-copied"), "check icon while focused");
+    await sleep(150);
+    assert.equal(statusText(table), "", "no duplicate live-region announcement");
+
+    await input.press("Enter");
+    await waitFor(() => button.getAttribute("aria-label") === "Copied to clipboard: Anna.", {
+        message: "second copy must change the name again"
+    });
+
+    await sleep(1400);
+    assert.ok(hasIcon(button, "check"), "check icon stays while the button has focus");
+    await input.press("Tab");
+    assert.equal(button.getAttribute("aria-label"), "Copy value: Name", "original name restored on blur");
+    assert.ok(hasIcon(button, "copy") && !button.classList.contains("is-copied"), "copy icon restored on blur");
+}, { cdp: true });
+
+test("German copy announcement", async () => {
+    const table = mount({ locale: "de-DE" });
+    $(table, '[data-fk="cell:2:name:copy"]').click();
+    await announced(table, "In die Zwischenablage kopiert: Clara");
+});
+
+test("announcements while a panel is open go to the panel's live region", async () => {
+    const table = mount({ features: { templates: true }, storage: { adapter: {
+        list: () => [], get: () => null, save: () => {}, remove: () => {}
+    } } });
+    $(table, '[data-fk="tb:templates"]').click();
+    const nameInput = await waitFor(() => $(table, ".k-dt-overlay .k-dt-tpl-save input"));
+    nameInput.value = "Mine";
+    nameInput.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+    await waitFor(() => $(table, ".k-dt-overlay [data-live]")?.textContent.startsWith("Template “Mine” saved"), {
+        message: "expected the announcement inside the open dialog"
+    });
+});
+
+test("sorting keeps the focused header button and the table element", async () => {
+    const table = mount({ features: { sorting: true }, title: "Members" });
+    const button = $(table, '[data-fk="sort:name"]');
+    const tableEl = $(table, "table");
+    button.focus();
+    await input.press("Enter");
+    assert.equal($(table, '[data-fk="sort:name"]'), button, "same button element");
+    assert.equal($(table, "table"), tableEl, "same table element");
+    assert.equal(deepActiveElement(), button);
+    assert.equal($$(table, "thead th")[1].getAttribute("aria-sort"), "ascending");
+    assert.equal(columnTexts(table, 1)[0], "Anna");
+    await announced(table, "Sorted by Name ascending");
+    await input.press("Enter");
+    assert.equal($$(table, "thead th")[1].getAttribute("aria-sort"), "descending");
+    assert.ok(hasIcon($$(table, "thead th")[1], "arrow-down"), "indicator updated in place");
+}, { cdp: true });
+
+test("search announces the result count once, after typing pauses", async () => {
+    const table = mount({ features: { globalSearch: true } });
+    const announcer = document.querySelector("body > [data-jw-datatable-announcer]");
+    const texts = [];
+    const observer = new MutationObserver(() => {
+        const text = announcer.textContent.trim();
+        if (text) texts.push(text);
+    });
+    observer.observe(announcer, { childList: true, characterData: true, subtree: true });
+    const search = $(table, "input[type=search]");
+    for (const value of ["c", "cl", "cla"]) {
+        search.value = value;
+        search.dispatchEvent(new Event("input", { bubbles: true }));
+        await sleep(300);   // slower than the 200ms view debounce
+    }
+    await sleep(1500);
+    observer.disconnect();
+    assert.deepEqual(texts, ["5 rows"]);
+});

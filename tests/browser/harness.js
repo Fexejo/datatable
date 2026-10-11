@@ -143,6 +143,16 @@ export const input = {
         await cdp("Input.dispatchKeyEvent", { type: "keyUp", ...base });
         await nextFrame();
     },
+    /** Clicks the center of `element` with a real (trusted) mouse event. */
+    async click(element) {
+        element.scrollIntoView({ block: "center" });
+        const r = element.getBoundingClientRect();
+        const base = { x: r.left + r.width / 2, y: r.top + r.height / 2, button: "left", clickCount: 1 };
+        await cdp("Input.dispatchMouseEvent", { type: "mouseMoved", ...base });
+        await cdp("Input.dispatchMouseEvent", { type: "mousePressed", ...base });
+        await cdp("Input.dispatchMouseEvent", { type: "mouseReleased", ...base });
+        await nextFrame();
+    },
     /** Emulates a viewport size (e.g. mobile); `null` resets. */
     async viewport(width, height = 800) {
         if (width == null) await cdp("Emulation.clearDeviceMetricsOverride", {});

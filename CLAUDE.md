@@ -32,9 +32,9 @@ kopiert und per `import` eingebunden.
 - Barrierefreiheit im Code: interaktive Elemente bekommen einen stabilen
   `data-fk`-Key (Fokus überlebt `_render()`), Tabellenkörper/Karten nutzen
   roving tabindex (`_initRoving`), Panels laufen über `_showOverlay()`
-  (Dialog, Fokusfalle, Fokus-Rückgabe), Statusmeldungen über `_announce()`.
-  `_render()` ersetzt nur Style + `.k-dt`-Root; Overlays, Menü und
-  Live-Region bleiben bestehen. Die README-Tabelle „Keyboard“ aktuell halten.
+  (Dialog, Fokusfalle, Fokus-Rückgabe), Statusmeldungen über `_announce()` (gemeinsame Live-Region im Light DOM unter `<body>`, bei offenem Panel die Region im Panel; Live-Regionen im Shadow DOM sagt NVDA+Chrome nicht zuverlässig an).
+  `_render()` ersetzt nur Style + `.k-dt`-Root; Overlays und Menü bleiben
+  bestehen. Die README-Tabelle „Keyboard“ aktuell halten.
 - Sprache im Code, Kommentaren und README: Englisch. UI-Texte nie hart
   codieren, sondern über `i18n.js` (alle Sprachen pflegen: `en`, `de`).
 

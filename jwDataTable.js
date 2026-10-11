@@ -55,6 +55,27 @@ function el(tag, props = {}, children = []) {
     return node;
 }
 
+// Visually hidden but exposed to assistive tech (inline styles: used outside the shadow root).
+const SR_ONLY_STYLE = "position:absolute;width:1px;height:1px;margin:-1px;padding:0;border:0;"
+    + "overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap;";
+
+// One shared live region in the light DOM (document.body) for all tables.
+// Live regions inside shadow roots are not reliably announced by screen
+// readers (observed with NVDA + Chrome). It must exist before the first
+// message, so tables create it when they connect.
+function getAnnouncer() {
+    let node = document.querySelector("body > [data-jw-datatable-announcer]");
+    if (!node) {
+        node = document.createElement("div");
+        node.setAttribute("data-jw-datatable-announcer", "");
+        node.setAttribute("aria-live", "polite");
+        node.setAttribute("aria-atomic", "true");
+        node.style.cssText = SR_ONLY_STYLE;
+        document.body.appendChild(node);
+    }
+    return node;
+}
+
 function iconEl(name, className = "k-dt-ic") {
     return el("span", { class: className }, [createIcon(name)]);
 }
@@ -102,18 +123,24 @@ class JwDataTable extends HTMLElement {
             this._state.page = 1;
             // Rebuild body/footer only so the focused search field is preserved.
             this._updateView();
-            this._announceResults();
+            this._debouncedSearchAnnounce();
             this._emitChange();
         }, 200);
+        // Announce the result count only once typing pauses, not after every letter.
+        this._debouncedSearchAnnounce = debounce(() => this._announceResults(), 1000);
     }
 
     connectedCallback() {
+        getAnnouncer();
         if (!this._configured) return;
         if (!this._mql) this._setupResponsive();
         if (!this.shadow.firstChild) this._render();
     }
 
     disconnectedCallback() {
+        this._debouncedSearch.cancel();
+        this._debouncedSearchAnnounce.cancel();
+        clearTimeout(this._announceTimer);
         closeContextMenu();
         this._closeOverlay();
         this._cancelLongPress();
@@ -397,11 +424,6 @@ class JwDataTable extends HTMLElement {
         }
         const style = el("style", { html: datatableStyles + (this._config.styles || "") });
         this.shadow.prepend(style);
-        if (!this._live) {
-            // Persistent live region (re-creating it on every render would drop announcements).
-            this._live = el("div", { class: "k-dt-sr-only", role: "status", "aria-live": "polite" });
-            this.shadow.appendChild(this._live);
-        }
 
         const root = el("div", { class: "k-dt", part: "root" });
         // Suppress the browser's native context menu anywhere in the table (incl.
@@ -544,7 +566,16 @@ class JwDataTable extends HTMLElement {
         thead.appendChild(headRow);
         table.appendChild(thead);
 
-        // Body
+        table.appendChild(this._renderTbody(columns));
+        if (this._pageData.length > 0) {
+            table.setAttribute("aria-describedby", this._hintId("table"));
+            wrap.appendChild(el("p", { id: this._hintId("table"), class: "k-dt-sr-only", text: this._t.tableKeyboardHint }));
+        }
+        wrap.appendChild(table);
+        return wrap;
+    }
+
+    _renderTbody(columns) {
         const tbody = el("tbody");
         if (this._pageData.length === 0) {
             const message = this._sourceData.length === 0 ? this._config.emptyText : this._config.noResultsText;
@@ -554,23 +585,56 @@ class JwDataTable extends HTMLElement {
         } else {
             this._pageData.forEach((row, index) => tbody.appendChild(this._renderRow(row, index, columns)));
             this._initRoving(tbody, ".k-dt-td", (event, cell) => this._onCellKey(event, cell, tbody));
-            table.setAttribute("aria-describedby", this._hintId("table"));
-            wrap.appendChild(el("p", { id: this._hintId("table"), class: "k-dt-sr-only", text: this._t.tableKeyboardHint }));
         }
-        table.appendChild(tbody);
-        wrap.appendChild(table);
+        return tbody;
+    }
+
+    // Sorting updates the existing table in place (header state + body + footer)
+    // instead of a full re-render: the focused header button stays the same
+    // element, so screen readers don't re-announce the whole table context.
+    _updateSortView() {
+        this._deriveView();
+        const table = this.shadow.querySelector(".k-dt-table");
+        if (!table) { this._render(); return; }   // card view: no header to keep
+        const focusKey = this._focusKey();
+        const columns = this._visibleColumns();
+        for (const th of table.tHead.rows[0].cells) {
+            const column = columns.find((c) => c.key === th.dataset.key);
+            if (!column) continue;
+            th.setAttribute("aria-sort", this._ariaSort(column));
+            th.querySelector(".k-dt-sort-ind")?.replaceWith(this._sortIndicator(column));
+        }
+        table.tBodies[0].replaceWith(this._renderTbody(columns));
+        if (this._features.pagination) this.shadow.querySelector(".k-dt-footer")?.replaceWith(this._renderFooter());
+        if (this._focusIsLost()) this._restoreFocus(focusKey);
+    }
+
+    _ariaSort(column) {
+        const sort = this._state.sort.find((s) => s.key === column.key);
+        return sort ? (sort.direction === "asc" ? "ascending" : "descending") : "none";
+    }
+
+    // Sort icon, plus rank (visual) and priority (screen readers) for multi-sort.
+    _sortIndicator(column) {
+        const sortIndex = this._state.sort.findIndex((s) => s.key === column.key);
+        const sort = sortIndex >= 0 ? this._state.sort[sortIndex] : null;
+        const icon = sort ? (sort.direction === "asc" ? "arrow-up" : "arrow-down") : "arrow-up-down";
+        const wrap = el("span", { class: "k-dt-sort-ind" }, [
+            iconEl(icon, "k-dt-sort-ic" + (sort ? " is-active" : ""))
+        ]);
+        if (sort && this._state.sort.length > 1) {
+            wrap.appendChild(el("span", { class: "k-dt-sort-rank", "aria-hidden": "true", text: String(sortIndex + 1) }));
+            wrap.appendChild(el("span", { class: "k-dt-sr-only", text: this._t.sortPriority(sortIndex + 1) }));
+        }
         return wrap;
     }
 
     _renderHeaderCell(column) {
-        const sortIndex = this._state.sort.findIndex((s) => s.key === column.key);
-        const sort = sortIndex >= 0 ? this._state.sort[sortIndex] : null;
-        const ariaSort = sort ? (sort.direction === "asc" ? "ascending" : "descending") : "none";
-
         const th = el("th", {
             class: "k-dt-th k-dt-align-" + column.align,
             scope: "col",
-            "aria-sort": ariaSort,
+            "data-key": column.key,
+            "aria-sort": this._ariaSort(column),
             style: column.width ? `width:${column.width};` : null
         });
 
@@ -585,15 +649,7 @@ class JwDataTable extends HTMLElement {
                 : null
         }, [el("span", { text: column.label })]);
 
-        if (column.sortable) {
-            const icon = sort ? (sort.direction === "asc" ? "arrow-up" : "arrow-down") : "arrow-up-down";
-            const ind = iconEl(icon, "k-dt-sort-ic" + (sort ? " is-active" : ""));
-            labelBtn.appendChild(ind);
-            if (sort && this._state.sort.length > 1) {
-                labelBtn.appendChild(el("span", { class: "k-dt-sort-rank", "aria-hidden": "true", text: String(sortIndex + 1) }));
-                labelBtn.appendChild(el("span", { class: "k-dt-sr-only", text: this._t.sortPriority(sortIndex + 1) }));
-            }
-        }
+        if (column.sortable) labelBtn.appendChild(this._sortIndicator(column));
         inner.appendChild(labelBtn);
 
         if (column.filterable) {
@@ -700,9 +756,13 @@ class JwDataTable extends HTMLElement {
             "data-fk": fk ? `${fk}:copy` : null,
             title: this._t.copyValue,
             "aria-label": `${this._t.copyValue}: ${column.label}`,
+            // Clicking must not move focus into the cell: screen readers would
+            // read the whole table context instead of just the copy message.
+            onmousedown: (e) => e.preventDefault(),
             onclick: (e) => {
                 e.stopPropagation();
-                this._copyText(toText(value, column, this._config.locale, row), e.currentTarget);
+                const text = toText(value, column, this._config.locale, row);
+                this._copyText(text, e.currentTarget, text);
             }
         }, [iconEl("copy")]);
     }
@@ -855,7 +915,8 @@ class JwDataTable extends HTMLElement {
     _applySort(key, options) {
         this._state.sort = toggleSort(this._state.sort, key, options);
         this._state.page = 1;
-        this._deriveAndRenderBody();
+        this._updateSortView();
+        this._emitChange();
         this._announceSort();
     }
 
@@ -863,7 +924,8 @@ class JwDataTable extends HTMLElement {
         const rest = additive ? this._state.sort.filter((s) => s.key !== key) : [];
         this._state.sort = direction ? [...rest, { key, direction }] : rest;
         this._state.page = 1;
-        this._deriveAndRenderBody();
+        this._updateSortView();
+        this._emitChange();
         this._announceSort();
     }
 
@@ -980,12 +1042,20 @@ class JwDataTable extends HTMLElement {
     }
 
     // Polite screen-reader announcement (status messages, WCAG 4.1.3).
+    // While a modal panel is open, everything outside it is hidden from assistive
+    // tech, so the panel's own live region is used. The target is chosen when the
+    // text is written (an action may close the panel right after announcing).
     _announce(message) {
-        if (!this._live || !message) return;
+        if (!message) return;
+        const target = () => this._overlay?.querySelector("[data-live]") || getAnnouncer();
         clearTimeout(this._announceTimer);
-        this._live.textContent = "";
-        // A short delay makes repeated identical messages announce again.
-        this._announceTimer = setTimeout(() => { this._live.textContent = message; }, 50);
+        target().textContent = "";
+        // Browsers may merge "clear + set" into one update and then see no
+        // change for a repeated message. An alternating invisible suffix makes
+        // every announcement a real text change.
+        this._announceToggle = !this._announceToggle;
+        const text = message + (this._announceToggle ? "\u00a0" : "");
+        this._announceTimer = setTimeout(() => { target().textContent = text; }, 100);
     }
 
     _announceResults() {
@@ -1130,7 +1200,10 @@ class JwDataTable extends HTMLElement {
         }
 
         if (row) {
-            items.push({ label: this._t.copyCell, icon: "copy", onSelect: () => this._copyText(toText(value, column, this._config.locale, row)) });
+            items.push({ label: this._t.copyCell, icon: "copy", onSelect: () => {
+                const text = toText(value, column, this._config.locale, row);
+                this._copyText(text, null, text);
+            } });
             items.push({ label: this._t.copyRow, icon: "copy", onSelect: () => this._copyRow(row) });
         }
         if (this._features.csvExport) {
@@ -1422,9 +1495,10 @@ class JwDataTable extends HTMLElement {
                     const name = nameInput.value.trim();
                     if (!name) return;
                     await this.saveTemplate(name);
-                    this._announce(this._t.templateSaved(name));
                     this._closeOverlay();
-                    this._openTemplatesMenu(anchor);
+                    // Announce in the reopened panel (the old one is gone).
+                    await this._openTemplatesMenu(anchor);
+                    this._announce(this._t.templateSaved(name));
                 }
             })
         ]);
@@ -1470,6 +1544,7 @@ class JwDataTable extends HTMLElement {
         this._closeOverlay();
         closeContextMenu();
         panel.classList.add("k-dt-overlay");
+        panel.appendChild(el("div", { "data-live": "", "aria-live": "polite", "aria-atomic": "true", class: "k-dt-sr-only" }));
         panel.setAttribute("role", "dialog");
         panel.setAttribute("aria-modal", "true");
         const head = panel.querySelector(".k-dt-panel-head");
@@ -1556,12 +1631,25 @@ class JwDataTable extends HTMLElement {
 
     // ---- Copy ------------------------------------------------------------
 
-    _copyText(text, button) {
+    // `shownValue`: optional value to include in the announcement.
+    _copyText(text, button, shownValue) {
+        // Decided at click time: a keyboard user has focus on the button.
+        const buttonFocused = !!button && deepActiveElement() === button;
         const done = () => {
-            this._announce(this._t.copied);
-            if (!button) return;
-            button.classList.add("is-copied");
-            setTimeout(() => button.classList.remove("is-copied"), 900);
+            const message = shownValue ? this._t.copiedValue(this._truncate(shownValue, 60)) : this._t.copied;
+            if (buttonFocused && button.isConnected) {
+                // Name + check icon stay until the button loses focus.
+                this._confirmOnButton(button, message);
+                this._setCopied(button, true);
+            } else {
+                this._announce(message);
+                if (!button) return;
+                this._setCopied(button, true);
+                clearTimeout(button._copiedTimer);
+                button._copiedTimer = setTimeout(() => {
+                    if (button.dataset.label == null) this._setCopied(button, false);
+                }, 1200);
+            }
         };
         if (navigator.clipboard && navigator.clipboard.writeText) {
             navigator.clipboard.writeText(text).then(done).catch(() => this._fallbackCopy(text, done));
@@ -1570,15 +1658,58 @@ class JwDataTable extends HTMLElement {
         }
     }
 
+    // Confirms on the focused button itself by renaming it until it loses focus.
+    // Screen readers announce name changes of the focused element; unlike live
+    // regions this does not depend on settings (NVDA "report dynamic content
+    // changes"). Used instead of — not in addition to — the live region.
+    _confirmOnButton(button, message) {
+        if (button.dataset.label == null) {
+            button.dataset.label = button.getAttribute("aria-label") || "";
+            const onBlur = () => {
+                if (this._inFallbackCopy) return;   // helper textarea took focus briefly
+                button.removeEventListener("blur", onBlur);
+                button.setAttribute("aria-label", button.dataset.label);
+                delete button.dataset.label;
+                this._setCopied(button, false);
+            };
+            button.addEventListener("blur", onBlur);
+        }
+        // A repeated copy must still change the name; a trailing period is
+        // not spoken at default punctuation levels.
+        const current = button.getAttribute("aria-label");
+        button.setAttribute("aria-label", current === message ? `${message}.` : message);
+    }
+
+    // Visual copy confirmation: check icon + accent color.
+    _setCopied(button, copied) {
+        button.classList.toggle("is-copied", copied);
+        button.replaceChildren(iconEl(copied ? "check" : "copy"));
+    }
+
+    // Fallback for contexts without the async Clipboard API (e.g. plain HTTP).
+    // The helper textarea needs focus for execCommand; focus is put back
+    // afterwards so keyboard and screen-reader users stay where they were.
     _fallbackCopy(text, done) {
+        const previous = deepActiveElement();
         const ta = document.createElement("textarea");
         ta.value = text;
+        ta.readOnly = true;
+        ta.setAttribute("aria-hidden", "true");
+        ta.tabIndex = -1;
         ta.style.position = "fixed";
+        ta.style.top = "0";
         ta.style.opacity = "0";
         document.body.appendChild(ta);
-        ta.select();
-        try { document.execCommand("copy"); } catch { /* ignore */ }
-        ta.remove();
+        this._inFallbackCopy = true;
+        try {
+            ta.focus({ preventScroll: true });
+            ta.select();
+            try { document.execCommand("copy"); } catch { /* ignore */ }
+            ta.remove();
+            if (previous && previous.isConnected && previous !== document.body) previous.focus({ preventScroll: true });
+        } finally {
+            this._inFallbackCopy = false;
+        }
         done?.();
     }
 

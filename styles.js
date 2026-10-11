@@ -151,6 +151,7 @@ export const datatableStyles = `
     padding: 0;
 }
 span.k-dt-th-label { cursor: default; }
+.k-dt-sort-ind { display: contents; }
 .k-dt-sort-ic { opacity: 0.35; }
 .k-dt-sort-ic.is-active { opacity: 1; color: var(--k-dt-accent); }
 .k-dt-sort-rank {
