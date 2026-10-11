@@ -232,14 +232,18 @@ span.k-dt-th-label { cursor: default; }
 
 .k-dt-tr:hover .k-dt-td { background: var(--k-dt-surface-muted); }
 
-/* Compact view: last column holds the details button. */
+/* Compact view: last column holds the details button. It sets the row height
+   (no padding above/below), so compact rows are as high as the button: 44px
+   on touch layouts (the whole row is the tap target), else like table rows. */
 .k-dt-details-col { width: 1%; padding-left: 0; padding-right: var(--k-space-2xs, 4px); text-align: right; vertical-align: middle; }
+.k-dt-td.k-dt-details-col { padding-top: 0; padding-bottom: 0; }
 .k-dt-details-btn {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    min-width: 44px;
-    min-height: 44px;
+    width: 44px;
+    height: 44px;
+    vertical-align: middle;
     cursor: pointer;
     color: var(--k-color-text-muted, #666);
     background: none;
@@ -280,7 +284,13 @@ span.k-dt-th-label { cursor: default; }
     background: none;
     cursor: pointer;
     color: var(--k-color-text-muted, #666);
-    padding: var(--k-space-xs, 6px);
+    flex: none;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    /* Overlaps the cell padding instead of making the row taller, so text
+       next to it sits at the same height as in cells without a button. */
+    margin-block: -6px;
     border-radius: var(--k-radius-s, 8px);
     transition: opacity 0.1s;
 }
@@ -659,10 +669,11 @@ span.k-dt-th-label { cursor: default; }
     .k-dt-table { font-size: 0.92rem; }
     .k-dt-th, .k-dt-td { padding: var(--k-space-s, 8px) var(--k-space-l, 12px); }
     .k-dt-filter-btn, .k-dt-pin-btn { padding: 2px; }
-    .k-dt-pin-toggle, .k-dt-details-btn { min-width: 32px; min-height: 32px; }
+    .k-dt-pin-toggle { min-width: 32px; min-height: 32px; }
+    .k-dt-details-btn { width: 32px; height: 32px; }
 
     /* Copy button: hidden until row/cell hover */
-    .k-dt-copy { opacity: 0; padding: 2px; }
+    .k-dt-copy { opacity: 0; width: 22px; height: 22px; margin-block: -3px; }
     /* Also revealed for keyboard users (focused cell/card or the button itself). */
     .k-dt-td:hover .k-dt-copy, .k-dt-pair:hover .k-dt-copy,
     .k-dt-td:focus-within .k-dt-copy, .k-dt-card:focus-within .k-dt-copy,

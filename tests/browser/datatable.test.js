@@ -1062,3 +1062,15 @@ test("hiding and showing a column keeps the table element", () => {
     assert.deepEqual(headerKeys(table), COLUMNS.map((c) => c.key));
     assert.equal($(table, "table"), tableEl);
 });
+
+test("text in cells with a copy button lines up with plain cells; compact rows are as high as table rows", () => {
+    const table = mount({ features: { compactView: true } });
+    const rowTop = $(table, "tbody tr").getBoundingClientRect().top;
+    const top = (sel) => $(table, sel).getBoundingClientRect().top - rowTop;
+    assert.ok(Math.abs(top('[data-fk="cell:0:name"] .k-dt-value') - top('[data-fk="cell:0:fee"] .k-dt-value')) < 1,
+        "copy button does not push the text down");
+    const tableRow = $(table, "tbody tr").getBoundingClientRect().height;
+    table.setState({ viewMode: "compact" });
+    const compactRow = $(table, "tbody tr").getBoundingClientRect().height;
+    assert.ok(Math.abs(compactRow - tableRow) < 1, `compact ${compactRow}px vs table ${tableRow}px`);
+});

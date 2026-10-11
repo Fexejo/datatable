@@ -453,6 +453,9 @@ the columns not shown in the compact table and hidden ones. Links and buttons
 inside cells keep their own action. `onRowClick` does not fire on the row here;
 the dialog offers it as an “Open” button instead.
 
+Compact rows are as high as table rows; on touch layouts they are at least
+44px high, because the whole row is the tap target for the details.
+
 ```js
 createDataTable("#c", {
     columns: [
