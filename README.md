@@ -43,6 +43,7 @@ written in Vanilla JS (ES modules, Shadow DOM). No external dependencies.
 16. [Accessibility](#accessibility)
 17. [Demo](#demo)
 18. [Development & tests](#development--tests)
+19. [Releases & build](#releases--build)
 
 ---
 
@@ -65,6 +66,9 @@ written in Vanilla JS (ES modules, Shadow DOM). No external dependencies.
 | `columns.js` | Column inference from data |
 | `demo.html` | Runnable demo |
 | `tests/` | Unit and browser tests (not needed in consuming projects) |
+| `dist/jw-datatable.min.js` | Single-file bundle for consuming projects (built by CI) |
+| `tools/build.js` | Builds the bundle (used by CI) |
+| `.github/workflows/release.yml`, `.releaserc.json` | CI tests + automated releases |
 
 All modules are plain ES modules with no build step.
 
@@ -72,18 +76,34 @@ All modules are plain ES modules with no build step.
 
 ## Installation & import
 
-```js
-// Convenience API (recommended)
-import { createDataTable } from "./datatable/datatable.js";
+**Recommended: one file.** Copy `dist/jw-datatable.min.js` into your project
+(or download it from the [latest GitHub release](https://github.com/Fexejo/datatable/releases/latest))
+and import it:
 
-// Or the class directly
-import { JwDataTable } from "./datatable/datatable.js";
+```js
+import { createDataTable } from "./vendor/jw-datatable.min.js";
+
+// Also exported: JwDataTable, LocalStorageAdapter, TemplateStore, inferColumns, inferType
+// Default export: createDataTable
 ```
 
-Importing registers the `<jw-datatable>` custom element automatically.
+The bundle contains everything (styles, icons, translations) and has no
+dependencies. Its first line names the version
+(`/*! jw-datatable vX.Y.Z … */`). `dist/` always holds the latest release;
+it is built by CI and must not be edited by hand.
 
-**Requirements:** modern browser with Custom Elements v1 and Shadow DOM.
-ES modules need an HTTP(S) origin (not `file://`).
+**Alternatively: the sources.** Copy all top-level `*.js` files into one folder
+and import `datatable.js` — same API, unminified, handy for debugging:
+
+```js
+import { createDataTable } from "./datatable/datatable.js";
+```
+
+Importing registers the `<jw-datatable>` custom element automatically (only
+once, so loading it twice is harmless).
+
+**Requirements:** modern browser with Custom Elements v1, Shadow DOM and
+ES2022. ES modules need an HTTP(S) origin (not `file://`).
 
 ---
 
@@ -644,3 +664,47 @@ test("keyboard", async () => {
 
 Each change to UI behavior should come with a browser test, including its
 keyboard and screen-reader semantics (roles, names, states, focus).
+
+---
+
+## Releases & build
+
+Releases are fully automated with GitHub Actions
+(`.github/workflows/release.yml`) and
+[semantic-release](https://semantic-release.gitbook.io/):
+
+1. Every push and pull request runs all tests against the sources, builds a
+   dev bundle and runs the browser tests against it.
+2. On `main`, semantic-release derives the next version from the commit
+   messages since the last tag. If a release is due, it builds
+   `dist/jw-datatable.min.js` with that version, runs the browser tests
+   against the bundle, and only if they pass commits the bundle
+   (`chore(release): X.Y.Z [skip ci]`), tags `vX.Y.Z` and publishes a GitHub
+   release with the file attached.
+
+**Commit messages must follow [Conventional Commits](https://www.conventionalcommits.org/):**
+
+| Commit | Release |
+|--------|---------|
+| `fix: …` | patch (1.0.**1**) |
+| `feat: …` | minor (1.**1**.0) |
+| `feat!: …` or footer `BREAKING CHANGE: …` | major (**2**.0.0) |
+| `docs:`, `test:`, `refactor:`, `chore:`, `ci:`, `style:` | no release |
+
+**Local build** (optional, needs `npx` for the pinned esbuild version, or set
+`ESBUILD_BIN`):
+
+```bash
+node tools/build.js 1.2.3-local       # writes dist/jw-datatable.min.js
+node tests/run.js --browser --dist     # browser tests against the bundle
+```
+
+Don't commit a locally built `dist/` — CI owns it.
+
+The build minifies the CSS and icon markup, then bundles and minifies all
+modules with esbuild into one ES module (≈ 60 KB, ≈ 17 KB gzipped).
+
+**Repository setup:** Actions need write access (*Settings → Actions →
+General → Workflow permissions → Read and write*). If `main` is protected
+against direct pushes, allow GitHub Actions to bypass the rule or provide a
+token with push rights as `GITHUB_TOKEN` replacement.

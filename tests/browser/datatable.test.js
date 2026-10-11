@@ -1,7 +1,13 @@
 // Component tests for <jw-datatable>, run in a real browser.
+// `?dist` in the page URL runs them against the built bundle instead of the sources.
 
 import { test, assert, nextFrame, sleep, waitFor, deepActiveElement, accessibleName, input } from "./harness.js";
-import { createDataTable } from "../../datatable.js";
+
+const ENTRY = new URLSearchParams(location.search).has("dist")
+    ? "../../dist/jw-datatable.min.js"
+    : "../../datatable.js";
+const api = await import(ENTRY);
+const { createDataTable } = api;
 
 const NAMES = ["Anna", "Ben", "Clara", "David", "Emma", "Felix"];
 const DATA = Array.from({ length: 30 }, (_, i) => ({
@@ -44,6 +50,17 @@ function rightClick(node) {
         bubbles: true, composed: true, cancelable: true, clientX: r.left + 5, clientY: r.top + 5
     }));
 }
+
+// ---- Public API -----------------------------------------------------------
+
+test(`public API is exported (${ENTRY})`, () => {
+    assert.deepEqual(Object.keys(api).sort(), [
+        "JwDataTable", "LocalStorageAdapter", "TemplateStore",
+        "createDataTable", "default", "inferColumns", "inferType"
+    ]);
+    assert.equal(api.default, createDataTable);
+    assert.equal(customElements.get("jw-datatable"), api.JwDataTable, "custom element registered");
+});
 
 // ---- Rendering ------------------------------------------------------------
 

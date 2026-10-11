@@ -5,6 +5,7 @@
 //   node tests/run.js --unit     unit tests only (node:test)
 //   node tests/run.js --browser  browser tests only (headless Chromium)
 //   node tests/run.js --browser --filter "context menu"
+//   node tests/run.js --browser --dist   browser tests against dist/jw-datatable.min.js
 //
 // Browser tests need a Chromium-based browser. Set CHROME_BIN, or have one on
 // PATH (chromium, google-chrome, …), or a Playwright-cached headless shell.
@@ -21,6 +22,7 @@ const args = process.argv.slice(2);
 const only = args.includes("--unit") ? "unit" : args.includes("--browser") ? "browser" : null;
 const filterIndex = args.indexOf("--filter");
 const filter = filterIndex >= 0 ? args[filterIndex + 1] : null;
+const dist = args.includes("--dist");
 
 // ---- Unit tests -----------------------------------------------------------
 
@@ -125,6 +127,10 @@ const ALLOWED_FROM_PAGE = new Set([
 ]);
 
 async function runBrowser() {
+    if (dist && !existsSync(join(ROOT, "dist", "jw-datatable.min.js"))) {
+        console.error("✖ dist/jw-datatable.min.js not found. Run: node tools/build.js");
+        return false;
+    }
     const bin = findChrome();
     if (!bin) {
         console.error("✖ No Chromium found. Set CHROME_BIN or install chromium / google-chrome.");
@@ -164,7 +170,10 @@ async function runBrowser() {
         await page("Page.enable");
         await page("Runtime.addBinding", { name: "__cdpSend" });
 
-        const query = filter ? `?filter=${encodeURIComponent(filter)}` : "";
+        const params = new URLSearchParams();
+        if (filter) params.set("filter", filter);
+        if (dist) params.set("dist", "");
+        const query = params.size ? `?${params}` : "";
         const url = `http://127.0.0.1:${server.address().port}/tests/browser/index.html${query}`;
         await page("Page.navigate", { url });
 
@@ -189,7 +198,7 @@ async function runBrowser() {
         const failed = results.filter((r) => r.status === "fail").length;
         const passed = results.filter((r) => r.status === "pass").length;
         const skipped = results.filter((r) => r.status === "skip").length;
-        console.log(`\nbrowser: ${passed} passed, ${failed} failed, ${skipped} skipped`);
+        console.log(`\nbrowser${dist ? " (dist)" : ""}: ${passed} passed, ${failed} failed, ${skipped} skipped`);
         browser.close();
         return failed === 0 && pageErrors.length === 0;
     } finally {

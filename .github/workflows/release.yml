@@ -1,0 +1,67 @@
+# Tests on every push and pull request. On main, semantic-release then
+# determines the next version from Conventional Commits, builds the minified
+# bundle, runs the browser tests against it, and — only if they pass —
+# commits dist/jw-datatable.min.js, tags vX.Y.Z and creates a GitHub release.
+name: CI & Release
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  test:
+    name: Test (sources + bundle)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      # ubuntu-latest ships Google Chrome; tests/run.js finds it on PATH.
+      - name: Tests against sources
+        run: node tests/run.js
+
+      - name: Build bundle (dev version)
+        run: node tools/build.js 0.0.0-ci
+
+      - name: Browser tests against bundle
+        run: node tests/run.js --browser --dist
+
+  release:
+    name: Release
+    needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write       # push release commit + tag
+      issues: write         # comment on released issues
+      pull-requests: write  # comment on released PRs
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0              # full history + tags for version analysis
+          persist-credentials: false  # semantic-release pushes with GITHUB_TOKEN itself
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: semantic-release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: >
+          npx --yes
+          -p semantic-release@25.0.9
+          -p @semantic-release/exec@7.1.0
+          -p @semantic-release/git@11.0.1
+          semantic-release

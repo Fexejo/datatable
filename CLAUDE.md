@@ -9,6 +9,16 @@ kopiert und per `import` eingebunden.
 - **Kein npm, kein Build-Schritt, keine Abhängigkeiten.** Kein `package.json`,
   kein `node_modules`, keine Bundler/Transpiler. Jede Datei ist ein natives
   ES-Modul, das der Browser direkt lädt. Imports immer relativ mit `.js`-Endung.
+- **Ausnahme Build/Release:** `tools/build.js` (esbuild) und semantic-release
+  laufen per `npx` mit gepinnten Versionen, nur in CI. Kein `package.json`.
+- **Commit-Messages nach Conventional Commits** (`fix:`, `feat:`, `feat!:`,
+  `docs:`, `test:`, `refactor:`, `chore:`, `ci:`) – daraus berechnet
+  semantic-release die Version. Mehrere Themen → mehrere Commits.
+- **`dist/` nie von Hand ändern oder lokal gebaut committen**, das macht CI
+  beim Release (`.github/workflows/release.yml`, `.releaserc.json`).
+- Neue Top-Level-`*.js`-Dateien landen automatisch im Bundle (über die
+  Imports ab `datatable.js`). Öffentliche Exporte nur in `datatable.js`;
+  bei Änderungen den Test „public API is exported“ anpassen.
 - **README.md ist die einzige Entwickler-Doku.** Jede Änderung an öffentlicher
   API, Config, Spalten-Optionen, Events, Features, CSS-Variablen/Parts, i18n
   oder Accessibility-Verhalten wird im selben Zug in der README nachgezogen.
@@ -75,6 +85,7 @@ node tests/run.js              # alle Tests (Unit + Browser), Exit-Code ≠ 0 be
 node tests/run.js --unit       # nur node:test-Unit-Tests
 node tests/run.js --browser    # nur Browser-Tests (headless Chromium via CDP)
 node tests/run.js --filter "context menu"
+node tools/build.js 0.0.0-dev && node tests/run.js --browser --dist   # Bundle prüfen
 python3 -m http.server 8000    # Demo: /demo.html, Tests manuell: /tests/browser/
 ```
 
