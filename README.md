@@ -215,7 +215,9 @@ Column flags apply only when the matching global feature is enabled.
 
 ### Long cell content
 
-By default long values wrap inside the cell. With `cellOverflow: "ellipsis"`
+By default long values wrap at spaces; a single word is only broken when it
+does not fit at all (`overflow-wrap: break-word`), so columns keep their
+natural width and a wide table scrolls horizontally. With `cellOverflow: "ellipsis"`
 (or `overflow: "ellipsis"` per column) cells stay on one line, are capped at
 `maxWidth` (default `16rem`, CSS variable `--k-dt-cell-max-width`) and end in
 “…” when cut off:

@@ -251,7 +251,7 @@ span.k-dt-th-label { cursor: default; }
 .k-dt-clickable { cursor: pointer; }
 .k-dt-cell { display: flex; align-items: center; gap: var(--k-space-xs, 6px); justify-content: inherit; }
 .k-dt-align-right .k-dt-cell { flex-direction: row-reverse; }
-.k-dt-value { overflow-wrap: anywhere; }
+.k-dt-value { overflow-wrap: break-word; }
 /* Opt-in single-line cells (cellOverflow / column.overflow = "ellipsis").
    The focused cell shows its full content. */
 .k-dt-truncate .k-dt-cell { max-width: var(--k-dt-cell-max-width, 16rem); }
@@ -262,7 +262,7 @@ span.k-dt-th-label { cursor: default; }
     white-space: nowrap;
     overflow-wrap: normal;
 }
-.k-dt-truncate:focus-within .k-dt-cell > :first-child { white-space: normal; overflow-wrap: anywhere; }
+.k-dt-truncate:focus-within .k-dt-cell > :first-child { white-space: normal; overflow-wrap: break-word; }
 .k-dt-link { color: var(--k-dt-accent); text-decoration: none; }
 .k-dt-link:hover { text-decoration: underline; }
 .k-dt-cell-action {
@@ -309,7 +309,7 @@ span.k-dt-th-label { cursor: default; }
     gap: var(--k-space-2xs, 4px);
 }
 .k-dt-card { container-type: inline-size; }
-.k-dt-card-title { font-weight: 700; font-size: 1.05rem; margin-bottom: var(--k-space-2xs, 4px); overflow-wrap: anywhere; }
+.k-dt-card-title { font-weight: 700; font-size: 1.05rem; margin-bottom: var(--k-space-2xs, 4px); overflow-wrap: break-word; }
 
 /* Label/value list (cards, detail dialog): two columns, stacked when narrow. */
 .k-dt-fields { margin: 0; display: flex; flex-direction: column; gap: var(--k-space-2xs, 4px); font-size: 0.9rem; }
@@ -320,7 +320,7 @@ span.k-dt-th-label { cursor: default; }
     align-items: baseline;
     min-height: 1.6em;
 }
-.k-dt-field-label { color: var(--k-color-text-muted, #666); overflow-wrap: anywhere; }
+.k-dt-field-label { color: var(--k-color-text-muted, #666); overflow-wrap: break-word; }
 .k-dt-field-value { margin: 0; display: flex; align-items: center; gap: var(--k-space-2xs, 4px); min-width: 0; }
 .k-dt-field-value > :first-child { min-width: 0; }
 @container (max-width: 15rem) {
