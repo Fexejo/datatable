@@ -1025,10 +1025,10 @@ class JwDataTable extends HTMLElement {
         columns.forEach((column) => {
             const value = getCellValue(row, column);
             const key = fk ? `${fk}:${column.key}` : null;
-            const val = el("dd", { class: "k-dt-field-value k-dt-card-val" }, [this._valueNode(column, row, value, key)]);
+            const val = el("dd", { class: "k-dt-pair-value k-dt-card-val" }, [this._valueNode(column, row, value, key)]);
             if (column.copyable) val.appendChild(this._copyButton(column, row, value, key));
-            list.appendChild(el("div", { class: "k-dt-field k-dt-card-row" }, [
-                el("dt", { class: "k-dt-field-label k-dt-card-label", text: column.label }),
+            list.appendChild(el("div", { class: "k-dt-pair k-dt-card-row" }, [
+                el("dt", { class: "k-dt-pair-label k-dt-card-label", text: column.label }),
                 val
             ]));
         });

@@ -311,21 +311,24 @@ span.k-dt-th-label { cursor: default; }
 .k-dt-card { container-type: inline-size; }
 .k-dt-card-title { font-weight: 700; font-size: 1.05rem; margin-bottom: var(--k-space-2xs, 4px); overflow-wrap: break-word; }
 
-/* Label/value list (cards, detail dialog): two columns, stacked when narrow. */
-.k-dt-fields { margin: 0; display: flex; flex-direction: column; gap: var(--k-space-2xs, 4px); font-size: 0.9rem; }
-.k-dt-field {
+/* Label/value list (cards, detail dialog): one grid for all pairs, so the
+   label column is as wide as the longest label (max. 45%); stacked only on
+   very narrow cards. */
+.k-dt-fields {
+    margin: 0;
     display: grid;
-    grid-template-columns: minmax(5rem, 38%) minmax(0, 1fr);
-    gap: var(--k-space-s, 8px);
+    grid-template-columns: fit-content(45%) minmax(0, 1fr);
+    gap: var(--k-space-2xs, 4px) var(--k-space-l, 12px);
     align-items: baseline;
-    min-height: 1.6em;
+    font-size: 0.9rem;
 }
-.k-dt-field-label { color: var(--k-color-text-muted, #666); overflow-wrap: break-word; }
-.k-dt-field-value { margin: 0; display: flex; align-items: center; gap: var(--k-space-2xs, 4px); min-width: 0; }
-.k-dt-field-value > :first-child { min-width: 0; }
-@container (max-width: 15rem) {
-    .k-dt-field { grid-template-columns: minmax(0, 1fr); gap: 0; }
-    .k-dt-field + .k-dt-field { margin-top: var(--k-space-2xs, 4px); }
+.k-dt-pair { display: contents; }
+.k-dt-pair-label { color: var(--k-color-text-muted, #666); overflow-wrap: break-word; min-width: 0; }
+.k-dt-pair-value { margin: 0; display: flex; align-items: center; gap: var(--k-space-2xs, 4px); min-width: 0; min-height: 1.6em; }
+.k-dt-pair-value > :first-child { min-width: 0; }
+@container (max-width: 11rem) {
+    .k-dt-fields { grid-template-columns: minmax(0, 1fr); row-gap: 0; }
+    .k-dt-pair-value { margin-bottom: var(--k-space-2xs, 4px); }
 }
 
 /* Footer / Pagination — base: stacked & trimmed for small screens */
@@ -512,7 +515,7 @@ span.k-dt-th-label { cursor: default; }
     padding-top: var(--k-space-s, 8px);
 }
 .k-dt-details-head .k-dt-icon-btn { border-color: transparent; flex: none; }
-.k-dt-details .k-dt-fields { gap: var(--k-space-s, 8px); }
+.k-dt-details .k-dt-fields { row-gap: var(--k-space-s, 8px); }
 .k-dt-details-pos { margin: 0; color: var(--k-color-text-muted, #666); font-size: 0.85rem; }
 .k-dt-details-actions {
     bottom: 0;
@@ -661,7 +664,7 @@ span.k-dt-th-label { cursor: default; }
     /* Copy button: hidden until row/cell hover */
     .k-dt-copy { opacity: 0; padding: 2px; }
     /* Also revealed for keyboard users (focused cell/card or the button itself). */
-    .k-dt-td:hover .k-dt-copy, .k-dt-field:hover .k-dt-copy,
+    .k-dt-td:hover .k-dt-copy, .k-dt-pair:hover .k-dt-copy,
     .k-dt-td:focus-within .k-dt-copy, .k-dt-card:focus-within .k-dt-copy,
     .k-dt-copy:focus-visible { opacity: 1; }
     .k-dt-copy:hover { opacity: 1; background: var(--k-dt-hover); }
