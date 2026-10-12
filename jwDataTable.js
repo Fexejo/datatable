@@ -90,6 +90,34 @@ function iconEl(name, className = "k-dt-ic") {
     return el("span", { class: className }, [createIcon(name)]);
 }
 
+// Segmented control: native radios (one tab stop, arrow keys, "selected,
+// 1 of 3" for screen readers) drawn as adjacent options in one track.
+// `options`: [value, text, detail?]; `detail` is a second, smaller line.
+function segmentedEl(name, legend, options, value) {
+    return el("fieldset", { class: "k-dt-fieldset" }, [
+        el("legend", { class: "k-dt-field-label", text: legend }),
+        el("div", { class: "k-dt-segmented" }, options.map(([optionValue, text, detail]) =>
+            el("label", { class: "k-dt-segment", "data-value": optionValue }, [
+                el("input", { type: "radio", name, value: optionValue, checked: optionValue === value }),
+                el("span", { class: "k-dt-segment-text" }, [
+                    text,
+                    // The space keeps the accessible name readable ("Current page 10 rows").
+                    detail && " ",
+                    detail && el("span", { class: "k-dt-segment-detail", text: detail })
+                ])
+            ])))
+    ]);
+}
+
+// On/off switch: a native checkbox with role="switch" (announced as
+// "switch, on/off", Space toggles); the whole row is the click target.
+function switchEl(text, checked) {
+    return el("label", { class: "k-dt-switch" }, [
+        el("span", { class: "k-dt-switch-label", text }),
+        el("input", { type: "checkbox", role: "switch", checked })
+    ]);
+}
+
 // Opt-in features default to `false` and must be enabled explicitly via
 // `config.features`. Always-on basics (pagination, context menu, copy buttons)
 // stay `true`. `multiSort` only takes effect when `sorting` is enabled.
@@ -2254,17 +2282,7 @@ class JwDataTable extends HTMLElement {
             el("label", { class: "k-dt-field-label", for: control.id, text }),
             control
         ]);
-        const checkbox = (text, checked) => el("label", { class: "k-dt-check" }, [
-            el("input", { type: "checkbox", checked }),
-            el("span", { class: "k-dt-check-label", text })
-        ]);
-        const radios = (name, legend, options, value) => el("fieldset", { class: "k-dt-fieldset" }, [
-            el("legend", { class: "k-dt-field-label", text: legend }),
-            ...options.map(([optionValue, text]) => el("label", { class: "k-dt-check", "data-value": optionValue }, [
-                el("input", { type: "radio", name: `${id}-${name}`, value: optionValue, checked: optionValue === value }),
-                el("span", { class: "k-dt-check-label", text })
-            ]))
-        ]);
+        const radios = (name, legend, options, value) => segmentedEl(`${id}-${name}`, legend, options, value);
         const radioValue = (group) => group.querySelector("input:checked")?.value;
         const setRadio = (group, value) => { group.querySelector(`input[value="${CSS.escape(value)}"]`).checked = true; };
 
@@ -2289,15 +2307,15 @@ class JwDataTable extends HTMLElement {
             this._features.pagination && ["page", t.exportScopePage, this._pageData.length],
             ["filtered", t.exportScopeFiltered, this._viewData.length],
             ["all", t.exportScopeAll, this._sourceData.length]
-        ].filter(Boolean).map(([value, text, count]) => [value, t.exportScopeCount(text, t.resultsCount(count))]);
+        ].filter(Boolean).map(([value, text, count]) => [value, text, t.resultsCount(count)]);
         const scopeGroup = radios("scope", t.exportRows, scopes,
             scopes.some(([value]) => value === defaults.scope) ? defaults.scope : "filtered");
         // Only offered when some exportable column is hidden.
         const hasHidden = exportColumns(this._orderedColumns()).length > exportColumns(this._visibleColumns()).length;
-        const allColumns = hasHidden ? checkbox(t.exportAllColumns, defaults.allColumns) : null;
-        const localized = checkbox(t.exportLocalized, defaults.localized);
-        const headers = checkbox(t.exportHeaders, defaults.headers);
-        const metadata = checkbox(t.exportMetadata, defaults.metadata);
+        const allColumns = hasHidden ? switchEl(t.exportAllColumns, defaults.allColumns) : null;
+        const localized = switchEl(t.exportLocalized, defaults.localized);
+        const headers = switchEl(t.exportHeaders, defaults.headers);
+        const metadata = switchEl(t.exportMetadata, defaults.metadata);
         const namesGroup = radios("names", t.exportNames,
             [["label", t.exportNamesLabel], ["key", t.exportNamesKey]], defaults.names ?? defaultNames(format));
         const delimiterNames = { ";": "semicolon", ",": "comma", "\t": "tab", "|": "pipe" };

@@ -1260,7 +1260,12 @@ function captureExports(table, { cancel = true } = {}) {
     return events;
 }
 const exportDialog = (table) => $(table, ".k-dt-export[role='dialog']");
-const exportControl = (table, text) => $$(table, ".k-dt-export label").find((l) => l.textContent.trim().startsWith(text))?.querySelector("input");
+// Input of the option/switch labelled `text` (exact match first, then prefix).
+const exportControl = (table, text) => {
+    const labels = $$(table, ".k-dt-export label");
+    return (labels.find((l) => l.textContent.trim() === text)
+        ?? labels.find((l) => l.textContent.trim().startsWith(text)))?.querySelector("input");
+};
 const submitExport = (table) => $(table, ".k-dt-export button[type='submit']").click();
 
 test("export: toolbar button opens a labelled dialog with format and file name", async () => {
@@ -1430,7 +1435,7 @@ test("export: clipboard destination copies text with tabs, hides XLSX and the fi
         $(table, '[data-fk="tb:export"]').click();
         $(table, ".k-dt-disclosure").click();
         exportControl(table, "Excel").click();
-        exportControl(table, "Copy to clipboard").click();
+        exportControl(table, "Clipboard").click();
         assert.ok(exportControl(table, "CSV").checked, "XLSX falls back to CSV");
         assert.ok(exportControl(table, "Excel").closest("label").hidden, "XLSX not offered");
         assert.ok($(table, '.k-dt-export input[type="text"]').closest(".k-dt-field").hidden, "no file name");
@@ -1444,8 +1449,8 @@ test("export: clipboard destination copies text with tabs, hides XLSX and the fi
 
         // Back to download: the delimiter returns to its default.
         $(table, '[data-fk="tb:export"]').click();
-        exportControl(table, "Copy to clipboard").click();
-        exportControl(table, "Download file").click();
+        exportControl(table, "Clipboard").click();
+        exportControl(table, "File").click();
         assert.equal($(table, ".k-dt-export select").value, ";");
         assert.equal($(table, ".k-dt-export button[type='submit']").textContent, "Export");
     } finally {
@@ -1544,3 +1549,39 @@ test("copy column does not need the export feature", () => {
     assert.ok(menuItem(table, "Copy column"), "Copy column offered");
     assert.equal(menuItem(table, "Export…"), undefined, "no export without the feature");
 });
+
+test("export: segmented options and switches — roles, names, keyboard, touch targets", async () => {
+    await input.viewport(390, 844);
+    const table = mount({ features: { export: true } });
+    $(table, '[data-fk="tb:export"]').focus();
+    await input.press("Enter");
+    $(table, ".k-dt-disclosure").click();
+
+    // Segments are native radios: one tab stop per group, arrows select.
+    const csv = exportControl(table, "CSV");
+    assert.equal(deepActiveElement(), csv);
+    assert.equal(csv.type, "radio");
+    assert.equal(csv.closest("fieldset").querySelector("legend").textContent, "Format");
+    await input.press("ArrowRight");
+    assert.ok(exportControl(table, "Excel").checked, "arrow selects the next option");
+    assert.equal(deepActiveElement(), exportControl(table, "Excel"));
+    await input.press("Tab");
+    assert.equal(deepActiveElement(), exportControl(table, "File"), "Tab moves to the next group");
+    const page = exportControl(table, "Current page");
+    assert.equal(page.labels[0].textContent, "Current page 10 rows", "name includes the row count");
+
+    // Switches: checkbox with role="switch", named by their row, Space toggles.
+    const localized = exportControl(table, "Values as displayed");
+    assert.equal(localized.type, "checkbox");
+    assert.equal(localized.getAttribute("role"), "switch");
+    assert.equal(localized.labels[0].textContent, "Values as displayed (formatted)");
+    localized.focus();
+    await input.press(" ");
+    assert.ok(localized.checked, "Space switches on");
+    assert.ok(getComputedStyle(localized).outlineStyle !== "none", "visible focus");
+
+    // Touch targets ≥ 44px on mobile.
+    for (const node of [...$$(table, ".k-dt-segment"), ...$$(table, ".k-dt-switch")].filter((n) => !n.hidden)) {
+        assert.ok(node.getBoundingClientRect().height >= 44, `${node.textContent.trim()}: ${node.getBoundingClientRect().height}px`);
+    }
+}, { cdp: true });

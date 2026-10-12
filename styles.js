@@ -557,8 +557,6 @@ span.k-dt-th-label { cursor: default; }
 .k-dt-export.k-dt-overlay--dialog { width: min(28rem, calc(100vw - 32px)); }
 .k-dt-export-form, .k-dt-export-more { display: flex; flex-direction: column; gap: var(--k-space-s, 8px); }
 .k-dt-export-more { border-top: 1px solid var(--k-dt-border); padding-top: var(--k-space-s, 8px); }
-.k-dt-export .k-dt-check { min-height: 44px; }
-.k-dt-export .k-dt-check-label { white-space: normal; }
 /* Actions stay in view when the options make the dialog scroll. */
 .k-dt-export { padding-bottom: 0; }
 .k-dt-export .k-dt-panel-actions {
@@ -571,6 +569,103 @@ span.k-dt-th-label { cursor: default; }
 .k-dt-field { display: flex; flex-direction: column; gap: var(--k-space-2xs, 4px); }
 .k-dt-fieldset { border: none; margin: 0; padding: 0; min-width: 0; }
 .k-dt-fieldset legend { padding: 0; margin-bottom: var(--k-space-2xs, 4px); }
+
+/* Segmented control: native radios laid over adjacent options in one track.
+   Selected = filled accent (not color alone: fill + contrast change). */
+.k-dt-segmented {
+    display: flex;
+    gap: 2px;
+    padding: 2px;
+    background: var(--k-dt-surface-muted);
+    border: 1px solid var(--k-dt-border);
+    border-radius: var(--k-radius-s, 8px);
+}
+.k-dt-segment { position: relative; flex: 1 1 0; min-width: 0; }
+.k-dt-segment input {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    opacity: 0;
+    cursor: pointer;
+}
+.k-dt-segment-text {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 44px;
+    height: 100%;
+    padding: var(--k-space-2xs, 4px) var(--k-space-s, 8px);
+    border-radius: calc(var(--k-radius-s, 8px) - 2px);
+    text-align: center;
+    line-height: 1.2;
+}
+.k-dt-segment-detail { font-size: 0.8rem; color: var(--k-color-text-muted, #666); }
+.k-dt-segment:hover input:not(:checked) + .k-dt-segment-text { background: var(--k-dt-hover); }
+.k-dt-segment input:checked + .k-dt-segment-text {
+    background: var(--k-dt-accent);
+    color: var(--k-dt-accent-text);
+    font-weight: 600;
+}
+.k-dt-segment input:checked + .k-dt-segment-text .k-dt-segment-detail { color: inherit; }
+.k-dt-segment input:focus-visible + .k-dt-segment-text {
+    outline: 2px solid var(--k-color-text, #222);
+    outline-offset: 1px;
+}
+
+/* Switch: native checkbox (role="switch"). Off = outlined track, knob left;
+   on = filled track, knob right (position carries the state, not color). */
+.k-dt-switch {
+    display: flex;
+    align-items: center;
+    gap: var(--k-space-s, 8px);
+    min-height: 44px;
+    padding: 0 var(--k-space-2xs, 4px);
+    border-radius: var(--k-radius-s, 8px);
+    cursor: pointer;
+}
+.k-dt-switch:hover { background: var(--k-dt-hover); }
+.k-dt-switch-label { flex: 1; min-width: 0; }
+.k-dt-switch input {
+    -webkit-appearance: none;
+    appearance: none;
+    position: relative;
+    flex: none;
+    width: 40px;
+    height: 24px;
+    margin: 0;
+    border: 2px solid var(--k-color-text-muted, #666);
+    border-radius: 999px;
+    background: var(--k-color-page, #fff);
+    cursor: pointer;
+    transition: background-color 0.15s, border-color 0.15s;
+}
+.k-dt-switch input::before {
+    content: "";
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--k-color-text-muted, #666);
+    transition: transform 0.15s;
+}
+.k-dt-switch input:checked { background: var(--k-dt-accent); border-color: var(--k-dt-accent); }
+.k-dt-switch input:checked::before { transform: translateX(16px); background: var(--k-dt-accent-text); }
+.k-dt-switch input:focus-visible { outline: 2px solid var(--k-color-text, #222); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) {
+    .k-dt-switch input, .k-dt-switch input::before { transition: none; }
+}
+@media (forced-colors: active) {
+    .k-dt-switch input { border-color: CanvasText; background: Canvas; }
+    .k-dt-switch input::before { background: CanvasText; }
+    .k-dt-switch input:checked { border-color: Highlight; background: Highlight; }
+    .k-dt-switch input:checked::before { background: HighlightText; }
+    .k-dt-segment input:checked + .k-dt-segment-text { forced-color-adjust: none; background: Highlight; color: HighlightText; }
+}
 .k-dt-disclosure { align-self: flex-start; border-color: transparent; padding-left: var(--k-space-2xs, 4px); }
 .k-dt-disclosure:hover { background: var(--k-dt-hover); }
 .k-dt-disclosure .k-dt-ic { transition: transform 0.15s; }
@@ -744,7 +839,8 @@ span.k-dt-th-label { cursor: default; }
     .k-dt-tab { min-height: 0; padding: var(--k-space-2xs, 4px) var(--k-space-s, 8px); }
     .k-dt-input, .k-dt-overlay .k-dt-select { padding: var(--k-space-s, 8px); }
     .k-dt-check { padding: var(--k-space-2xs, 4px); }
-    .k-dt-export .k-dt-check { min-height: 0; }
+    .k-dt-segment-text { min-height: 36px; }
+    .k-dt-switch { min-height: 36px; }
     .k-dt-tpl-load { padding: var(--k-space-xs, 6px) var(--k-space-s, 8px); }
 }
 `;
