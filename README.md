@@ -566,9 +566,9 @@ on mobile). Everything happens in the browser, no backend.
 Always shown, so a quick export is just `Enter`:
 
 - **Format** – CSV (default), Excel (XLSX) or JSON.
-- **Destination** – download a file (default) or copy to the clipboard (CSV
-  and JSON; XLSX is binary and is not offered for the clipboard). The submit
-  button reads “Export” or “Copy”.
+- **Destination** – file download (default) or clipboard (CSV and JSON; XLSX
+  is binary and is not offered for the clipboard). The submit button reads
+  “Export” or “Copy”.
 - **File name** (downloads only) – default: `exportFilename`, else `title`,
   else `"export"`, plus a timestamp and the extension, e.g.
   `Members_2026-10-12_14-30-05.csv`. Switching the format swaps the extension;
@@ -926,7 +926,7 @@ or touch also works with the keyboard alone.
 | Filter panel tabs | `←` `→`, `Home` / `End` | Switch between “Values” and “Pattern” |
 | Filter panel, “Values” tab | `Enter` in the search field or on a search-result option | Apply (same as the “Apply” button); the search-result options are radio buttons (`↑` `↓`) |
 | Templates panel | `Enter` in the name field | Save |
-| Export dialog | `Enter` in the file name or on an option; `Space` on “More options” | Export (same as the “Export” button); focus starts on the selected format (`↑` `↓` switch formats; the same for the destination) and returns to the opener afterwards |
+| Export dialog | `←` `→` (or `↑` `↓`) in a segmented control, `Space` on a switch or “More options”, `Enter` in the file name or on an option | Select an option, toggle a switch, export (same as the “Export” button); focus starts on the selected format and returns to the opener afterwards |
 
 Focus is kept across re-renders (sorting, filtering, paging, …): the same
 control — or its closest equivalent, e.g. the current page when “next” becomes
@@ -966,11 +966,16 @@ table.
 - Panels are modal dialogs (`role="dialog"`, `aria-modal`, named by their
   heading); opener buttons carry `aria-haspopup="dialog"` and `aria-expanded`.
   The filter panel uses the tabs pattern (`tablist` / `tab` / `tabpanel`).
-- Export dialog: named “Export” by its `<h2>` heading; format, destination,
-  rows and column names are radio groups (`fieldset` / `legend`); “More
-  options” is a disclosure button (`aria-expanded`, `aria-controls`); options
-  that do not apply to the chosen format or destination are hidden, not just
-  disabled. Choosing the clipboard while XLSX is selected switches to CSV.
+- Export dialog: named “Export” by its `<h2>` heading. Format, destination,
+  rows and column names are segmented controls: native radio groups
+  (`fieldset` / `legend`, one tab stop, arrow keys) drawn as adjacent options;
+  the selected one is filled. On/off options are switches: native checkboxes
+  with `role="switch"` (“switch, on/off”, `Space` toggles), the knob position
+  shows the state; both keep a visible focus, ≥ 44px touch targets on mobile
+  and work in forced-colors mode. “More options” is a disclosure button
+  (`aria-expanded`, `aria-controls`); options that do not apply to the chosen
+  format or destination are hidden, not just disabled. Choosing the clipboard
+  while XLSX is selected switches to CSV.
 - Details dialog: named “Details: <record>” by its `<h2>` heading, fields as a
   description list, “Previous” / “Next” named “Previous record” / “Next
   record”; moving to another record announces “Record n of total: <record>”.
