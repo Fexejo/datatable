@@ -1,7 +1,7 @@
 // <jw-datatable> — configurable, reusable data table (Vanilla JS).
 //
 // Features: pagination, sorting (including multi-column), value and pattern filters,
-// quick filters and actions via context menu, CSV/XLSX/JSON export, grid/card view,
+// quick filters and actions via context menu, CSV/XLSX/JSON export, card and compact layouts,
 // links (href / SPA routing / custom handlers), per-column copy buttons,
 // runtime data updates, and saved views (localStorage or a custom adapter).
 //
@@ -138,7 +138,7 @@ const DEFAULT_FEATURES = {
     contextMenu: true,
     export: false,
     grid: false,
-    compactView: false,
+    compact: false,
     columnVisibility: false,
     columnPinning: false,
     columnReorder: false,
@@ -168,8 +168,8 @@ class JwDataTable extends HTMLElement {
         // Responsive / touch state
         this._mql = null;
         this._mqlHandler = null;
-        this._isMobileView = false;
-        this._viewModeUserSet = false;
+        this._mobileMatches = false;
+        this._layoutUserSet = false;
         this._lpTimer = null;
         this._lpCleanup = null;
         this._suppressClickUntil = 0;
@@ -239,7 +239,7 @@ class JwDataTable extends HTMLElement {
             globalSearch: initial.globalSearch || "",
             page: initial.page || 1,
             pageSize: initial.pageSize || pagination.pageSize || this._pageSizeOptions[0] || 25,
-            viewMode: initial.viewMode || config.defaultView || "table",
+            layout: initial.layout || config.defaultLayout || "table",
             hiddenColumns: new Set(
                 initial.hiddenColumns || this._columns.filter((c) => c.hidden).map((c) => c.key)
             ),
@@ -247,9 +247,9 @@ class JwDataTable extends HTMLElement {
             columnOrder: this._normalizeOrder(initial.columnOrder)
         };
 
-        // An explicit view choice (config or initial state) pins the view and
+        // An explicit layout choice (config or initial state) pins the layout and
         // opts out of the automatic breakpoint-driven switching.
-        this._viewModeUserSet = !!(initial.viewMode || config.defaultView);
+        this._layoutUserSet = !!(initial.layout || config.defaultLayout);
 
         this._configured = true;
         this._setupResponsive();
@@ -260,30 +260,30 @@ class JwDataTable extends HTMLElement {
 
     // ---- Responsive (Mobile First) --------------------------------------
 
-    // Sets up a matchMedia listener that, when `responsive.autoGridView` is on,
-    // switches to `responsive.mobileView` (cards by default) below the
+    // Sets up a matchMedia listener that, when `responsive.autoLayout` is on,
+    // switches to `responsive.mobileLayout` (cards by default) below the
     // breakpoint and back to the table on desktop — unless the developer/user
-    // chose a view explicitly.
+    // chose a layout explicitly.
     _setupResponsive() {
         this._teardownResponsive();
         const r = this._config.responsive || {};
         this._responsive = {
             enabled: r.enabled !== false,
             breakpoint: typeof r.breakpoint === "number" ? r.breakpoint : 640,
-            autoGridView: r.autoGridView !== false,
-            mobileView: r.mobileView || "grid"
+            autoLayout: r.autoLayout !== false,
+            mobileLayout: r.mobileLayout || "grid"
         };
 
         if (!this._responsive.enabled || typeof window.matchMedia !== "function") {
-            this._isMobileView = false;
+            this._mobileMatches = false;
             return;
         }
 
         this._mql = window.matchMedia(`(max-width: ${this._responsive.breakpoint - 0.02}px)`);
-        this._isMobileView = this._mql.matches;
+        this._mobileMatches = this._mql.matches;
         this._mqlHandler = (event) => this._onBreakpointChange(event.matches);
         this._mql.addEventListener("change", this._mqlHandler);
-        this._applyAutoView();
+        this._applyAutoLayout();
     }
 
     _teardownResponsive() {
@@ -292,48 +292,48 @@ class JwDataTable extends HTMLElement {
         this._mqlHandler = null;
     }
 
-    _applyAutoView() {
-        if (!this._responsive || !this._responsive.enabled || !this._responsive.autoGridView) return;
-        if (this._viewModeUserSet || !this._availableViews().includes(this._responsive.mobileView)) return;
-        this._state.viewMode = this._isMobileView ? this._responsive.mobileView : "table";
+    _applyAutoLayout() {
+        if (!this._responsive || !this._responsive.enabled || !this._responsive.autoLayout) return;
+        if (this._layoutUserSet || !this._availableLayouts().includes(this._responsive.mobileLayout)) return;
+        this._state.layout = this._mobileMatches ? this._responsive.mobileLayout : "table";
     }
 
     _onBreakpointChange(matches) {
-        this._isMobileView = matches;
+        this._mobileMatches = matches;
         // Transient popups computed for the previous layout are no longer valid.
         this._closeOverlay();
         closeContextMenu();
 
-        const mobileView = this._responsive.mobileView;
-        if (!this._responsive.autoGridView || this._viewModeUserSet || !this._availableViews().includes(mobileView)) return;
-        const next = matches ? mobileView : "table";
-        if (next !== this._state.viewMode) {
-            this._state.viewMode = next;
+        const mobileLayout = this._responsive.mobileLayout;
+        if (!this._responsive.autoLayout || this._layoutUserSet || !this._availableLayouts().includes(mobileLayout)) return;
+        const next = matches ? mobileLayout : "table";
+        if (next !== this._state.layout) {
+            this._state.layout = next;
             this._render();
             this._emitChange();
         }
     }
 
     _isMobile() {
-        return !!this._isMobileView;
+        return !!this._mobileMatches;
     }
 
-    // ---- Views: table, cards ("grid"), compact table + details -------------
+    // ---- Layouts: table, cards ("grid"), compact table + details -----------
 
-    _availableViews() {
-        return ["table", this._features.grid && "grid", this._features.compactView && "compact"].filter(Boolean);
+    _availableLayouts() {
+        return ["table", this._features.grid && "grid", this._features.compact && "compact"].filter(Boolean);
     }
 
-    // The view to render: the chosen one if its feature is on, else the table.
-    _currentView() {
-        return this._availableViews().includes(this._state.viewMode) ? this._state.viewMode : "table";
+    // The layout to render: the chosen one if its feature is on, else the table.
+    _currentLayout() {
+        return this._availableLayouts().includes(this._state.layout) ? this._state.layout : "table";
     }
 
     _isCompact() {
-        return this._currentView() === "compact";
+        return this._currentLayout() === "compact";
     }
 
-    // Columns of the table view; the compact view shows only the columns
+    // Columns of the table layout; the compact layout shows only the columns
     // marked `compact: true`, else the first two visible ones.
     _tableColumns() {
         const visible = this._visibleColumns();
@@ -375,7 +375,7 @@ class JwDataTable extends HTMLElement {
         if (partial.globalSearch != null) this._state.globalSearch = partial.globalSearch;
         if (partial.pageSize) this._state.pageSize = partial.pageSize;
         if (partial.page) this._state.page = partial.page;
-        if (partial.viewMode) { this._state.viewMode = partial.viewMode; this._viewModeUserSet = true; }
+        if (partial.layout) { this._state.layout = partial.layout; this._layoutUserSet = true; }
         if (partial.hiddenColumns) this._state.hiddenColumns = new Set(partial.hiddenColumns);
         if (partial.pinnedColumns) this._state.pinnedColumns = partial.pinnedColumns.slice();
         if (partial.columnOrder) this._state.columnOrder = this._normalizeOrder(partial.columnOrder);
@@ -650,7 +650,7 @@ class JwDataTable extends HTMLElement {
     _renderBody() {
         const body = el("div", { class: "k-dt-body", part: "body", onscroll: () => this._updateScrollShadows() });
         if (this._config.maxHeight) body.style.maxHeight = this._config.maxHeight;
-        body.appendChild(this._currentView() === "grid" ? this._renderGrid() : this._renderTable());
+        body.appendChild(this._currentLayout() === "grid" ? this._renderGrid() : this._renderTable());
         return body;
     }
 
@@ -767,31 +767,31 @@ class JwDataTable extends HTMLElement {
             }, [iconEl("x"), el("span", { text: this._t.filterCount(activeFilters) })]));
         }
 
-        const views = this._availableViews();
-        if (views.length > 1) {
-            // One toggle button per view; the current one is pressed.
-            const current = this._currentView();
+        const layouts = this._availableLayouts();
+        if (layouts.length > 1) {
+            // One toggle button per layout; the current one is pressed.
+            const current = this._currentLayout();
             const meta = {
-                table: { icon: "table", label: this._t.tableView },
-                grid: { icon: "layout-grid", label: this._t.gridView },
-                compact: { icon: "rows-3", label: this._t.compactView }
+                table: { icon: "table", label: this._t.layoutTable },
+                grid: { icon: "layout-grid", label: this._t.layoutGrid },
+                compact: { icon: "rows-3", label: this._t.layoutCompact }
             };
-            right.appendChild(el("div", { class: "k-dt-view-switch", role: "group", "aria-label": this._t.viewSwitch },
-                views.map((view) => el("button", {
+            right.appendChild(el("div", { class: "k-dt-layout-switch", role: "group", "aria-label": this._t.layoutSwitch },
+                layouts.map((layout) => el("button", {
                     type: "button",
                     class: "k-dt-btn",
-                    "data-fk": `tb:view:${view}`,
-                    title: meta[view].label,
-                    "aria-label": meta[view].label,
-                    "aria-pressed": String(view === current),
+                    "data-fk": `tb:layout:${layout}`,
+                    title: meta[layout].label,
+                    "aria-label": meta[layout].label,
+                    "aria-pressed": String(layout === current),
                     onclick: () => {
-                        if (view === this._currentView()) return;
-                        this._state.viewMode = view;
-                        this._viewModeUserSet = true;
+                        if (layout === this._currentLayout()) return;
+                        this._state.layout = layout;
+                        this._layoutUserSet = true;
                         this._render();
                         this._emitChange();
                     }
-                }, [iconEl(meta[view].icon)]))));
+                }, [iconEl(meta[layout].icon)]))));
         }
 
         if (this._features.columnVisibility) {
@@ -895,7 +895,7 @@ class JwDataTable extends HTMLElement {
     _updateSortView() {
         this._deriveView();
         const table = this.shadow.querySelector(".k-dt-table");
-        if (!table) { this._render(); return; }   // card view: no header to keep
+        if (!table) { this._render(); return; }   // cards: no header to keep
         const focusKey = this._focusKey();
         const columns = this._tableColumns();
         for (const th of table.tHead.rows[0].cells) {
@@ -916,7 +916,7 @@ class JwDataTable extends HTMLElement {
     // stay the same elements and screen readers don't re-announce the table.
     _updateColumnsView() {
         const table = this.shadow.querySelector(".k-dt-table");
-        if (!table) { this._render(); return; }   // card view: rebuilt as a whole
+        if (!table) { this._render(); return; }   // cards: rebuilt as a whole
         this._deriveView();
         const focusKey = this._focusKey();
         const columns = this._tableColumns();
@@ -1051,7 +1051,7 @@ class JwDataTable extends HTMLElement {
         }
         const compact = this._isCompact();
         if (compact) {
-            // Compact view: the whole row opens the details (links and buttons
+            // Compact layout: the whole row opens the details (links and buttons
             // inside keep their own action); onRowClick moves into the dialog.
             tr.classList.add("k-dt-clickable");
             tr.addEventListener("click", (event) => {
@@ -2048,7 +2048,7 @@ class JwDataTable extends HTMLElement {
     // ---- Record details ------------------------------------------------------
 
     _detailsEnabled() {
-        return !!(this._features.rowDetails || this._features.compactView);
+        return !!(this._features.rowDetails || this._features.compact);
     }
 
     // All columns of a record: visible ones in display order, then hidden ones.
@@ -2927,7 +2927,7 @@ class JwDataTable extends HTMLElement {
             filters,
             globalSearch: this._state.globalSearch,
             pageSize: this._state.pageSize,
-            viewMode: this._state.viewMode,
+            layout: this._state.layout,
             hiddenColumns: Array.from(this._state.hiddenColumns),
             pinnedColumns: this._state.pinnedColumns.slice(),
             columnOrder: this._state.columnOrder.slice()

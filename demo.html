@@ -489,8 +489,8 @@
             ["globalSearch",     "Global search"],
             ["contextMenu",      "Context menu"],
             ["export",           "Export"],
-            ["grid",             "Card view"],
-            ["compactView",      "Compact view"],
+            ["grid",             "Card layout"],
+            ["compact",          "Compact layout"],
             ["columnVisibility", "Column visibility"],
             ["columnPinning",    "Column pinning"],
             ["columnReorder",    "Column reorder"],
@@ -510,10 +510,10 @@
                 cellOverflow: "ellipsis",
                 columnMinWidth: "8rem",
                 maxHeight: "",
-                defaultView: "",
+                defaultLayout: "",
                 pageSize: 25,
                 pageSizeOptions: "10, 25, 50, 100",
-                responsive: { enabled: true, autoGridView: true, mobileView: "grid", breakpoint: 640 },
+                responsive: { enabled: true, autoLayout: true, mobileLayout: "grid", breakpoint: 640 },
                 grid: { titleColumn: "lastName", minWidth: "" },
                 exportFilename: "",
                 exportDefaults: { format: "csv", destination: "download", localized: false, delimiter: ";" },
@@ -575,8 +575,8 @@
                 features: { ...cfg.features },
                 columns,
                 pagination: { pageSize: Number(cfg.pageSize) || undefined, pageSizeOptions: sizes.length ? sizes : undefined },
-                defaultView: blank(cfg.defaultView),
-                responsive: { enabled: r.enabled, autoGridView: r.autoGridView, mobileView: r.mobileView, breakpoint: Number(r.breakpoint) || 640 },
+                defaultLayout: blank(cfg.defaultLayout),
+                responsive: { enabled: r.enabled, autoLayout: r.autoLayout, mobileLayout: r.mobileLayout, breakpoint: Number(r.breakpoint) || 640 },
                 grid: { titleColumn: blank(cfg.grid.titleColumn), minWidth: blank(cfg.grid.minWidth) },
                 maxHeight: blank(cfg.maxHeight),
                 columnMinWidth: blank(cfg.columnMinWidth),
@@ -608,15 +608,15 @@
         // ── Create the table ─────────────────────────────────────────────────
         const table = createDataTable("#table", { ...buildConfig(), data: makeRows(cfg.rows) });
 
-        // Reconfigures in place and keeps data and view state. `drop` lists state
+        // Reconfigures in place and keeps data and table state. `drop` lists state
         // keys the changed option should decide again (e.g. `pinnedColumns` after
         // a column's `pinned` flag changed).
         function rebuild(drop = []) {
             const state = table.getState();
-            // getState() always reports the view; passing it back would pin the view
-            // and stop the responsive switching. Only keep a view the user chose.
+            // getState() always reports the layout; passing it back would pin the layout
+            // and stop the responsive switching. Only keep a layout the user chose.
             // (Reading the private flag is fine for this playground, not for apps.)
-            if (!table._viewModeUserSet) drop = [...drop, "viewMode"];
+            if (!table._layoutUserSet) drop = [...drop, "layout"];
             for (const key of drop) delete state[key];
             table.configure({ ...buildConfig(), data: table.data, initial: state });
             persist();
@@ -651,7 +651,7 @@
             Object.keys(s.filters).length && `filters ${Object.keys(s.filters).join(", ")}`,
             s.globalSearch && `search "${s.globalSearch}"`,
             `page ${s.page}/${s.pageSize}`,
-            `view ${s.viewMode}`,
+            `layout ${s.layout}`,
             s.hiddenColumns.length && `hidden ${s.hiddenColumns.length}`,
             s.pinnedColumns.length && `pinned ${s.pinnedColumns.join(", ")}`
         ].filter(Boolean).join(" · ");
@@ -820,7 +820,7 @@
             ),
             section("General",
                 text("title", optionLabel("title")),
-                select("defaultView", optionLabel("defaultView"), [["", "— automatic —"], ["table", "table"], ["grid", "grid"], ["compact", "compact"]], { drop: ["viewMode"] }),
+                select("defaultLayout", optionLabel("defaultLayout"), [["", "— automatic —"], ["table", "table"], ["grid", "grid"], ["compact", "compact"]], { drop: ["layout"] }),
                 select("cellOverflow", optionLabel("cellOverflow"), [["wrap", "wrap"], ["ellipsis", "ellipsis"]]),
                 text("columnMinWidth", optionLabel("columnMinWidth"), { placeholder: "e.g. 10rem" }),
                 text("maxHeight", optionLabel("maxHeight"), { placeholder: "e.g. 60vh" })
@@ -830,10 +830,10 @@
                 text("pageSizeOptions", optionLabel("pagination.pageSizeOptions"), { placeholder: "10, 25, 50, 100" })
             ),
             section("Responsive",
-                checkbox("responsive.enabled", h("code", { textContent: "enabled" }), { drop: ["viewMode"] }),
-                checkbox("responsive.autoGridView", h("code", { textContent: "autoGridView" }), { drop: ["viewMode"] }),
-                select("responsive.mobileView", optionLabel("mobileView"), [["grid", "grid (cards)"], ["compact", "compact"]], { drop: ["viewMode"] }),
-                text("responsive.breakpoint", optionLabel("breakpoint (px)"), { type: "number", drop: ["viewMode"] })
+                checkbox("responsive.enabled", h("code", { textContent: "enabled" }), { drop: ["layout"] }),
+                checkbox("responsive.autoLayout", h("code", { textContent: "autoLayout" }), { drop: ["layout"] }),
+                select("responsive.mobileLayout", optionLabel("mobileLayout"), [["grid", "grid (cards)"], ["compact", "compact"]], { drop: ["layout"] }),
+                text("responsive.breakpoint", optionLabel("breakpoint (px)"), { type: "number", drop: ["layout"] })
             ),
             section("Cards",
                 select("grid.titleColumn", optionLabel("grid.titleColumn"), columnChoices),
@@ -909,7 +909,7 @@
             const { rows, width } = cfg;
             cfg = { ...defaultDemoConfig(), rows, width };
             syncAll();
-            rebuild(["hiddenColumns", "pinnedColumns", "columnOrder", "pageSize", "page", "viewMode"]);
+            rebuild(["hiddenColumns", "pinnedColumns", "columnOrder", "pageSize", "page", "layout"]);
         };
 
         syncAll();

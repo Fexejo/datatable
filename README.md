@@ -15,9 +15,9 @@ written in Vanilla JS (ES modules, Shadow DOM). No external dependencies.
 - **Column order** – move columns via drag and drop on the header (desktop), the context menu, `Ctrl+Shift+←/→` or the column chooser
 - **Column pinning** – pin any columns to the left edge (sticky while scrolling horizontally); scroll shadows show where more content is
 - **Export** – CSV, Excel (XLSX) or JSON as a download or to the clipboard, via a dialog (rows, columns, raw or formatted values, header, delimiter); entirely in the browser, protected against formula injection
-- **Grid / card view** – cards with label/value pairs as an alternative to the table (two columns, stacked on narrow cards)
-- **Compact view** – summary table with a few key columns; a tap on a row opens all its fields in a details dialog
-- **Mobile First / responsive** – compact, touch-optimized layout; auto-switches to the card or compact view on small screens; bottom-sheet panels; long-press context menu
+- **Card layout** – cards with label/value pairs as an alternative to the table (two columns, stacked on narrow cards)
+- **Compact layout** – summary table with a few key columns; a tap on a row opens all its fields in a details dialog
+- **Mobile First / responsive** – compact, touch-optimized layout; auto-switches to the card or compact layout on small screens; bottom-sheet panels; long-press context menu
 - **Links** – href, SPA routing event, or custom handler (e.g. open a dialog)
 - **Copy button** – per column when `copyable` is set (shown on hover on desktop, always visible on touch)
 - **Runtime data** – replace data anytime via `setData()` / `.data`
@@ -167,10 +167,10 @@ table.configure({ /* … */ });
 | `locale` | `string` | `"en-US"` | BCP-47 locale — drives number/date formatting, sort, **and UI language** (see [i18n](#i18n--localization)) |
 | `features` | `object` | all on | Toggle features (see below) |
 | `pagination` | `object` | — | `{ pageSize, pageSizeOptions }` |
-| `initial` | `object` | — | `{ sort, filters, globalSearch, page, pageSize, viewMode, hiddenColumns, pinnedColumns, columnOrder }` |
-| `defaultView` | `"table" \| "grid" \| "compact"` | `"table"` | Initial view (pins the view — disables auto-switching) |
+| `initial` | `object` | — | `{ sort, filters, globalSearch, page, pageSize, layout, hiddenColumns, pinnedColumns, columnOrder }` |
+| `defaultLayout` | `"table" \| "grid" \| "compact"` | `"table"` | Initial layout (pins the layout — disables auto-switching) |
 | `grid` | `object` | — | `{ minWidth, titleColumn }` |
-| `responsive` | `object` | *(on)* | `{ enabled, breakpoint, autoGridView, mobileView }` — see [Responsive & touch](#responsive--touch) |
+| `responsive` | `object` | *(on)* | `{ enabled, breakpoint, autoLayout, mobileLayout }` — see [Responsive & touch](#responsive--touch) |
 | `maxHeight` | `string` | — | e.g. `"60vh"`; scroll body, sticky header |
 | `columnMinWidth` | `string` | — | Minimum width of text columns, e.g. `"10rem"` (see [Column widths](#column-widths)) |
 | `cellOverflow` | `"wrap" \| "ellipsis"` | `"wrap"` | Long cell text wraps, or stays on one line with “…” (see [Long cell content](#long-cell-content)) |
@@ -182,8 +182,8 @@ table.configure({ /* … */ });
 | `exportDefaults` | `object` | — | Defaults of the export dialog and `exportData()` (see [Export](#export)) |
 | `styles` | `string` | — | Extra CSS injected into shadow root |
 | `rowClass` | `(row, index) => string` | — | CSS class(es) per row |
-| `onRowClick` | `(row, index) => void` | — | Row/card click (compact view: “Open” button in the details dialog) |
-| `onCellClick` | `(value, row, column) => void` | — | Cell click (not in the compact view) |
+| `onRowClick` | `(row, index) => void` | — | Row/card click (compact layout: “Open” button in the details dialog) |
+| `onCellClick` | `(value, row, column) => void` | — | Cell click (not in the compact layout) |
 
 ---
 
@@ -207,7 +207,7 @@ Each column:
 | `overflow` | `"wrap" \| "ellipsis"` | Overrides `cellOverflow` for this column |
 | `maxWidth` | `string` | Content width limit for `"ellipsis"` cells (default `16rem`), e.g. `"200px"` |
 | `hidden` | `boolean` | Initially hidden |
-| `compact` | `boolean` | Shown in the compact view (default: the first two visible columns) |
+| `compact` | `boolean` | Shown in the compact layout (default: the first two visible columns) |
 | `pinned` | `boolean` | Initially pinned to the left edge (needs `features.columnPinning`; `initial.pinnedColumns` wins) |
 | `sortable` | `boolean` | Allow sort (default `true`) |
 | `filterable` | `boolean` | Allow filter (default `true`) |
@@ -376,8 +376,8 @@ by default.
 | `multiSort` | on\* | Multi-column sort via Shift+click (\*only active when `sorting` is on) |
 | `filtering` | off | Value / pattern filters per column |
 | `globalSearch` | off | Full-text search box in the toolbar |
-| `grid` | off | Card/grid view in the layout switch (also drives responsive auto-view) |
-| `compactView` | off | Compact view in the layout switch: key columns + details dialog per row (includes `rowDetails` behavior) |
+| `grid` | off | Card layout in the layout switch (also drives the responsive auto-layout) |
+| `compact` | off | Compact layout in the layout switch: key columns + details dialog per row (includes `rowDetails` behavior) |
 | `columnVisibility` | off | Column chooser: one switch per column to show/hide it |
 | `columnPinning` | off | Pin columns to the left edge (context menu, column chooser) |
 | `columnReorder` | off | Move columns: drag and drop on the header, context menu, `Ctrl+Shift+←/→`, column chooser |
@@ -393,7 +393,7 @@ features: {
     filtering: true,
     globalSearch: true,
     grid: true,
-    compactView: true,
+    compact: true,
     columnVisibility: true,
     columnPinning: true,
     columnReorder: true,
@@ -501,25 +501,25 @@ columns can be reordered among themselves (this changes `pinnedColumns`).
 **State:** `columnOrder` (all column keys, including hidden ones) is part of
 `getState()` / `setState()` / `initial` and saved views. Unknown keys are
 ignored; columns missing from it keep their configured order at the end.
-CSV export and “Copy row” follow the displayed order. In the compact view the
+CSV export and “Copy row” follow the displayed order. In the compact layout the
 moves refer to the columns shown there.
 
 ---
 
 ## Layouts: table, cards, compact
 
-| Layout (`viewMode`) | Feature | What it shows |
+| Layout (`layout`) | Feature | What it shows |
 |-------------------|---------|---------------|
 | `"table"` | always | All visible columns |
 | `"grid"` | `features.grid` | One card per row with label/value pairs (`grid.titleColumn` as card title) |
-| `"compact"` | `features.compactView` | A table with only the key columns plus a details button per row |
+| `"compact"` | `features.compact` | A table with only the key columns plus a details button per row |
 
 With more than one layout enabled, the toolbar shows a **layout switch**: one
 toggle button per layout, the current one pressed. The chosen layout is part of
-the state (`viewMode`) and of saved views. A `viewMode` whose feature is
+the state (`layout`) and of saved views. A `layout` whose feature is
 off falls back to the table.
 
-**Compact view.** Columns marked `compact: true` are shown (default: the first
+**Compact layout.** Columns marked `compact: true` are shown (default: the first
 two visible columns, pinned ones first). Tapping a row — or `Enter` on one of
 its cells, or the details button at the end of the row — opens the
 [details dialog](#record-details) with **all** fields of the record, including
@@ -538,8 +538,8 @@ createDataTable("#c", {
         { key: "email", label: "Email" },
         // …
     ],
-    features: { grid: true, compactView: true },
-    responsive: { mobileView: "compact" }   // phones start in the compact view
+    features: { grid: true, compact: true },
+    responsive: { mobileLayout: "compact" }   // phones start in the compact layout
 });
 ```
 
@@ -547,8 +547,8 @@ createDataTable("#c", {
 
 ## Record details
 
-With `features.rowDetails` (or `features.compactView`), the context menu of
-every cell and card has **“Show details”**; in the compact view, rows open it
+With `features.rowDetails` (or `features.compact`), the context menu of
+every cell and card has **“Show details”**; in the compact layout, rows open it
 directly. It opens a modal dialog (centered on desktop, bottom sheet on
 mobile) with every field of the record as label/value pairs — visible columns in
 display order, then hidden ones. Values are formatted as in the table, links and
@@ -660,7 +660,7 @@ renames and deletes views:
 - **Errors** of the storage (e.g. the backend is offline) are shown in the
   panel; loading the list can be retried.
 
-A view stores sort, filters, search, page size, layout (`viewMode`), hidden,
+A view stores sort, filters, search, page size, the layout, hidden,
 pinned and the order of the columns — the [state](#instance-api) without the
 current page. Loading a view starts on page 1. References to columns that no
 longer exist are dropped when a view (or any state) is applied.
@@ -764,7 +764,7 @@ All events are `composed` and `bubbles`.
     globalSearch: "",
     pageSize: 25,
     page: 1,
-    viewMode: "table",            // or "grid", "compact"
+    layout: "table",            // or "grid", "compact"
     hiddenColumns: ["internalId"],
     pinnedColumns: ["name"],      // display order of the pinned columns
     columnOrder: ["name", "email", "id", "internalId"]   // all columns; pinned ones still come first
@@ -824,7 +824,7 @@ vertically under a sticky header.
 
 The switch to the mobile layout follows the **viewport** width
 (`responsive.breakpoint`), not the component's own width: a narrow table on a
-wide screen keeps the table view and scrolls horizontally.
+wide screen keeps the table layout and scrolls horizontally.
 
 ### Icons
 
@@ -859,7 +859,7 @@ buttons, inline toolbar/footer, full page-number pagination).
 
 | Behavior | Mobile (`< breakpoint`) | Desktop (`≥ breakpoint`) |
 |----------|-------------------------|--------------------------|
-| View | auto `mobileView`: cards or compact (`autoGridView`) | table |
+| Layout | auto `mobileLayout`: cards or compact (`autoLayout`) | table |
 | Toolbar | stacked, full-width search | inline, `space-between` |
 | Copy buttons | always visible | reveal on hover |
 | Pagination | first / prev / current / next / last | full page numbers + page-size select |
@@ -874,20 +874,20 @@ createDataTable("#c", {
     responsive: {
         enabled: true,       // master switch (default true)
         breakpoint: 640,     // px; must match the CSS breakpoint if you override styles
-        autoGridView: true,  // switch views automatically at the breakpoint
-        mobileView: "grid"   // view below the breakpoint: "grid" (cards, needs features.grid)
-                             // or "compact" (needs features.compactView)
+        autoLayout: true,  // switch layouts automatically at the breakpoint
+        mobileLayout: "grid"   // layout below the breakpoint: "grid" (cards, needs features.grid)
+                             // or "compact" (needs features.compact)
     }
 });
 ```
 
 Notes:
 
-- **Auto view switching** only kicks in when neither `defaultView` nor
-  `initial.viewMode` is set, and is suspended once the user switches the view or
-  a saved view/`setState` sets `viewMode` — explicit choices always win.
+- **Auto layout switching** only kicks in when neither `defaultLayout` nor
+  `initial.layout` is set, and is suspended once the user switches the layout or
+  a saved view/`setState` sets `layout` — explicit choices always win.
 - The CSS breakpoint is `640px`. If you change `responsive.breakpoint`, mirror it
-  via `config.styles` so the visual layout and the JS view-switching agree.
+  via `config.styles` so the visual layout and the JS layout switching agree.
 - **Long-press** (~500ms) on a header, cell, or card opens the context menu on
   touch devices; the follow-up tap is suppressed so it won't also trigger
   row/cell/link handlers.
@@ -970,8 +970,8 @@ or touch also works with the keyboard alone.
 | Table body | `Tab` | Enters/leaves the body as **one** tab stop (roving focus; links and buttons inside cells stay in the tab order) |
 | Table cell | `←` `→` `↑` `↓` | Move between cells |
 | Table cell | `Home` / `End` | First / last cell of the row (`Ctrl` + key: first / last cell of the page) |
-| Table cell | `Enter` | Activate the cell's link or action, otherwise `onCellClick` / `onRowClick`; in the compact view: open the row's details |
-| Card view | `←` `→` `↑` `↓`, `Home` / `End`, `Enter` | Move between cards, `Enter` triggers `onRowClick` |
+| Table cell | `Enter` | Activate the cell's link or action, otherwise `onCellClick` / `onRowClick`; in the compact layout: open the row's details |
+| Cards | `←` `→` `↑` `↓`, `Home` / `End`, `Enter` | Move between cards, `Enter` triggers `onRowClick` |
 | Cell, card, header button | `Shift+F10` or context-menu key | Open the actions menu (same as right-click / long-press) |
 | Header button | `Ctrl+Shift+←` / `Ctrl+Shift+→` | Move the column (with `features.columnReorder`); focus stays on the button |
 | Actions menu | `↑` `↓`, `Home` / `End`, `Enter` / `Space`, `Esc` / `Tab` | Navigate, activate, close (focus returns to where the menu was opened) |
@@ -995,20 +995,20 @@ table.
 
 - Semantic `<table>`, named by `title`, with `scope="col"` and `aria-sort`;
   multi-sort priority is part of the header button's name.
-- Card view is a list (`role="list"` / `listitem`); each card lists its
+- The card layout is a list (`role="list"` / `listitem`); each card lists its
   fields as a description list (`<dl>` with `<dt>` label / `<dd>` value).
 - Keyboard hints are linked to the table/list via `aria-describedby`.
 - Icon-only buttons have an `aria-label` (per column where it matters, e.g.
   “Filter: Name”, “Copy value: Name”); icons are decorative (`aria-hidden`).
 - The layout switch is a `group` named “Layout” with one toggle button per layout
-  (`aria-pressed`, named “Table view” / “Grid view” / “Compact view”).
+  (`aria-pressed`, named “Table” / “Cards” / “Compact”).
 - Saved views panel: the views are a list; the current view's button has
   `aria-current="true"` and a check mark. Rename/delete buttons are named
   “Rename: <view>” / “Delete: <view>”. Questions (overwrite, delete) are a
   `group` named by the question, which also describes its buttons. Errors are
   shown in the panel, announced and linked to their field (`aria-invalid`,
   `aria-describedby`); the panel is `aria-busy` while the adapter works.
-- Compact view: the details column has a visually hidden header “Details”;
+- Compact layout: the details column has a visually hidden header “Details”;
   each row's button is named “Show details: <record>” and carries
   `aria-haspopup="dialog"` / `aria-expanded`. The keyboard hint mentions that
   `Enter` opens the details.

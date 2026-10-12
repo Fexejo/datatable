@@ -198,18 +198,18 @@ test("form controls inside panels have accessible names", async () => {
     check("saved views panel");
 });
 
-// ---- View toggle ----------------------------------------------------------
+// ---- Layout switch --------------------------------------------------------
 
-test("view switch is a named group of toggle buttons, one per available view", () => {
+test("layout switch is a named group of toggle buttons, one per available layout", () => {
     let table = mount();
-    assert.equal($(table, ".k-dt-view-switch"), null, "no switch with only the table");
+    assert.equal($(table, ".k-dt-layout-switch"), null, "no switch with only the table");
 
-    table = mount({ features: { grid: true, compactView: true } });
-    const group = $(table, ".k-dt-view-switch");
+    table = mount({ features: { grid: true, compact: true } });
+    const group = $(table, ".k-dt-layout-switch");
     assert.equal(group.getAttribute("role"), "group");
     assert.equal(accessibleName(group), "Layout");
-    const buttons = () => $$(table, ".k-dt-view-switch button");
-    assert.deepEqual(buttons().map(accessibleName), ["Table view", "Grid view", "Compact view"]);
+    const buttons = () => $$(table, ".k-dt-layout-switch button");
+    assert.deepEqual(buttons().map(accessibleName), ["Table", "Cards", "Compact"]);
     assert.deepEqual(buttons().map((b) => b.getAttribute("aria-pressed")), ["true", "false", "false"]);
 
     buttons()[1].focus();
@@ -217,8 +217,8 @@ test("view switch is a named group of toggle buttons, one per available view", (
     assert.ok($(table, ".k-dt-grid"), "grid rendered");
     assert.equal($$(table, ".k-dt-card").length, 10);
     assert.deepEqual(buttons().map((b) => b.getAttribute("aria-pressed")), ["false", "true", "false"]);
-    assert.equal(deepActiveElement()?.dataset.fk, "tb:view:grid", "focus stays on the pressed button");
-    assert.equal(table.getState().viewMode, "grid");
+    assert.equal(deepActiveElement()?.dataset.fk, "tb:layout:grid", "focus stays on the pressed button");
+    assert.equal(table.getState().layout, "grid");
 });
 
 // ---- Context menu ---------------------------------------------------------
@@ -274,12 +274,12 @@ test("Tab moves from the search field into the toolbar buttons", async () => {
 
 // ---- Responsive -----------------------------------------------------------
 
-test("switches to card view below the breakpoint", async () => {
+test("switches to card layout below the breakpoint", async () => {
     await input.viewport(390, 800);
     const table = mount({ features: { grid: true }, responsive: { enabled: true } });
-    await waitFor(() => $(table, ".k-dt-grid"), { message: "expected grid view on mobile" });
+    await waitFor(() => $(table, ".k-dt-grid"), { message: "expected cards on mobile" });
     await input.viewport(1280, 900);
-    await waitFor(() => $(table, "table"), { message: "expected table view on desktop" });
+    await waitFor(() => $(table, "table"), { message: "expected the table on desktop" });
 }, { cdp: true });
 
 // ---- Focus management -----------------------------------------------------
@@ -356,7 +356,7 @@ test("empty values get no link or action button", () => {
 
 test("cards: single tab stop, arrow navigation, Enter triggers onRowClick", async () => {
     let clicked = null;
-    const table = mount({ features: { grid: true }, defaultView: "grid", onRowClick: (row) => { clicked = row.id; } });
+    const table = mount({ features: { grid: true }, defaultLayout: "grid", onRowClick: (row) => { clicked = row.id; } });
     assert.equal($(table, ".k-dt-grid").getAttribute("role"), "list");
     assert.equal($$(table, ".k-dt-card").filter((c) => c.tabIndex === 0).length, 1);
     $(table, '[data-fk="card:0"]').focus();
@@ -1193,7 +1193,7 @@ test("numbers, dates and booleans never wrap; text does", () => {
 // ---- Cards --------------------------------------------------------------------
 
 test("cards list their fields as label/value pairs (dl/dt/dd)", () => {
-    const table = mount({ features: { grid: true }, defaultView: "grid", grid: { titleColumn: "name" } });
+    const table = mount({ features: { grid: true }, defaultLayout: "grid", grid: { titleColumn: "name" } });
     const card = $(table, '[data-fk="card:0"]');
     assert.equal(card.querySelector(".k-dt-card-title").textContent.trim(), "Anna");
     const labels = Array.from(card.querySelectorAll("dl > div > dt")).map((dt) => dt.textContent);
@@ -1274,11 +1274,11 @@ test("no details entry without the feature", () => {
     assert.equal(menuItem(table, "Show details"), undefined);
 });
 
-// ---- Compact view ---------------------------------------------------------------
+// ---- Compact layout ---------------------------------------------------------------
 
-const COMPACT = { features: { compactView: true }, defaultView: "compact" };
+const COMPACT = { features: { compact: true }, defaultLayout: "compact" };
 
-test("compact view: marked (or first two) columns plus a details button per row", () => {
+test("compact layout: marked (or first two) columns plus a details button per row", () => {
     let table = mount(COMPACT);
     assert.deepEqual(headerKeys(table), ["id", "name", undefined], "first two columns + details column");
     const detailsTh = $$(table, "thead th").at(-1);
@@ -1297,7 +1297,7 @@ test("compact view: marked (or first two) columns plus a details button per row"
     assert.deepEqual(dialogLabels(table), ["ID", "Name", "Fee", "Active", "Joined"], "dialog shows all columns in table order");
 });
 
-test("compact view: tapping a row opens its details; links keep their action; onRowClick moves to Open", () => {
+test("compact layout: tapping a row opens its details; links keep their action; onRowClick moves to Open", () => {
     let linked = null;
     let rowClicked = null;
     const columns = COLUMNS.map((c) => c.key === "name" ? { ...c, link: { handler: (row) => { linked = row.id; } } } : c);
@@ -1313,7 +1313,7 @@ test("compact view: tapping a row opens its details; links keep their action; on
     assert.equal($(table, '[role="dialog"]'), null, "link click does not open the details");
 });
 
-test("compact view: Enter on a cell or the details button opens the dialog; focus returns", async () => {
+test("compact layout: Enter on a cell or the details button opens the dialog; focus returns", async () => {
     const table = mount(COMPACT);
     $(table, '[data-fk="cell:1:id"]').focus();
     await input.press("Enter");
@@ -1337,20 +1337,28 @@ test("compact view: Enter on a cell or the details button opens the dialog; focu
     assert.equal(button.getAttribute("aria-expanded"), "false");
 }, { cdp: true });
 
-test("compact view is part of the state and falls back to the table without the feature", () => {
-    let table = mount({ features: { compactView: true } });
-    table.setState({ viewMode: "compact" });
+test("compact layout is part of the state and falls back to the table without the feature", () => {
+    let table = mount({ features: { compact: true } });
+    table.setState({ layout: "compact" });
     assert.ok($(table, ".k-dt-table--compact"));
-    assert.equal(table.getState().viewMode, "compact");
+    assert.equal(table.getState().layout, "compact");
 
-    table = mount({ initial: { viewMode: "compact" } });
-    assert.ok($(table, "table") && !$(table, ".k-dt-table--compact"), "plain table without features.compactView");
+    table = mount({ initial: { layout: "compact" } });
+    assert.ok($(table, "table") && !$(table, ".k-dt-table--compact"), "plain table without features.compact");
 });
 
-test("responsive.mobileView picks the compact view below the breakpoint", async () => {
+test("the former view names (compactView, viewMode, defaultView) no longer apply", () => {
+    let table = mount({ features: { grid: true, compactView: true }, defaultView: "grid" });
+    assert.ok($(table, "table") && !$(table, ".k-dt-table--compact"), "table, no compact layout");
+    table = mount({ features: { grid: true }, initial: { viewMode: "grid" } });
+    assert.ok($(table, "table"), "initial.viewMode ignored");
+    assert.ok(!("viewMode" in table.getState()), "state has no viewMode");
+});
+
+test("responsive.mobileLayout picks the compact layout below the breakpoint", async () => {
     await input.viewport(390, 800);
-    const table = mount({ features: { grid: true, compactView: true }, responsive: { enabled: true, mobileView: "compact" } });
-    await waitFor(() => $(table, ".k-dt-table--compact"), { message: "expected compact view on mobile" });
+    const table = mount({ features: { grid: true, compact: true }, responsive: { enabled: true, mobileLayout: "compact" } });
+    await waitFor(() => $(table, ".k-dt-table--compact"), { message: "expected compact layout on mobile" });
     await input.viewport(1280, 900);
     await waitFor(() => $(table, "table:not(.k-dt-table--compact)"), { message: "expected full table on desktop" });
 }, { cdp: true });
@@ -1387,13 +1395,13 @@ test("hiding and showing a column keeps the table element", () => {
 });
 
 test("text in cells with a copy button lines up with plain cells; compact rows are as high as table rows", () => {
-    const table = mount({ features: { compactView: true } });
+    const table = mount({ features: { compact: true } });
     const rowTop = $(table, "tbody tr").getBoundingClientRect().top;
     const top = (sel) => $(table, sel).getBoundingClientRect().top - rowTop;
     assert.ok(Math.abs(top('[data-fk="cell:0:name"] .k-dt-value') - top('[data-fk="cell:0:fee"] .k-dt-value')) < 1,
         "copy button does not push the text down");
     const tableRow = $(table, "tbody tr").getBoundingClientRect().height;
-    table.setState({ viewMode: "compact" });
+    table.setState({ layout: "compact" });
     const compactRow = $(table, "tbody tr").getBoundingClientRect().height;
     assert.ok(Math.abs(compactRow - tableRow) < 1, `compact ${compactRow}px vs table ${tableRow}px`);
 });

@@ -104,14 +104,14 @@ export const datatableStyles = `
     outline: 2px solid var(--k-color-text, #222);
     outline-offset: 1px;
 }
-/* View switch: joined toggle buttons, the current view is filled. */
-.k-dt-view-switch { display: inline-flex; }
-.k-dt-view-switch .k-dt-btn { border-radius: 0; }
-.k-dt-view-switch .k-dt-btn + .k-dt-btn { margin-left: -1px; }
-.k-dt-view-switch .k-dt-btn:first-child { border-radius: var(--k-radius-s, 8px) 0 0 var(--k-radius-s, 8px); }
-.k-dt-view-switch .k-dt-btn:last-child { border-radius: 0 var(--k-radius-s, 8px) var(--k-radius-s, 8px) 0; }
-.k-dt-view-switch .k-dt-btn:focus-visible { position: relative; z-index: 1; }
-.k-dt-view-switch .k-dt-btn[aria-pressed="true"] {
+/* Layout switch: joined toggle buttons, the current layout is filled. */
+.k-dt-layout-switch { display: inline-flex; }
+.k-dt-layout-switch .k-dt-btn { border-radius: 0; }
+.k-dt-layout-switch .k-dt-btn + .k-dt-btn { margin-left: -1px; }
+.k-dt-layout-switch .k-dt-btn:first-child { border-radius: var(--k-radius-s, 8px) 0 0 var(--k-radius-s, 8px); }
+.k-dt-layout-switch .k-dt-btn:last-child { border-radius: 0 var(--k-radius-s, 8px) var(--k-radius-s, 8px) 0; }
+.k-dt-layout-switch .k-dt-btn:focus-visible { position: relative; z-index: 1; }
+.k-dt-layout-switch .k-dt-btn[aria-pressed="true"] {
     background: var(--k-dt-accent);
     border-color: var(--k-dt-accent);
     color: var(--k-dt-accent-text);
@@ -247,7 +247,7 @@ span.k-dt-th-label { cursor: default; }
 
 .k-dt-tr:hover .k-dt-td { background: var(--k-dt-surface-muted); }
 
-/* Compact view: last column holds the details button. It sets the row height
+/* Compact layout: last column holds the details button. It sets the row height
    (no padding above/below), so compact rows are as high as the button: 44px
    on touch layouts (the whole row is the tap target), else like table rows. */
 .k-dt-details-col { width: 1%; padding-left: 0; padding-right: var(--k-space-2xs, 4px); text-align: right; vertical-align: middle; }
@@ -320,7 +320,7 @@ span.k-dt-th-label { cursor: default; }
     padding: var(--k-space-4xl, 24px);
 }
 
-/* Grid / card view */
+/* Grid / card layout */
 .k-dt-grid {
     display: grid;
     gap: var(--k-space-s, 8px);
