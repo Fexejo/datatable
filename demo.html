@@ -203,6 +203,7 @@
             id: "demo-members",
             title: "Members",
             cellOverflow: "ellipsis",
+            columnMinWidth: "8rem",
             columns: [
                 { key: "id",           label: "ID",           type: "integer",  width: "64px", pinned: true },
                 {
@@ -221,7 +222,7 @@
                 { key: "share",        label: "Share",        type: "percent",  format: { decimals: 0 } },
                 { key: "active",       label: "Active",       type: "boolean" },
                 { key: "joinedAt",     label: "Joined",       type: "date" },
-                { key: "email",        label: "Email",        type: "string",   copyable: true },
+                { key: "email",        label: "Email",        type: "string",   copyable: true, minWidth: "18rem", maxWidth: "18rem" },
                 { key: "notes",        label: "Notes",        type: "string",   maxWidth: "14rem" }
             ],
             initial: {
