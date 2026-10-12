@@ -14,7 +14,7 @@ written in Vanilla JS (ES modules, Shadow DOM). No external dependencies.
 - **Record details** – dialog with all fields of a row (including hidden columns), previous/next through all results
 - **Column order** – move columns via drag and drop on the header (desktop), the context menu, `Ctrl+Shift+←/→` or the column chooser
 - **Column pinning** – pin any columns to the left edge (sticky while scrolling horizontally); scroll shadows show where more content is
-- **Export** – CSV or JSON in the browser via a dialog (rows, columns, raw or formatted values, header, delimiter); Excel-friendly (BOM), protected against formula injection
+- **Export** – CSV, Excel (XLSX) or JSON as a download or to the clipboard, via a dialog (rows, columns, raw or formatted values, header, delimiter); entirely in the browser, protected against formula injection
 - **Grid / card view** – cards with label/value pairs as an alternative to the table (two columns, stacked on narrow cards)
 - **Compact view** – summary table with a few key columns; a tap on a row opens all its fields in a details dialog
 - **Mobile First / responsive** – compact, touch-optimized layout; auto-switches to the card or compact view on small screens; bottom-sheet panels; long-press context menu
@@ -66,7 +66,8 @@ written in Vanilla JS (ES modules, Shadow DOM). No external dependencies.
 | `formatters.js` | Type-dependent display formatting |
 | `comparators.js` | Sort comparison, multi-column sort |
 | `filtering.js` | Value/pattern filters, operators, distinct values |
-| `export.js` | CSV / JSON build, formula neutralizing, file name & download |
+| `export.js` | CSV / XLSX / JSON build, formula neutralizing, file name & download |
+| `xlsx.js` | XLSX writer (one worksheet, uncompressed ZIP) |
 | `templateStore.js` | Template storage + `LocalStorageAdapter` |
 | `contextMenu.js` | Reusable context menu |
 | `styles.js` | Shadow DOM styles as a string |
@@ -177,7 +178,6 @@ table.configure({ /* … */ });
 | `searchPlaceholder` | `string` | *(from locale)* | Search input placeholder override |
 | `emptyText` | `string` | *(from locale)* | Override text shown when there are no rows |
 | `noResultsText` | `string` | *(from locale)* | Override text shown when filters match nothing |
-| `csvDelimiter` | `string` | `";"` | Default CSV delimiter (see [Export](#export)) |
 | `exportFilename` | `string` | `title`, else `"export"` | Base of the default file name (timestamp and extension are appended) |
 | `exportDefaults` | `object` | — | Defaults of the export dialog and `exportData()` (see [Export](#export)) |
 | `styles` | `string` | — | Extra CSS injected into shadow root |
@@ -378,7 +378,7 @@ by default.
 | `columnReorder` | off | Move columns: drag and drop on the header, context menu, `Ctrl+Shift+←/→`, column chooser |
 | `rowDetails` | off | “Show details” in the context menu of cells/cards: dialog with all fields of the record |
 | `templates` | off | Save/load views (needs storage) |
-| `export` | off | Export button and context-menu entry (dialog: CSV / JSON); `csvExport` still works as the former name |
+| `export` | off | Export button and context-menu entry (dialog: CSV / XLSX / JSON, download or clipboard) |
 
 Enable what you need:
 
@@ -565,58 +565,78 @@ on mobile). Everything happens in the browser, no backend.
 
 Always shown, so a quick export is just `Enter`:
 
-- **Format** – CSV (default) or JSON.
-- **File name** – default: `exportFilename`, else `title`, else `"export"`,
-  plus a timestamp and the extension, e.g. `Members_2026-10-12_14-30-05.csv`.
-  Switching the format swaps the extension; a missing extension is added.
+- **Format** – CSV (default), Excel (XLSX) or JSON.
+- **Destination** – download a file (default) or copy to the clipboard (CSV
+  and JSON; XLSX is binary and is not offered for the clipboard). The submit
+  button reads “Export” or “Copy”.
+- **File name** (downloads only) – default: `exportFilename`, else `title`,
+  else `"export"`, plus a timestamp and the extension, e.g.
+  `Members_2026-10-12_14-30-05.csv`. Switching the format swaps the extension;
+  a missing extension is added.
 
-Behind **“More options”** (collapsed):
+Behind **“More options”** (collapsed); options that do not apply to the chosen
+format are hidden:
 
 | Option | Default | Description |
 |--------|---------|-------------|
 | Rows (`scope`) | `"filtered"` | `"page"` current page (only with pagination), `"filtered"` all rows matching filters and search, `"all"` the entire data. Always in the current sort order; the dialog shows the row count of each choice |
 | Include hidden columns (`allColumns`) | `false` | Also export hidden columns (only offered when columns are hidden). Columns always come in display order; `exportable: false` columns are never exported |
-| Values as displayed (`localized`) | `false` | `false`: raw values (numbers with `.` decimal point, booleans as `true`/`false`, `Date` objects as ISO strings). `true`: the formatted text from the table (locale, `format`, `formatter`) |
-| Header row (`headers`) | `true` | CSV only |
-| Column names (`names`) | `"label"` | `"label"` or `"key"`; header row in CSV, property names in JSON |
-| Delimiter (`delimiter`) | `csvDelimiter`, else `";"` | CSV only: `;` `,` tab `\|` |
+| Values as displayed (`localized`) | `false` | `false`: raw values (CSV/JSON: numbers with `.` decimal point, booleans as `true`/`false`, `Date` objects as ISO strings; XLSX: typed cells). `true`: the formatted text from the table (locale, `format`, `formatter`), in XLSX as text cells |
+| Header row (`headers`) | `true` | CSV and XLSX |
+| Column names (`names`) | `"label"`, JSON: `"key"` | `"label"` or `"key"`; header row in CSV/XLSX, property names in JSON. Follows the format until the user picks one |
+| Include column info (`metadata`) | `false` | JSON only: `{ columns: [{ key, label, type }], data: [...] }` instead of a plain array, shaped like the table's own config (`key` is the property name used in `data`) |
+| Delimiter (`delimiter`) | `";"`, clipboard: tab | CSV only: `;` `,` tab `\|`. Copying defaults to tab, so the text pastes into spreadsheet cells; a delimiter the user picked stays |
 
-`exportDefaults` changes these defaults for the dialog and `exportData()`:
+`exportDefaults` changes these defaults (plus `format` and `destination`) for
+the dialog and `exportData()`:
 
 ```js
 createDataTable("#c", { /* … */
     features: { export: true },
     exportFilename: "members",
-    exportDefaults: { format: "json", names: "key", localized: true }
+    exportDefaults: { format: "xlsx", localized: true, delimiter: "," }
 });
 ```
 
 A column's `exportFormatter(value, ctx)` replaces its value in every export
 (`ctx = { row, column, locale, localized, format }`).
 
-**CSV** follows RFC 4180 (quoted fields, CRLF line endings) and starts with a
-BOM so Excel detects UTF-8. **JSON** is an array of objects (one per row);
-raw values keep their types, empty values become `null`. If two columns share a
-label, the second one uses its key.
+**CSV** follows RFC 4180 (quoted fields, CRLF line endings); downloads start
+with a BOM so Excel detects UTF-8.
 
-**Formula injection.** Spreadsheet apps run CSV cells that start with `=`, `+`,
-`-`, `@`, tab or carriage return (and their full-width forms) as formulas. Such
-cells — header and values — get a leading `'`, so they show as text. Numbers,
-including signed and formatted ones like `-5` or `-1.234,56 €`, stay unchanged.
+**XLSX** is a workbook with one worksheet named after `exportFilename` /
+`title` (bold, frozen header row, column widths from the content). Raw values
+become typed cells: numbers (currency `#,##0.00`, percent `0.00%`, integer
+`#,##0`), booleans, and dates/times of `date` / `datetime` / `time` columns
+as Excel dates (`"2024-01-05"` strings count as local days). Cells are never
+written as formulas. The file is built by `xlsx.js` without dependencies (an
+uncompressed ZIP).
+
+**JSON** is an array of objects (one per row), or with column info an object
+`{ columns, data }`; raw values keep their types, empty values become `null`.
+If two columns share a name, the second one uses its key.
+
+**Formula injection.** Spreadsheet apps run cells that start with `=`, `+`,
+`-`, `@`, tab or carriage return (and their full-width forms) as formulas. In
+CSV — header and values — and in everything copied from the table (copy
+buttons, “Copy cell/row/column”), such text gets a leading `'`, so it shows as
+text. Numbers, including signed and formatted ones like `-5` or
+`-1.234,56 €`, stay unchanged. XLSX writes text cells, which are never run;
 JSON is not affected.
 
-After the download, the result is announced (“30 rows exported to
-“Members_….csv””). The `jw-datatable:export` event fires before the download
-and can cancel it (see [Events](#events)), e.g. to send the file elsewhere:
+The result is announced: “30 rows exported to “Members_….csv”” or “30 rows
+copied to clipboard”. The `jw-datatable:export` event fires before the
+download or copy and can cancel it (see [Events](#events)), e.g. to send the
+file elsewhere:
 
 ```js
 table.addEventListener("jw-datatable:export", (e) => {
-    e.preventDefault();                  // no download
-    upload(e.detail.filename, e.detail.content);
+    e.preventDefault();                  // no download, no announcement
+    upload(e.detail.filename, e.detail.content);   // string, or Uint8Array for XLSX
 });
 ```
 
-Without the dialog: `table.exportData({ format: "json", scope: "all" })`.
+Without the dialog: `table.exportData({ format: "xlsx", scope: "all" })`.
 
 ---
 
@@ -660,7 +680,7 @@ All events are `composed` and `bubbles`.
 | `jw-datatable:navigate` | `{ href, row, column, value }` | SPA link clicked (`link.spa`) |
 | `jw-datatable:change` | `{ state }` | State changed (sort, filter, page, …) |
 | `jw-datatable:datachange` | `{ data }` | Data replaced via `setData()` |
-| `jw-datatable:export` | `{ format, filename, content, rowCount, columns, options }` | Before an export downloads; **cancelable** (`preventDefault()` skips the download and the announcement) |
+| `jw-datatable:export` | `{ format, destination, filename, content, rowCount, columns, options }` | Before an export is downloaded or copied; `content` is a string (CSV, JSON) or `Uint8Array` (XLSX); **cancelable** (`preventDefault()` skips download/copy and announcement) |
 
 `onRowClick` / `onCellClick` are config callbacks, not events.
 
@@ -678,8 +698,7 @@ All events are `composed` and `bubbles`.
 | `setState(partial)` | — | Apply partial state |
 | `clearFilters()` | — | Clear filters and search |
 | `openExportDialog()` | — | Open the export dialog (also without `features.export`) |
-| `exportData(options?)` | `object \| null` | Export without the dialog; `options` as in [Export](#export) plus `filename`. Returns the event detail, `null` if cancelled |
-| `exportCSV(filename?)` | `object \| null` | Shortcut for `exportData({ format: "csv", filename })` |
+| `exportData(options?)` | `object \| null` | Export without the dialog; `options` as in [Export](#export) plus `format`, `destination` (XLSX always downloads) and `filename`. Returns the event detail, `null` if cancelled |
 | `saveTemplate(name)` | `Promise` | Save current view |
 | `loadTemplate(name)` | `Promise` | Load template |
 | `listTemplates()` | `Promise<string[]>` | Template names |
@@ -907,7 +926,7 @@ or touch also works with the keyboard alone.
 | Filter panel tabs | `←` `→`, `Home` / `End` | Switch between “Values” and “Pattern” |
 | Filter panel, “Values” tab | `Enter` in the search field or on a search-result option | Apply (same as the “Apply” button); the search-result options are radio buttons (`↑` `↓`) |
 | Templates panel | `Enter` in the name field | Save |
-| Export dialog | `Enter` in the file name or on an option; `Space` on “More options” | Export (same as the “Export” button); focus starts on the selected format (`↑` `↓` switch formats) and returns to the opener afterwards |
+| Export dialog | `Enter` in the file name or on an option; `Space` on “More options” | Export (same as the “Export” button); focus starts on the selected format (`↑` `↓` switch formats; the same for the destination) and returns to the opener afterwards |
 
 Focus is kept across re-renders (sorting, filtering, paging, …): the same
 control — or its closest equivalent, e.g. the current page when “next” becomes
@@ -947,10 +966,11 @@ table.
 - Panels are modal dialogs (`role="dialog"`, `aria-modal`, named by their
   heading); opener buttons carry `aria-haspopup="dialog"` and `aria-expanded`.
   The filter panel uses the tabs pattern (`tablist` / `tab` / `tabpanel`).
-- Export dialog: named “Export” by its `<h2>` heading; format, rows and
-  column names are radio groups (`fieldset` / `legend`); “More options” is a
-  disclosure button (`aria-expanded`, `aria-controls`); options that do not
-  apply to the chosen format are hidden, not just disabled.
+- Export dialog: named “Export” by its `<h2>` heading; format, destination,
+  rows and column names are radio groups (`fieldset` / `legend`); “More
+  options” is a disclosure button (`aria-expanded`, `aria-controls`); options
+  that do not apply to the chosen format or destination are hidden, not just
+  disabled. Choosing the clipboard while XLSX is selected switches to CSV.
 - Details dialog: named “Details: <record>” by its `<h2>` heading, fields as a
   description list, “Previous” / “Next” named “Previous record” / “Next
   record”; moving to another record announces “Record n of total: <record>”.
@@ -963,7 +983,7 @@ announced by screen readers. While a panel (modal dialog) is open, messages go
 to a live region inside the panel instead. Messages: number of results after
 search/filter, sort order, page range, “Copied to clipboard: <value>”, hidden
 column, pinned/unpinned column (including when there is not enough room to keep
-pinned columns in place), record shown in the details dialog, saved/loaded template, finished export (rows and file name). Repeated identical messages are announced again.
+pinned columns in place), record shown in the details dialog, saved/loaded template, finished export (rows and file name, or rows copied to the clipboard). Repeated identical messages are announced again.
 All texts come from `i18n.js`.
 
 The result count of the global search is announced once typing pauses (1 s),
@@ -1019,7 +1039,7 @@ node tests/run.js --filter "sort" # only tests whose name contains "sort"
 
 | Path | Content |
 |------|---------|
-| `tests/unit/*.test.js` | `node:test` tests for the DOM-free modules (formatting, sorting, filtering, CSV, i18n, icons, …) |
+| `tests/unit/*.test.js` | `node:test` tests for the DOM-free modules (formatting, sorting, filtering, export incl. XLSX, i18n, icons, …) |
 | `tests/browser/datatable.test.js` | Component tests in a real browser (rendering, sorting, pagination, context menu, accessibility, keyboard, responsive) |
 | `tests/browser/harness.js` | Tiny in-browser test harness (`test`, `assert`, `waitFor`, `input.press`, `input.viewport`) |
 | `tests/run.js` | Runner: starts a static server and headless Chromium, drives it via the DevTools protocol |

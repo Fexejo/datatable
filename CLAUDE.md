@@ -47,7 +47,8 @@ kopiert und per `import` eingebunden.
 | `formatters.js` | Typabhängige Anzeige (`formatValue`, `toText`) |
 | `comparators.js` | Sortierung inkl. Multi-Sort |
 | `filtering.js` | Wert-/Musterfilter, Operatoren, Distinct-Werte |
-| `export.js` | CSV/JSON bauen, Formel-Neutralisierung, Dateiname & Download |
+| `export.js` | CSV/XLSX/JSON bauen, Formel-Neutralisierung, Dateiname & Download |
+| `xlsx.js` | XLSX-Writer (ein Arbeitsblatt, unkomprimiertes ZIP) |
 | `templateStore.js` | Vorlagen-Speicher + `LocalStorageAdapter` |
 | `contextMenu.js` | Kontextmenü (Rollen `menu`/`menuitem`) |
 | `styles.js` | Shadow-DOM-CSS als String (Mobile First, Breakpoint 640px) |
