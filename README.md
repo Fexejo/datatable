@@ -253,7 +253,9 @@ createDataTable("#c", {
 
 By default long values wrap at spaces; a single word is only broken when it
 does not fit at all (`overflow-wrap: break-word`); numbers, dates and booleans
-stay on one line. A floor against squeezed columns is described in
+stay on one line. In cards and the details dialog, long words without break
+opportunities (e-mail addresses, URLs) wrap anywhere instead of overflowing.
+A floor against squeezed columns is described in
 [Column widths](#column-widths). With `cellOverflow: "ellipsis"`
 (or `overflow: "ellipsis"` per column) cells stay on one line, are capped at
 `maxWidth` (default `16rem`, CSS variable `--k-dt-cell-max-width`) and end in

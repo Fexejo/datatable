@@ -352,7 +352,7 @@ span.k-dt-th-label { cursor: default; }
 .k-dt-pair { display: contents; }
 .k-dt-pair-label { color: var(--k-color-text-muted, #666); overflow-wrap: break-word; min-width: 0; }
 .k-dt-pair-value { margin: 0; display: flex; align-items: center; gap: var(--k-space-2xs, 4px); min-width: 0; min-height: 1.6em; }
-.k-dt-pair-value > :first-child { min-width: 0; }
+.k-dt-pair-value > :first-child { min-width: 0; overflow-wrap: anywhere; }
 @container (max-width: 11rem) {
     .k-dt-fields { grid-template-columns: minmax(0, 1fr); row-gap: 0; }
     .k-dt-pair-value { margin-bottom: var(--k-space-2xs, 4px); }
