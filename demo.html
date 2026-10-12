@@ -9,7 +9,7 @@
         :root {
             --k-font-family-base: system-ui, Arial, sans-serif;
             --k-color-text: #222;
-            --k-color-text-muted: #666;
+            --k-color-text-muted: #595959;
             --k-color-page: #fff;
             --k-color-surface: #f0f0f0;
             --k-color-surface-muted: #f8f8f8;
@@ -30,6 +30,9 @@
             --k-radius-s: 8px;
             --k-radius-m: 10px;
             --k-radius-l: 12px;
+            /* Demo page only */
+            --demo-control-border: #767676;
+            color-scheme: light;
         }
 
         [data-theme="dark"] {
@@ -41,77 +44,132 @@
             --k-color-hover: #333;
             --k-color-border: #4a4a4a;
             --k-color-schicht-meine-bg: #1f7a3a;
+            --demo-control-border: #8f8f8f;
+            color-scheme: dark;
         }
+
+        * { box-sizing: border-box; }
 
         body {
             margin: 0;
             font-family: var(--k-font-family-base);
             background: var(--k-color-page);
             color: var(--k-color-text);
-            padding: 24px;
+            padding: 16px;
         }
+        @media (min-width: 640px) { body { padding: 20px 24px; } }
 
-        h1 { font-size: 1.3rem; }
+        :focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
 
-        .controls {
+        /* ── Top bar ───────────────────────────────────────────────────── */
+        .topbar {
             display: flex;
-            gap: 8px;
-            margin-bottom: 16px;
             flex-wrap: wrap;
             align-items: center;
+            gap: 8px 16px;
+            margin-bottom: 12px;
         }
+        .topbar h1 { font-size: 1.2rem; margin: 0 auto 0 0; }
+        .group { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 
-        button.ctrl {
+        button.ctrl, select.ctrl, input.ctrl {
             font: inherit;
-            cursor: pointer;
-            padding: 8px 12px;
-            border: 1px solid var(--k-color-border);
+            font-size: 0.875rem;
+            min-height: 44px;
+            padding: 6px 12px;
+            border: 1px solid var(--demo-control-border);
             border-radius: 8px;
             background: var(--k-color-page);
             color: var(--k-color-text);
         }
-        button.ctrl:hover { background: var(--k-color-hover); }
+        button.ctrl { cursor: pointer; }
+        button.ctrl:hover, select.ctrl:hover { background: var(--k-color-hover); }
+        button.ctrl[aria-pressed="true"] { background: var(--k-color-surface); font-weight: 600; }
+        input.ctrl { min-width: 0; }
+        .inline-label { display: inline-flex; align-items: center; gap: 6px; font-size: 0.875rem; }
+        .inline-label > span { color: var(--k-color-text-muted); white-space: nowrap; }
 
-        .ctrl-locale {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            margin-left: auto;   /* push to the right */
-        }
-        .ctrl-locale label {
-            font-size: 0.875rem;
-            color: var(--k-color-text-muted);
-            white-space: nowrap;
-        }
-        .ctrl-locale select {
-            font: inherit;
-            font-size: 0.875rem;
-            cursor: pointer;
-            padding: 6px 10px;
-            border: 1px solid var(--k-color-border);
-            border-radius: 8px;
-            background: var(--k-color-page);
-            color: var(--k-color-text);
-            appearance: none;
-            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
-            background-repeat: no-repeat;
-            background-position: right 8px center;
-            padding-right: 28px;
-        }
-        .ctrl-locale select:hover { background-color: var(--k-color-hover); }
-        .ctrl-locale select:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
+        /* Width control */
+        .width-ctrl { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+        .width-ctrl input[type="range"] { width: min(16rem, 50vw); min-height: 44px; accent-color: var(--k-color-schicht-meine-bg); }
+        .width-ctrl output { font-variant-numeric: tabular-nums; min-width: 4.5em; font-size: 0.875rem; }
+        .check { display: inline-flex; align-items: center; gap: 6px; font-size: 0.875rem; min-height: 44px; cursor: pointer; }
+        .check input { width: 18px; height: 18px; margin: 0; cursor: pointer; accent-color: var(--k-color-schicht-meine-bg); }
 
-        .features {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 6px 16px;
-            align-items: center;
+        /* ── Stage: the table with an adjustable width ─────────────────── */
+        .stage {
+            position: relative;
+            max-width: 100%;
             margin-bottom: 16px;
+            padding-right: 14px; /* room for the resize grip */
+        }
+        .stage.is-full { padding-right: 0; }
+        .stage.is-full .grip { display: none; }
+        .grip {
+            position: absolute;
+            top: 0;
+            right: 0;
+            bottom: 0;
+            width: 10px;
+            border-radius: 5px;
+            background: var(--k-color-surface);
+            border: 1px solid var(--k-color-border);
+            cursor: ew-resize;
+            touch-action: none;
+        }
+        .grip:hover, .grip.is-dragging { background: var(--k-color-hover); border-color: var(--demo-control-border); }
+        .hint { font-size: 0.8rem; color: var(--k-color-text-muted); margin: 4px 0 0; }
+
+        /* ── Collapsible panels ────────────────────────────────────────── */
+        details.panel {
+            border: 1px solid var(--k-color-border);
+            border-radius: 10px;
+            margin-bottom: 12px;
+            background: var(--k-color-page);
+        }
+        details.panel > summary {
+            cursor: pointer;
             padding: 12px 16px;
+            min-height: 44px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            list-style: none;
+        }
+        details.panel > summary::-webkit-details-marker { display: none; }
+        details.panel > summary::before {
+            content: "";
+            width: 0.5em;
+            height: 0.5em;
+            border-right: 2px solid currentColor;
+            border-bottom: 2px solid currentColor;
+            transform: rotate(-45deg);
+            transition: transform 0.15s;
+            flex: none;
+        }
+        details.panel[open] > summary::before { transform: rotate(45deg); }
+        details.panel > summary .summary-note { font-weight: 400; font-size: 0.85rem; color: var(--k-color-text-muted); }
+        .panel-body { padding: 0 16px 16px; }
+
+        .cfg-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+
+        .cfg-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(min(100%, 17rem), 1fr));
+            gap: 12px;
+        }
+        .cfg-grid fieldset, fieldset.cfg-wide {
+            margin: 0;
+            padding: 8px 12px 12px;
             border: 1px solid var(--k-color-border);
             border-radius: 8px;
+            min-width: 0;
         }
-        .features legend {
+        .cfg-grid fieldset { display: flex; flex-direction: column; align-items: stretch; }
+        .cfg-grid fieldset > .check { align-self: flex-start; }
+        fieldset.cfg-wide { margin-top: 12px; }
+        .cfg-grid legend, fieldset.cfg-wide legend {
             font-size: 0.8rem;
             font-weight: 700;
             text-transform: uppercase;
@@ -119,245 +177,739 @@
             color: var(--k-color-text-muted);
             padding: 0 6px;
         }
-        .features label {
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            font-size: 0.875rem;
-            cursor: pointer;
-            white-space: nowrap;
+        .field { display: grid; gap: 4px; margin-top: 8px; font-size: 0.875rem; }
+        .field > span { color: var(--k-color-text-muted); }
+        .field code, .check code { font-size: 0.8rem; }
+        .field .ctrl { width: 100%; }
+        .check.is-sub { margin-left: 24px; }
+        textarea.ctrl {
+            font: 0.8rem/1.4 ui-monospace, monospace;
+            min-height: 6rem;
+            width: 100%;
+            padding: 8px;
+            border: 1px solid var(--demo-control-border);
+            border-radius: 8px;
+            background: var(--k-color-page);
+            color: var(--k-color-text);
+            resize: vertical;
         }
-        .features label.is-sub { margin-left: 4px; color: var(--k-color-text-muted); }
-        .features input { width: 16px; height: 16px; cursor: pointer; }
 
-        #log { margin-top: 16px; font-size: 0.85rem; color: var(--k-color-text-muted); white-space: pre-wrap; }
+        /* Column options table */
+        .col-scroll { overflow-x: auto; }
+        table.cols { border-collapse: collapse; font-size: 0.85rem; width: 100%; }
+        table.cols th, table.cols td { padding: 2px 6px; border-bottom: 1px solid var(--k-color-border); text-align: center; white-space: nowrap; }
+        table.cols th { font-weight: 600; color: var(--k-color-text-muted); }
+        table.cols th[scope="row"], table.cols th:first-child { text-align: left; color: var(--k-color-text); }
+        table.cols td .check { justify-content: center; min-height: 40px; }
+        table.cols select.ctrl, table.cols input.ctrl { min-height: 36px; padding: 4px 8px; }
+        table.cols input.ctrl { width: 6.5rem; }
+        .col-key { color: var(--k-color-text-muted); font-weight: 400; font-size: 0.8rem; }
+
+        pre.code {
+            margin: 0;
+            padding: 12px;
+            max-height: 24rem;
+            overflow: auto;
+            font-size: 0.8rem;
+            background: var(--k-color-surface-muted);
+            border: 1px solid var(--k-color-border);
+            border-radius: 8px;
+        }
+
+        /* Event log */
+        .log { list-style: none; margin: 0; padding: 0; max-height: 14rem; overflow: auto; font: 0.8rem/1.5 ui-monospace, monospace; }
+        .log li { padding: 2px 0; border-bottom: 1px solid var(--k-color-border); white-space: pre-wrap; word-break: break-word; }
+        .log time { color: var(--k-color-text-muted); margin-right: 8px; }
+        .log .ev { font-weight: 700; margin-right: 6px; }
+        .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+        /* The width control is pointless on phones: the table already fills the screen. */
+        @media (max-width: 639.98px) {
+            .width-ctrl, #width-hint { display: none; }
+            .topbar h1 { flex-basis: 100%; }
+            .topbar .inline-label > span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+        }
     </style>
 </head>
 
 <body>
-    <h1>jw-datatable – Demo</h1>
-    <div class="controls">
-        <button class="ctrl" id="theme">Toggle theme</button>
-        <button class="ctrl" id="reload">Reload data</button>
-        <button class="ctrl" id="add">Add row</button>
-        <button class="ctrl" id="export">Export dialog</button>
-        <button class="ctrl" id="state">Print state</button>
+    <header class="topbar">
+        <h1>jw-datatable – Demo</h1>
+        <div class="group" role="group" aria-label="Data">
+            <label class="inline-label"><span>Rows</span>
+                <select class="ctrl" id="row-count">
+                    <option value="0">No rows (empty)</option>
+                    <option value="12">12 rows</option>
+                    <option value="137">137 rows</option>
+                    <option value="500">500 rows</option>
+                    <option value="2000">2,000 rows</option>
+                    <option value="10000">10,000 rows</option>
+                </select>
+            </label>
+            <button class="ctrl" id="reload" type="button">New data</button>
+            <button class="ctrl" id="add" type="button">Add row</button>
+        </div>
+        <div class="group">
+            <label class="inline-label"><span>Language</span>
+                <select class="ctrl" id="locale-select"></select>
+            </label>
+            <button class="ctrl" id="theme" type="button" aria-pressed="false">Dark theme</button>
+        </div>
+    </header>
 
-        <div class="ctrl-locale">
-            <label for="mobile-view-select">Mobile view:</label>
-            <select id="mobile-view-select">
-                <option value="grid">Cards</option>
-                <option value="compact">Compact + details</option>
-            </select>
-        </div>
-        <div class="ctrl-locale">
-            <label for="locale-select">Language:</label>
-            <select id="locale-select"></select>
-        </div>
+    <div class="width-ctrl">
+        <label class="inline-label" for="width"><span>Table width</span></label>
+        <input type="range" id="width" min="280" step="10" aria-describedby="width-hint">
+        <output id="width-out" for="width"></output>
+        <label class="check"><input type="checkbox" id="width-full"> Full width</label>
+    </div>
+    <p class="hint" id="width-hint">Or drag the grip on the right edge. The mobile layout follows the viewport, not this width — resize the browser window to test it.</p>
+
+    <div class="stage" id="stage">
+        <div id="table"></div>
+        <div class="grip" id="grip" aria-hidden="true" title="Drag to resize"></div>
     </div>
 
-    <fieldset class="features" id="features">
-        <legend>Features</legend>
-    </fieldset>
+    <details class="panel" id="log-panel" open>
+        <summary>Events <span class="summary-note" id="log-count"></span></summary>
+        <div class="panel-body">
+            <div class="cfg-actions">
+                <button class="ctrl" id="state" type="button">Log state</button>
+                <button class="ctrl" id="export" type="button">Open export dialog</button>
+                <button class="ctrl" id="clear-filters" type="button">Clear filters</button>
+                <button class="ctrl" id="clear-log" type="button">Clear log</button>
+            </div>
+            <ol class="log" id="log" aria-label="Event log"></ol>
+        </div>
+    </details>
 
-    <div id="table"></div>
-    <div id="log"></div>
+    <details class="panel" id="config-panel">
+        <summary>Configuration <span class="summary-note">changes apply live and are remembered in this browser</span></summary>
+        <div class="panel-body">
+            <div class="cfg-actions">
+                <button class="ctrl" id="all-on" type="button">All features on</button>
+                <button class="ctrl" id="all-off" type="button">All features off</button>
+                <button class="ctrl" id="reset-cfg" type="button">Reset configuration</button>
+            </div>
+            <div class="cfg-grid" id="cfg-grid"></div>
+            <fieldset class="cfg-wide">
+                <legend>Columns</legend>
+                <div class="col-scroll"><table class="cols" id="cols"></table></div>
+            </fieldset>
+            <fieldset class="cfg-wide">
+                <legend>Extra CSS (<code>styles</code>)</legend>
+                <label class="field"><span class="visually-hidden">Extra CSS</span>
+                    <textarea class="ctrl" id="styles" spellcheck="false"></textarea>
+                </label>
+                <p class="hint">Applied when the field loses focus.</p>
+            </fieldset>
+            <details class="panel" style="margin-top: 12px">
+                <summary>Resulting config <span class="summary-note">(functions shown as ƒ, data omitted)</span></summary>
+                <div class="panel-body"><pre class="code" id="config-out"></pre></div>
+            </details>
+        </div>
+    </details>
 
     <script type="module">
         import { createDataTable } from "./datatable.js";
         import { LOCALE_NAMES } from "./i18n.js";
 
         // ── Sample data ──────────────────────────────────────────────────────
-        const firstNames = ["Anna", "Ben", "Clara", "David", "Eva", "Felix", "Greta", "Hannes", "Ida", "Jonas"];
-        const lastNames  = ["Miller", "Schmidt", "Schneider", "Fischer", "Weber", "Meyer", "Wagner", "Becker"];
-        const roles = { admin: "Administrator", member: "Member", guest: "Guest" };
-        const NOTES = [
-            "Prefers e-mail contact, available on weekdays after 5 pm",
-            "Board member since the last general assembly",
-            "",
-            "Organizes the summer event together with the youth team and handles the bookings"
-        ];
+        // Seeded PRNG, so a seed always yields the same rows ("New data" picks a new seed).
+        function mulberry32(seed) {
+            return () => {
+                seed |= 0; seed = (seed + 0x6D2B79F5) | 0;
+                let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+                t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+                return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+            };
+        }
 
-        function makeRows(n) {
+        const FIRST_NAMES = [
+            "Anna", "Ben", "Clara", "David", "Eva", "Felix", "Greta", "Hannes", "Ida", "Jonas",
+            "Katharina", "Leon", "Mia", "Noah", "Olivia", "Paul", "Quirin", "Rosa", "Samuel", "Theresa",
+            "Ulrich", "Valentina", "Wilhelm", "Xenia", "Yusuf", "Zoe", "Amelie", "Bastian", "Charlotte", "Dominik",
+            "Elif", "Finn", "Hanna", "Ilyas", "Jana", "Kai", "Lara", "Moritz", "Nele", "Oskar",
+            "Pia", "Rafael", "Sophie", "Tim", "Uta", "Vincent", "Wiebke", "Aylin", "Björn", "Chiara",
+            "Dennis", "Emilia", "Fabian", "Gesa", "Henrik", "Isabel", "Jakob", "Karla", "Lukas", "Marie",
+            "Niklas", "Ole", "Paula", "Ronja", "Stefan", "Tamara", "Ute", "Viktor", "Wanda", "Zeynep",
+            "Alexander", "Birgit", "Carsten", "Dörte", "Emre", "Frieda", "Gregor", "Heike", "Ingo", "Johanna",
+            "Kerstin", "Linus", "Magdalena", "Nils", "Oksana", "Piotr", "Renate", "Sven", "Tobias", "Ursula",
+            "Lea-Sophie", "Jan-Erik", "Malte", "Mats", "Sára", "Åsa", "Joël", "Ana Lucía", "Jean-Luc", "Siobhán"
+        ];
+        const LAST_NAMES = [
+            "Müller", "Schmidt", "Schneider", "Fischer", "Weber", "Meyer", "Wagner", "Becker", "Schulz", "Hoffmann",
+            "Schäfer", "Koch", "Bauer", "Richter", "Klein", "Wolf", "Schröder", "Neumann", "Schwarz", "Zimmermann",
+            "Braun", "Krüger", "Hofmann", "Hartmann", "Lange", "Schmitt", "Werner", "Schmitz", "Krause", "Meier",
+            "Lehmann", "Schmid", "Schulze", "Maier", "Köhler", "Herrmann", "König", "Walter", "Mayer", "Huber",
+            "Kaiser", "Fuchs", "Peters", "Lang", "Scholz", "Möller", "Weiß", "Jung", "Hahn", "Schubert",
+            "Vogel", "Friedrich", "Keller", "Günther", "Frank", "Berger", "Winkler", "Roth", "Beck", "Lorenz",
+            "Baumann", "Franke", "Albrecht", "Schuster", "Simon", "Ludwig", "Böhm", "Winter", "Kraus", "Martin",
+            "Yılmaz", "Kowalski", "Nowak", "Rossi", "García", "Dubois", "Novák", "Jansen", "O'Brien", "Nguyen",
+            "Papadopoulos", "Andersson", "de Vries", "van der Berg", "Oberhauser-Lindqvist", "Ng", "Li", "Öztürk", "Popescu", "Horváth"
+        ];
+        const PLACES = [
+            ["Berlin", "10115", "DE"], ["Hamburg", "20095", "DE"], ["München", "80331", "DE"], ["Köln", "50667", "DE"],
+            ["Frankfurt am Main", "60311", "DE"], ["Stuttgart", "70173", "DE"], ["Düsseldorf", "40213", "DE"],
+            ["Leipzig", "04109", "DE"], ["Dortmund", "44135", "DE"], ["Essen", "45127", "DE"], ["Bremen", "28195", "DE"],
+            ["Dresden", "01067", "DE"], ["Hannover", "30159", "DE"], ["Nürnberg", "90403", "DE"], ["Münster", "48143", "DE"],
+            ["Freiburg im Breisgau", "79098", "DE"], ["Bielefeld", "33602", "DE"], ["Rostock", "18055", "DE"],
+            ["Wien", "1010", "AT"], ["Graz", "8010", "AT"], ["Salzburg", "5020", "AT"],
+            ["Zürich", "8001", "CH"], ["Basel", "4051", "CH"], ["Bern", "3011", "CH"],
+            ["Amsterdam", "1012", "NL"], ["København", "1050", "DK"], ["Paris", "75001", "FR"], ["Wrocław", "50-001", "PL"]
+        ];
+        const COUNTRIES = { DE: "Germany", AT: "Austria", CH: "Switzerland", NL: "Netherlands", DK: "Denmark", FR: "France", PL: "Poland" };
+        const STREETS = [
+            "Hauptstraße", "Schulstraße", "Gartenweg", "Bahnhofstraße", "Am Markt", "Lindenallee", "Birkenweg",
+            "Kirchplatz", "Mühlenstraße", "Ringstraße", "Waldweg", "Goethestraße", "Schillerplatz", "Rosenstraße"
+        ];
+        const DEPARTMENTS = {
+            sales: "Sales", marketing: "Marketing", engineering: "Engineering", support: "Customer support",
+            finance: "Finance", hr: "Human resources", legal: "Legal", operations: "Operations"
+        };
+        const ROLES = { admin: "Administrator", moderator: "Moderator", member: "Member", guest: "Guest" };
+        const STATUSES = { active: "Active", paused: "Paused", left: "Left" };
+        const NOTE_PARTS = [
+            "Prefers e-mail contact", "available on weekdays after 5 pm", "board member since the last general assembly",
+            "organizes the summer event together with the youth team", "handles the bookings", "needs an invoice in paper form",
+            "speaks Spanish and Polish", "wants to help with the website", "on parental leave until spring",
+            "first aid trained", "drives the team bus", "asked about a reduced fee", "moved recently — address checked",
+            "keyholder for the club house", "photographer at most events"
+        ];
+        // Edge cases: spreadsheet formula text (neutralized on export/copy), a negative number as text, a very long word.
+        const ODD_NOTES = ["=SUM(A1:A9)", "-5 points from last season", "Donaudampfschifffahrtsgesellschaftskapitän"];
+
+        let dataSeed = 1;
+
+        function makeRows(n, seed = dataSeed) {
+            const rnd = mulberry32(seed);
+            const pick = (arr) => arr[Math.floor(rnd() * arr.length)];
+            const pickKey = (obj) => pick(Object.keys(obj));
+            const between = (min, max) => min + Math.floor(rnd() * (max - min + 1));
+            const day = (fromYear, toYear) => new Date(between(fromYear, toYear), between(0, 11), between(1, 28));
+            const iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+            const slug = (s) => s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "")
+                .replace(/ß/g, "ss").replace(/ı/g, "i").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+
             const rows = [];
             for (let i = 1; i <= n; i++) {
-                const roleKeys = Object.keys(roles);
+                const firstName = pick(FIRST_NAMES);
+                const lastName = pick(LAST_NAMES);
+                const [city, zip, country] = pick(PLACES);
+                const status = rnd() < 0.75 ? "active" : rnd() < 0.6 ? "paused" : "left";
+                const noteCount = rnd() < 0.3 ? 0 : between(1, 3);
+                const notes = rnd() < 0.02 ? pick(ODD_NOTES)
+                    : Array.from({ length: noteCount }, () => pick(NOTE_PARTS)).join(", ").replace(/^./, (c) => c.toUpperCase());
+                const lastLogin = new Date(2026, between(0, 9), between(1, 28), between(6, 22), between(0, 59));
                 rows.push({
                     id: i,
-                    firstName: firstNames[i % firstNames.length],
-                    lastName:  lastNames[i % lastNames.length],
-                    role:      roleKeys[i % roleKeys.length],
-                    contribution: Math.round((Math.random() * 200 + 20) * 100) / 100,
-                    active:    Math.random() > 0.4,
-                    joinedAt:  new Date(2020 + (i % 5), i % 12, (i % 27) + 1).toISOString(),
-                    share:     Math.random(),
-                    email:     `${firstNames[i % firstNames.length]}.${lastNames[i % lastNames.length]}${i}@example.org`.toLowerCase(),
-                    notes:     NOTES[i % NOTES.length]
+                    memberNo: `M-${String(between(1000, 99999)).padStart(5, "0")}`,
+                    firstName,
+                    lastName,
+                    email: `${slug(firstName)}.${slug(lastName)}${rnd() < 0.3 ? between(1, 99) : ""}@${pick(["example.org", "example.com", "mail.example.net"])}`,
+                    phone: rnd() < 0.15 ? "" : `+49 ${between(150, 179)} ${between(1000000, 9999999)}`,
+                    address: { street: `${pick(STREETS)} ${between(1, 120)}`, zip, city, country: COUNTRIES[country] },
+                    department: pickKey(DEPARTMENTS),
+                    role: rnd() < 0.08 ? "admin" : rnd() < 0.15 ? "moderator" : rnd() < 0.85 ? "member" : "guest",
+                    status,
+                    birthDate: iso(day(1950, 2008)),
+                    joinedAt: iso(day(2005, 2026)),
+                    lastLogin: rnd() < 0.1 ? null : lastLogin.toISOString(),
+                    contribution: Math.round((rnd() * 230 + 20) * 100) / 100,
+                    balance: Math.round((rnd() * 400 - 150) * 100) / 100,
+                    share: rnd(),
+                    score: Math.round(rnd() * 1000) / 10,
+                    hours: rnd() < 0.2 ? 0 : between(1, 480),
+                    active: status === "active",
+                    newsletter: rnd() < 0.55,
+                    website: rnd() < 0.25 ? `https://${slug(lastName)}.example.com` : "",
+                    notes
                 });
             }
             return rows;
         }
 
-        // ── Base config (everything except locale, data, initial state) ───────
-        const BASE_CONFIG = {
-            id: "demo-members",
-            title: "Members",
-            cellOverflow: "ellipsis",
-            columnMinWidth: "8rem",
-            columns: [
-                { key: "id",           label: "ID",           type: "integer",  width: "64px", pinned: true },
-                {
-                    key: "firstName",  label: "First name",   type: "string",   copyable: true, compact: true,
-                    link: { spa: true, url: (row) => `/members/${row.id}` }
-                },
-                {
-                    key: "lastName",   label: "Last name",    type: "string",   copyable: true, compact: true,
-                    action: (row) => log(`Action: ${row.firstName} ${row.lastName}`)
-                },
-                {
-                    key: "role",       label: "Role",         type: "enum",
-                    options: Object.entries(roles).map(([value, label]) => ({ value, label }))
-                },
-                { key: "contribution", label: "Contribution", type: "currency", format: { currency: "EUR" } },
-                { key: "share",        label: "Share",        type: "percent",  format: { decimals: 0 } },
-                { key: "active",       label: "Active",       type: "boolean" },
-                { key: "joinedAt",     label: "Joined",       type: "date" },
-                { key: "email",        label: "Email",        type: "string",   copyable: true, minWidth: "18rem", maxWidth: "18rem" },
-                { key: "notes",        label: "Notes",        type: "string",   maxWidth: "14rem" }
-            ],
-            initial: {
-                sort: [{ key: "lastName", direction: "asc" }],
-                pageSize: 25
-            },
-            onRowClick: (row) => log(`Row clicked: #${row.id} ${row.firstName}`)
+        const ageOf = (row) => {
+            const b = new Date(row.birthDate);
+            const now = new Date();
+            return now.getFullYear() - b.getFullYear() - (now < new Date(now.getFullYear(), b.getMonth(), b.getDate()) ? 1 : 0);
         };
+        const options = (map) => Object.entries(map).map(([value, label]) => ({ value, label }));
 
-        // ── Locale selector: built from LOCALE_NAMES in i18n.js ─────────────
-        const localeSelect = document.getElementById("locale-select");
-        let currentLocale = "en-US";
-
-        Object.entries(LOCALE_NAMES).forEach(([locale, displayName]) => {
-            const opt = document.createElement("option");
-            opt.value = locale;
-            opt.textContent = displayName;
-            opt.selected = locale === currentLocale;
-            localeSelect.appendChild(opt);
-        });
-
-        // ── Feature toggles: build checkboxes, drive `features` config ───────
-        const log = (msg) => { document.getElementById("log").textContent = msg; };
-
-        // [key, label, isSubFeature]. Sub-features (multiSort) are visually nested.
-        const FEATURE_DEFS = [
-            ["pagination",       "Pagination",         false],
-            ["sorting",          "Sorting",            false],
-            ["multiSort",        "Multi-sort (Shift)", true],
-            ["filtering",        "Filtering",          false],
-            ["globalSearch",     "Global search",      false],
-            ["contextMenu",      "Context menu",       false],
-            ["export",           "Export",             false],
-            ["grid",             "Grid / card view",   false],
-            ["compactView",      "Compact view",       false],
-            ["columnVisibility", "Column visibility",  false],
-            ["columnPinning",    "Column pinning",     false],
-            ["columnReorder",    "Column reorder",     false],
-            ["rowDetails",       "Row details",        false],
-            ["templates",        "Templates",          false],
-            ["copyButtons",      "Copy buttons",       false]
+        // ── Columns (static parts; the options panel overrides the flags) ────
+        const COLUMN_DEFS = [
+            { key: "id",           label: "ID",           type: "integer",  width: "64px", pinned: true },
+            { key: "memberNo",     label: "Member no.",   type: "string",   hidden: true, exportable: false },
+            {
+                key: "firstName",  label: "First name",   type: "string",   copyable: true, compact: true,
+                link: { spa: true, url: (row) => `/members/${row.id}` }
+            },
+            {
+                key: "lastName",   label: "Last name",    type: "string",   copyable: true, compact: true,
+                action: (row) => log("action", `${row.firstName} ${row.lastName}`)
+            },
+            { key: "email",        label: "Email",        type: "string",   copyable: true, minWidth: "18rem", maxWidth: "18rem",
+              link: (row) => `mailto:${row.email}` },
+            { key: "phone",        label: "Phone",        type: "string",   copyable: true, overflow: "ellipsis" },
+            { key: "address.street",  label: "Street",    type: "string" },
+            { key: "address.zip",     label: "ZIP",       type: "string" },
+            { key: "address.city",    label: "City",      type: "string" },
+            { key: "address.country", label: "Country",   type: "string" },
+            { key: "department",   label: "Department",   type: "enum",     options: options(DEPARTMENTS) },
+            { key: "role",         label: "Role",         type: "enum",     options: options(ROLES) },
+            { key: "status",       label: "Status",       type: "enum",     options: options(STATUSES),
+              cellClass: (value) => `demo-status demo-status-${value}` },
+            { key: "birthDate",    label: "Birthday",     type: "date" },
+            { key: "age",          label: "Age",          type: "integer",  accessor: ageOf },
+            { key: "joinedAt",     label: "Joined",       type: "date",     format: { options: { dateStyle: "medium" } } },
+            { key: "lastLogin",    label: "Last login",   type: "datetime" },
+            { key: "contribution", label: "Contribution", type: "currency", format: { currency: "EUR" } },
+            { key: "balance",      label: "Balance",      type: "currency", format: { currency: "EUR" } },
+            { key: "share",        label: "Share",        type: "percent",  format: { decimals: 0 } },
+            { key: "score",        label: "Score",        type: "number",   format: { decimals: 1 } },
+            { key: "hours",        label: "Volunteer hours", type: "integer" },
+            { key: "active",       label: "Active",       type: "boolean" },
+            { key: "newsletter",   label: "Newsletter",   type: "boolean",  format: { trueLabel: "✓ subscribed", falseLabel: "—" } },
+            { key: "website",      label: "Website",      type: "string",   link: (row) => row.website },
+            { key: "notes",        label: "Notes",        type: "string",   maxWidth: "14rem" }
         ];
-        // Start the playground with everything enabled so all features are testable.
-        const INITIAL_FEATURES = Object.fromEntries(FEATURE_DEFS.map(([key]) => [key, true]));
 
-        const featuresBox = document.getElementById("features");
-        FEATURE_DEFS.forEach(([key, label, isSub]) => {
-            const wrap = document.createElement("label");
-            if (isSub) wrap.className = "is-sub";
-            const cb = document.createElement("input");
-            cb.type = "checkbox";
-            cb.id = `feat-${key}`;
-            cb.checked = INITIAL_FEATURES[key];
-            cb.addEventListener("change", rebuildTable);
-            wrap.appendChild(cb);
-            wrap.appendChild(document.createTextNode(label));
-            featuresBox.appendChild(wrap);
-        });
+        const DEFAULT_STYLES = `/* Used by the cellClass of the "Status" column */
+.demo-status { font-weight: 600; }
+.demo-status-paused { font-style: italic; }
+.demo-status-left { text-decoration: line-through; }
+/* Used by rowClass */
+.demo-row-left .k-dt-td { font-style: italic; }`;
 
-        const readFeatures = () => Object.fromEntries(
-            FEATURE_DEFS.map(([key]) => [key, document.getElementById(`feat-${key}`).checked])
-        );
+        // ── Demo configuration (plain data, persisted) ──────────────────────
+        const FEATURE_DEFS = [
+            ["pagination",       "Pagination"],
+            ["sorting",          "Sorting"],
+            ["multiSort",        "Multi-sort (Shift)", "sorting"],
+            ["filtering",        "Filtering"],
+            ["globalSearch",     "Global search"],
+            ["contextMenu",      "Context menu"],
+            ["export",           "Export"],
+            ["grid",             "Card view"],
+            ["compactView",      "Compact view"],
+            ["columnVisibility", "Column visibility"],
+            ["columnPinning",    "Column pinning"],
+            ["columnReorder",    "Column reorder"],
+            ["rowDetails",       "Row details"],
+            ["templates",        "Templates"],
+            ["copyButtons",      "Copy buttons"]
+        ];
+        const COLUMN_FLAGS = ["hidden", "pinned", "compact", "sortable", "filterable", "searchable", "exportable", "copyable"];
+        const COLUMN_FLAG_DEFAULTS = { sortable: true, filterable: true, searchable: true, exportable: true };
 
-        const mobileViewSelect = document.getElementById("mobile-view-select");
-        const responsiveConfig = () => ({ mobileView: mobileViewSelect.value });
-
-        // Reconfigure in place, preserving data + view state.
-        function rebuildTable() {
-            const savedState = table.getState();
-            const savedData  = table.data;
-            table.configure({
-                ...BASE_CONFIG,
-                locale:   currentLocale,
-                features: readFeatures(),
-                responsive: responsiveConfig(),
-                data:     savedData,
-                initial:  savedState
-            });
+        function defaultDemoConfig() {
+            return {
+                rows: 500,
+                width: null,                        // null = full width
+                features: Object.fromEntries(FEATURE_DEFS.map(([key]) => [key, true])),
+                title: "Members",
+                cellOverflow: "ellipsis",
+                columnMinWidth: "8rem",
+                maxHeight: "",
+                defaultView: "",
+                pageSize: 25,
+                pageSizeOptions: "10, 25, 50, 100",
+                responsive: { enabled: true, autoGridView: true, mobileView: "grid", breakpoint: 640 },
+                grid: { titleColumn: "lastName", minWidth: "" },
+                exportFilename: "",
+                exportDefaults: { format: "csv", destination: "download", localized: false, delimiter: ";" },
+                searchPlaceholder: "",
+                emptyText: "",
+                noResultsText: "",
+                onRowClick: true,
+                onCellClick: false,
+                rowClass: true,
+                styles: DEFAULT_STYLES,
+                columns: Object.fromEntries(COLUMN_DEFS.map((c) => [c.key, {
+                    ...Object.fromEntries(COLUMN_FLAGS.map((f) => [f, c[f] ?? COLUMN_FLAG_DEFAULTS[f] ?? false])),
+                    overflow: c.overflow || "",
+                    width: c.width || "",
+                    minWidth: c.minWidth || ""
+                }]))
+            };
         }
 
-        // ── Create initial table ─────────────────────────────────────────────
-        const table = createDataTable("#table", {
-            ...BASE_CONFIG,
-            locale: currentLocale,
-            features: readFeatures(),
-            responsive: responsiveConfig(),
-            data: makeRows(137)
+        const STORE_KEY = "jw-datatable-demo:config";
+        const PREFS_KEY = "jw-datatable-demo:prefs";
+        const loadJson = (key) => { try { return JSON.parse(localStorage.getItem(key)) || null; } catch { return null; } };
+        const saveJson = (key, value) => { try { localStorage.setItem(key, JSON.stringify(value)); } catch { /* storage unavailable */ } };
+
+        // Merge stored values over the defaults, so new options keep their defaults.
+        function merge(base, over) {
+            if (!over || typeof over !== "object") return base;
+            for (const [k, v] of Object.entries(over)) {
+                if (!(k in base)) continue;
+                base[k] = base[k] && typeof base[k] === "object" && !Array.isArray(base[k]) ? merge(base[k], v) : v;
+            }
+            return base;
+        }
+        let cfg = merge(defaultDemoConfig(), loadJson(STORE_KEY));
+        if (![0, 12, 137, 500, 2000, 10000].includes(cfg.rows)) cfg.rows = 500;
+        const prefs = { locale: "en-US", theme: matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "", ...loadJson(PREFS_KEY) };
+
+        // ── Build the table config from `cfg` ───────────────────────────────
+        const blank = (s) => (s ?? "").toString().trim() || undefined;
+
+        function buildConfig() {
+            const columns = COLUMN_DEFS.map((def) => {
+                const o = cfg.columns[def.key];
+                const col = { ...def };
+                for (const f of COLUMN_FLAGS) {
+                    if (o[f] === (COLUMN_FLAG_DEFAULTS[f] ?? false)) delete col[f]; else col[f] = o[f];
+                }
+                for (const f of ["overflow", "width", "minWidth"]) {
+                    if (blank(o[f])) col[f] = o[f].trim(); else delete col[f];
+                }
+                return col;
+            });
+            const sizes = cfg.pageSizeOptions.split(/[\s,;]+/).map(Number).filter((n) => n > 0);
+            const r = cfg.responsive;
+            const config = {
+                id: "demo-members",
+                title: blank(cfg.title),
+                locale: prefs.locale,
+                features: { ...cfg.features },
+                columns,
+                pagination: { pageSize: Number(cfg.pageSize) || undefined, pageSizeOptions: sizes.length ? sizes : undefined },
+                defaultView: blank(cfg.defaultView),
+                responsive: { enabled: r.enabled, autoGridView: r.autoGridView, mobileView: r.mobileView, breakpoint: Number(r.breakpoint) || 640 },
+                grid: { titleColumn: blank(cfg.grid.titleColumn), minWidth: blank(cfg.grid.minWidth) },
+                maxHeight: blank(cfg.maxHeight),
+                columnMinWidth: blank(cfg.columnMinWidth),
+                cellOverflow: cfg.cellOverflow,
+                exportFilename: blank(cfg.exportFilename),
+                exportDefaults: { ...cfg.exportDefaults },
+                searchPlaceholder: blank(cfg.searchPlaceholder),
+                emptyText: blank(cfg.emptyText),
+                noResultsText: blank(cfg.noResultsText),
+                styles: blank(cfg.styles)
+            };
+            if (cfg.onRowClick) config.onRowClick = (row, index) => log("onRowClick", `#${row.id} ${row.firstName} ${row.lastName} (index ${index})`);
+            if (cfg.onCellClick) config.onCellClick = (value, row, column) => log("onCellClick", `${column.key} = ${JSON.stringify(value)} (#${row.id})`);
+            if (cfg.rowClass) config.rowClass = (row) => (row.status === "left" ? "demo-row-left" : "");
+            // Drop unset options, so the component defaults apply and the config dump stays readable.
+            const prune = (obj) => {
+                for (const [k, v] of Object.entries(obj)) {
+                    if (v === undefined) delete obj[k];
+                    else if (v && typeof v === "object" && !Array.isArray(v) && Object.getPrototypeOf(v) === Object.prototype && k !== "features") {
+                        prune(v);
+                        if (!Object.keys(v).length) delete obj[k];
+                    }
+                }
+                return obj;
+            };
+            return prune(config);
+        }
+
+        // ── Create the table ─────────────────────────────────────────────────
+        const table = createDataTable("#table", { ...buildConfig(), data: makeRows(cfg.rows) });
+
+        // Reconfigures in place and keeps data and view state. `drop` lists state
+        // keys the changed option should decide again (e.g. `pinnedColumns` after
+        // a column's `pinned` flag changed).
+        function rebuild(drop = []) {
+            const state = table.getState();
+            // getState() always reports the view; passing it back would pin the view
+            // and stop the responsive switching. Only keep a view the user chose.
+            // (Reading the private flag is fine for this playground, not for apps.)
+            if (!table._viewModeUserSet) drop = [...drop, "viewMode"];
+            for (const key of drop) delete state[key];
+            table.configure({ ...buildConfig(), data: table.data, initial: state });
+            persist();
+        }
+
+        function persist() {
+            saveJson(STORE_KEY, cfg);
+            document.getElementById("config-out").textContent = JSON.stringify(
+                buildConfig(), (k, v) => (typeof v === "function" ? "ƒ" : v), 2
+            );
+        }
+
+        // ── Event log ────────────────────────────────────────────────────────
+        const logList = document.getElementById("log");
+        const logCount = document.getElementById("log-count");
+        let logTotal = 0;
+        function log(name, text) {
+            const li = document.createElement("li");
+            const time = document.createElement("time");
+            time.textContent = new Date().toLocaleTimeString();
+            const ev = document.createElement("span");
+            ev.className = "ev";
+            ev.textContent = name;
+            li.append(time, ev, text);
+            logList.prepend(li);
+            while (logList.children.length > 50) logList.lastChild.remove();
+            logCount.textContent = `(${++logTotal})`;
+        }
+
+        const summarizeState = (s) => [
+            s.sort.length && `sort ${s.sort.map((x) => `${x.key} ${x.direction}`).join(", ")}`,
+            Object.keys(s.filters).length && `filters ${Object.keys(s.filters).join(", ")}`,
+            s.globalSearch && `search "${s.globalSearch}"`,
+            `page ${s.page}/${s.pageSize}`,
+            `view ${s.viewMode}`,
+            s.hiddenColumns.length && `hidden ${s.hiddenColumns.length}`,
+            s.pinnedColumns.length && `pinned ${s.pinnedColumns.join(", ")}`
+        ].filter(Boolean).join(" · ");
+
+        table.addEventListener("jw-datatable:change", (e) => log("change", summarizeState(e.detail.state)));
+        table.addEventListener("jw-datatable:datachange", (e) => log("datachange", `${e.detail.data.length} rows`));
+        table.addEventListener("jw-datatable:navigate", (e) => log("navigate", e.detail.href));
+        table.addEventListener("jw-datatable:export", (e) => {
+            const d = e.detail;
+            log("export", `${d.format} → ${d.destination}, ${d.rowCount} rows, ${d.columns.length} columns, "${d.filename}"`);
         });
 
-        table.addEventListener("jw-datatable:navigate", (e) => log(`SPA navigation → ${e.detail.href}`));
-
-        // ── Language switch ──────────────────────────────────────────────────
-        localeSelect.onchange = () => {
-            const newLocale = localeSelect.value;
-            if (newLocale === currentLocale) return;
-            currentLocale = newLocale;
-            rebuildTable();
-            // Keep html[lang] in sync for screen readers.
-            document.documentElement.lang = currentLocale.split("-")[0];
+        // ── Top bar ──────────────────────────────────────────────────────────
+        const rowCount = document.getElementById("row-count");
+        rowCount.value = String(cfg.rows);
+        rowCount.onchange = () => {
+            cfg.rows = Number(rowCount.value);
+            table.setData(makeRows(cfg.rows));
+            persist();
         };
-
-        // A different mobile view only applies while the view follows the screen
-        // size, so start fresh from the responsive default instead of the saved view.
-        mobileViewSelect.onchange = () => {
-            const { viewMode, ...state } = table.getState();
-            table.configure({
-                ...BASE_CONFIG,
-                locale:   currentLocale,
-                features: readFeatures(),
-                responsive: responsiveConfig(),
-                data:     table.data,
-                initial:  state
-            });
+        document.getElementById("reload").onclick = () => {
+            dataSeed = Math.floor(Math.random() * 1e9);
+            table.setData(makeRows(cfg.rows));
         };
-
-        // ── Other controls ───────────────────────────────────────────────────
-        document.getElementById("theme").onclick = () => {
-            document.documentElement.dataset.theme =
-                document.documentElement.dataset.theme === "dark" ? "" : "dark";
-        };
-        document.getElementById("reload").onclick = () =>
-            table.setData(makeRows(60 + Math.floor(Math.random() * 100)));
         document.getElementById("add").onclick = () => {
-            const data = table.data.slice();
-            data.unshift({
-                id: Date.now() % 100000,
-                firstName: "New", lastName: "Entry",
-                role: "guest", contribution: 99.9,
-                active: true, joinedAt: new Date().toISOString(), share: 0.5,
-                email: "new.entry@example.org", notes: ""
-            });
-            table.setData(data);
+            const nextId = table.data.reduce((max, r) => Math.max(max, r.id), 0) + 1;
+            const [row] = makeRows(1, Date.now());
+            table.setData([{ ...row, id: nextId, firstName: "New", lastName: "Entry" }, ...table.data]);
         };
+
+        const localeSelect = document.getElementById("locale-select");
+        for (const [locale, name] of Object.entries(LOCALE_NAMES)) localeSelect.add(new Option(name, locale));
+        if (!(prefs.locale in LOCALE_NAMES)) prefs.locale = "en-US";
+        localeSelect.value = prefs.locale;
+        document.documentElement.lang = prefs.locale.split("-")[0];
+        localeSelect.onchange = () => {
+            prefs.locale = localeSelect.value;
+            document.documentElement.lang = prefs.locale.split("-")[0];   // screen readers
+            saveJson(PREFS_KEY, prefs);
+            rebuild();
+        };
+
+        const themeBtn = document.getElementById("theme");
+        const applyTheme = () => {
+            document.documentElement.dataset.theme = prefs.theme;
+            themeBtn.setAttribute("aria-pressed", String(prefs.theme === "dark"));
+        };
+        applyTheme();
+        themeBtn.onclick = () => {
+            prefs.theme = prefs.theme === "dark" ? "" : "dark";
+            applyTheme();
+            saveJson(PREFS_KEY, prefs);
+        };
+
+        document.getElementById("state").onclick = () => log("getState()", JSON.stringify(table.getState(), null, 2));
         document.getElementById("export").onclick = () => table.openExportDialog();
-        document.getElementById("state").onclick  = () => log(JSON.stringify(table.getState(), null, 2));
+        document.getElementById("clear-filters").onclick = () => table.clearFilters();
+        document.getElementById("clear-log").onclick = () => { logList.replaceChildren(); logTotal = 0; logCount.textContent = ""; };
+
+        // ── Width: slider, "full width" and a pointer grip ───────────────────
+        const stage = document.getElementById("stage");
+        const slider = document.getElementById("width");
+        const widthOut = document.getElementById("width-out");
+        const fullBox = document.getElementById("width-full");
+        const grip = document.getElementById("grip");
+
+        const maxWidth = () => stage.parentElement.clientWidth -
+            parseFloat(getComputedStyle(stage.parentElement).paddingLeft) -
+            parseFloat(getComputedStyle(stage.parentElement).paddingRight);
+
+        function applyWidth() {
+            const max = Math.floor(maxWidth());
+            slider.max = String(max);
+            const full = cfg.width == null;
+            fullBox.checked = full;
+            stage.classList.toggle("is-full", full);
+            const w = full ? max : Math.min(Math.max(cfg.width, Number(slider.min)), max);
+            stage.style.width = full ? "" : `${w}px`;
+            slider.value = String(w);
+            widthOut.textContent = full ? "100 %" : `${w} px`;
+            slider.setAttribute("aria-valuetext", full ? "Full width" : `${w} pixels`);
+        }
+        slider.oninput = () => { cfg.width = Number(slider.value); applyWidth(); };
+        slider.onchange = persist;
+        fullBox.onchange = () => {
+            cfg.width = fullBox.checked ? null : Math.round(maxWidth() * 0.6);
+            applyWidth();
+            persist();
+        };
+        addEventListener("resize", applyWidth);
+
+        grip.addEventListener("pointerdown", (e) => {
+            e.preventDefault();
+            grip.setPointerCapture(e.pointerId);
+            grip.classList.add("is-dragging");
+            const startX = e.clientX;
+            const startW = stage.getBoundingClientRect().width;
+            const move = (ev) => { cfg.width = Math.round(startW + ev.clientX - startX); applyWidth(); };
+            const up = () => {
+                grip.classList.remove("is-dragging");
+                grip.removeEventListener("pointermove", move);
+                grip.removeEventListener("pointerup", up);
+                grip.removeEventListener("pointercancel", up);
+                persist();
+            };
+            grip.addEventListener("pointermove", move);
+            grip.addEventListener("pointerup", up);
+            grip.addEventListener("pointercancel", up);
+        });
+        applyWidth();
+
+        // ── Configuration panel ──────────────────────────────────────────────
+        // Small builders; every control writes into `cfg` and rebuilds the table.
+        const h = (tag, props = {}, ...children) => {
+            const node = Object.assign(document.createElement(tag), props);
+            node.append(...children.filter((c) => c != null));
+            return node;
+        };
+        const getPath = (path) => path.split(".").reduce((o, k) => o[k], cfg);
+        const setPath = (path, value) => {
+            const keys = path.split(".");
+            const last = keys.pop();
+            keys.reduce((o, k) => o[k], cfg)[last] = value;
+        };
+        const optionLabel = (name) => h("span", {}, h("code", { textContent: name }));
+
+        const syncers = [];   // re-read `cfg` into the controls (after reset / all on)
+
+        function checkbox(path, label, { drop, sub } = {}) {
+            const input = h("input", { type: "checkbox" });
+            input.onchange = () => { setPath(path, input.checked); rebuild(drop); };
+            syncers.push(() => { input.checked = !!getPath(path); });
+            return h("label", { className: sub ? "check is-sub" : "check" }, input, label);
+        }
+        function select(path, label, choices, { drop } = {}) {
+            const sel = h("select", { className: "ctrl" });
+            for (const [value, text] of choices) sel.add(new Option(text, value));
+            sel.onchange = () => {
+                const raw = sel.value;
+                setPath(path, typeof getPath(path) === "number" ? Number(raw) : raw);
+                rebuild(drop);
+            };
+            syncers.push(() => { sel.value = String(getPath(path) ?? ""); });
+            return h("label", { className: "field" }, label, sel);
+        }
+        function text(path, label, { placeholder = "", drop, type = "text" } = {}) {
+            const input = h("input", { className: "ctrl", type, placeholder });
+            input.onchange = () => {
+                setPath(path, type === "number" ? Number(input.value) : input.value);
+                rebuild(drop);
+            };
+            syncers.push(() => { input.value = getPath(path) ?? ""; });
+            return h("label", { className: "field" }, label, input);
+        }
+        const section = (legend, ...controls) => h("fieldset", {}, h("legend", { textContent: legend }), ...controls);
+
+        const columnChoices = [["", "— none —"], ...COLUMN_DEFS.map((c) => [c.key, c.label])];
+
+        document.getElementById("cfg-grid").append(
+            section("Features",
+                ...FEATURE_DEFS.map(([key, label, parent]) => checkbox(`features.${key}`, h("span", {}, label, " ", h("code", { textContent: key })), { sub: !!parent }))
+            ),
+            section("General",
+                text("title", optionLabel("title")),
+                select("defaultView", optionLabel("defaultView"), [["", "— automatic —"], ["table", "table"], ["grid", "grid"], ["compact", "compact"]], { drop: ["viewMode"] }),
+                select("cellOverflow", optionLabel("cellOverflow"), [["wrap", "wrap"], ["ellipsis", "ellipsis"]]),
+                text("columnMinWidth", optionLabel("columnMinWidth"), { placeholder: "e.g. 10rem" }),
+                text("maxHeight", optionLabel("maxHeight"), { placeholder: "e.g. 60vh" })
+            ),
+            section("Pagination",
+                select("pageSize", optionLabel("pagination.pageSize"), [10, 25, 50, 100, 250].map((n) => [String(n), String(n)]), { drop: ["pageSize", "page"] }),
+                text("pageSizeOptions", optionLabel("pagination.pageSizeOptions"), { placeholder: "10, 25, 50, 100" })
+            ),
+            section("Responsive",
+                checkbox("responsive.enabled", h("code", { textContent: "enabled" }), { drop: ["viewMode"] }),
+                checkbox("responsive.autoGridView", h("code", { textContent: "autoGridView" }), { drop: ["viewMode"] }),
+                select("responsive.mobileView", optionLabel("mobileView"), [["grid", "grid (cards)"], ["compact", "compact"]], { drop: ["viewMode"] }),
+                text("responsive.breakpoint", optionLabel("breakpoint (px)"), { type: "number", drop: ["viewMode"] })
+            ),
+            section("Cards",
+                select("grid.titleColumn", optionLabel("grid.titleColumn"), columnChoices),
+                text("grid.minWidth", optionLabel("grid.minWidth"), { placeholder: "240px" })
+            ),
+            section("Export",
+                text("exportFilename", optionLabel("exportFilename"), { placeholder: "title" }),
+                select("exportDefaults.format", optionLabel("exportDefaults.format"), [["csv", "CSV"], ["xlsx", "XLSX"], ["json", "JSON"]]),
+                select("exportDefaults.destination", optionLabel("exportDefaults.destination"), [["download", "download"], ["clipboard", "clipboard"]]),
+                select("exportDefaults.delimiter", optionLabel("exportDefaults.delimiter"), [[";", ";"], [",", ","], ["\t", "tab"], ["|", "|"]]),
+                checkbox("exportDefaults.localized", h("code", { textContent: "exportDefaults.localized" }))
+            ),
+            section("Texts",
+                text("searchPlaceholder", optionLabel("searchPlaceholder"), { placeholder: "from locale" }),
+                text("emptyText", optionLabel("emptyText"), { placeholder: "from locale" }),
+                text("noResultsText", optionLabel("noResultsText"), { placeholder: "from locale" })
+            ),
+            section("Callbacks",
+                checkbox("onRowClick", h("code", { textContent: "onRowClick" })),
+                checkbox("onCellClick", h("code", { textContent: "onCellClick" })),
+                checkbox("rowClass", h("span", {}, h("code", { textContent: "rowClass" }), " (former members in italics)"))
+            )
+        );
+
+        // Column options: one row per column.
+        const FLAG_DROPS = { hidden: ["hiddenColumns"], pinned: ["pinnedColumns"] };
+        const colTable = document.getElementById("cols");
+        colTable.append(h("thead", {}, h("tr", {},
+            h("th", { scope: "col", textContent: "Column" }),
+            ...COLUMN_FLAGS.map((f) => h("th", { scope: "col" }, h("code", { textContent: f }))),
+            ...["overflow", "width", "minWidth"].map((f) => h("th", { scope: "col" }, h("code", { textContent: f })))
+        )));
+        const tbody = h("tbody");
+        for (const def of COLUMN_DEFS) {
+            const rowHead = h("th", { scope: "row" }, def.label, " ", h("span", { className: "col-key", textContent: `${def.key} · ${def.type}` }));
+            const cells = COLUMN_FLAGS.map((f) => {
+                const input = h("input", { type: "checkbox" });
+                input.setAttribute("aria-label", `${def.label}: ${f}`);
+                const path = `columns.${def.key}.${f}`;
+                input.onchange = () => { cfg.columns[def.key][f] = input.checked; rebuild(FLAG_DROPS[f]); };
+                syncers.push(() => { input.checked = cfg.columns[def.key][f]; });
+                return h("td", {}, h("label", { className: "check" }, input));
+            });
+            const overflow = h("select", { className: "ctrl" });
+            overflow.setAttribute("aria-label", `${def.label}: overflow`);
+            [["", "inherit"], ["wrap", "wrap"], ["ellipsis", "ellipsis"]].forEach(([v, t]) => overflow.add(new Option(t, v)));
+            overflow.onchange = () => { cfg.columns[def.key].overflow = overflow.value; rebuild(); };
+            syncers.push(() => { overflow.value = cfg.columns[def.key].overflow; });
+            const sizeInputs = ["width", "minWidth"].map((f) => {
+                const input = h("input", { className: "ctrl", type: "text", placeholder: "auto" });
+                input.setAttribute("aria-label", `${def.label}: ${f}`);
+                input.onchange = () => { cfg.columns[def.key][f] = input.value; rebuild(); };
+                syncers.push(() => { input.value = cfg.columns[def.key][f]; });
+                return h("td", {}, input);
+            });
+            tbody.append(h("tr", {}, rowHead, ...cells, h("td", {}, overflow), ...sizeInputs));
+        }
+        colTable.append(tbody);
+
+        const stylesArea = document.getElementById("styles");
+        stylesArea.onchange = () => { cfg.styles = stylesArea.value; rebuild(); };
+        syncers.push(() => { stylesArea.value = cfg.styles; });
+
+        const syncAll = () => syncers.forEach((fn) => fn());
+        const setAllFeatures = (on) => {
+            for (const [key] of FEATURE_DEFS) cfg.features[key] = on;
+            syncAll();
+            rebuild();
+        };
+        document.getElementById("all-on").onclick = () => setAllFeatures(true);
+        document.getElementById("all-off").onclick = () => setAllFeatures(false);
+        document.getElementById("reset-cfg").onclick = () => {
+            const { rows, width } = cfg;
+            cfg = { ...defaultDemoConfig(), rows, width };
+            syncAll();
+            rebuild(["hiddenColumns", "pinnedColumns", "columnOrder", "pageSize", "page", "viewMode"]);
+        };
+
+        syncAll();
+        persist();
     </script>
 </body>
 

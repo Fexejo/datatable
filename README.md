@@ -1030,7 +1030,20 @@ focus in place.
 
 ## Demo
 
-`demo.html` is a full playground (137 sample rows, theme toggle, reload, export dialog, state dump). Serve over HTTP, e.g.:
+`demo.html` is a full playground with the table front and center:
+
+- **Sample data** – 26 columns of every type (nested keys, `accessor`,
+  `link`, `action`, `cellClass`, hidden and non-exportable columns, empty
+  values, formula-like text) and 0 to 10,000 seeded rows; “New data” draws
+  new ones.
+- **Table width** – slider, “Full width”, or drag the grip at the right
+  edge, to try column widths and horizontal scrolling.
+- **Configuration** (collapsed) – every config option, feature and column
+  flag can be changed live; the resulting config is shown as code. Settings,
+  theme and language are remembered in `localStorage`.
+- **Events** – log of all events and callbacks, plus `getState()`.
+
+Serve over HTTP, e.g.:
 
 ```bash
 python3 -m http.server 8000
