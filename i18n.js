@@ -107,6 +107,10 @@ export const LOCALES = {
         // Export dialog
         exportTitle: "Export",
         exportFormat: "Format",
+        exportFormats: { csv: "CSV", xlsx: "Excel (XLSX)", json: "JSON" },
+        exportDestination: "Destination",
+        exportDownload: "Download file",
+        exportClipboard: "Copy to clipboard",
         exportFilename: "File name",
         exportMoreOptions: "More options",
         exportRows: "Rows",
@@ -120,6 +124,7 @@ export const LOCALES = {
         exportNames: "Column names",
         exportNamesLabel: "Label",
         exportNamesKey: "Key",
+        exportMetadata: "Include column info (label, data type)",
         exportDelimiter: "Delimiter",
         delimiters: {
             semicolon: "Semicolon (;)",
@@ -128,6 +133,7 @@ export const LOCALES = {
             pipe: "Vertical bar (|)"
         },
         exportSubmit: "Export",
+        exportCopySubmit: "Copy",
         cancel: "Cancel",
 
         // Templates panel
@@ -169,6 +175,7 @@ export const LOCALES = {
         templateSaved: (name) => `Template “${name}” saved`,
         templateLoaded: (name) => `Template “${name}” loaded`,
         exported: (count, filename) => `${count} exported to “${filename}”`,
+        exportedClipboard: (count) => `${count} copied to clipboard`,
 
         // Boolean cell display (overridable per column via format.trueLabel / format.falseLabel)
         boolTrue: "Yes",
@@ -294,6 +301,10 @@ export const LOCALES = {
         // Export dialog
         exportTitle: "Exportieren",
         exportFormat: "Format",
+        exportFormats: { csv: "CSV", xlsx: "Excel (XLSX)", json: "JSON" },
+        exportDestination: "Ziel",
+        exportDownload: "Datei herunterladen",
+        exportClipboard: "In die Zwischenablage kopieren",
         exportFilename: "Dateiname",
         exportMoreOptions: "Weitere Optionen",
         exportRows: "Zeilen",
@@ -307,6 +318,7 @@ export const LOCALES = {
         exportNames: "Spaltennamen",
         exportNamesLabel: "Bezeichnung",
         exportNamesKey: "Schlüssel",
+        exportMetadata: "Spalteninfos einbeziehen (Bezeichnung, Datentyp)",
         exportDelimiter: "Trennzeichen",
         delimiters: {
             semicolon: "Semikolon (;)",
@@ -315,6 +327,7 @@ export const LOCALES = {
             pipe: "Senkrechter Strich (|)"
         },
         exportSubmit: "Exportieren",
+        exportCopySubmit: "Kopieren",
         cancel: "Abbrechen",
 
         // Templates panel
@@ -356,6 +369,7 @@ export const LOCALES = {
         templateSaved: (name) => `Vorlage „${name}“ gespeichert`,
         templateLoaded: (name) => `Vorlage „${name}“ geladen`,
         exported: (count, filename) => `${count} als „${filename}“ exportiert`,
+        exportedClipboard: (count) => `${count} in die Zwischenablage kopiert`,
 
         // Boolean cell display
         boolTrue: "Ja",

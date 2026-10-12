@@ -1354,7 +1354,7 @@ test("export: options for scope, columns, formatting, header and delimiter", () 
     assert.equal(detail.content.split("\r\n")[0].replace(/\u00a0/g, " "), '1,Anna,"0,00 €",Nein,15.01.2020', "formatted, no header, comma");
 });
 
-test("export: JSON format swaps the extension and hides CSV-only options", () => {
+test("export: JSON swaps the extension, uses keys and offers column info", () => {
     const table = mount({ features: { export: true } });
     const events = captureExports(table);
     $(table, '[data-fk="tb:export"]').click();
@@ -1365,12 +1365,113 @@ test("export: JSON format swaps the extension and hides CSV-only options", () =>
     assert.match(filename.value, /\.json$/, "extension follows the format");
     assert.ok(exportControl(table, "Header row").closest("label").hidden, "no header option");
     assert.ok($(table, ".k-dt-export select").closest(".k-dt-field").hidden, "no delimiter");
-    exportControl(table, "Key").click();
+    assert.ok(exportControl(table, "Key").checked, "keys are the default names for JSON");
+    const metadata = exportControl(table, "Include column info");
+    assert.ok(!metadata.closest("label").hidden && !metadata.checked, "column info offered, off");
     filename.value = "members";
     submitExport(table);
-    const detail = events.at(-1);
+    let detail = events.at(-1);
     assert.equal(detail.filename, "members.json");
     assert.deepEqual(JSON.parse(detail.content)[0], { id: 1, name: "Anna", fee: 0, active: false, joined: "2020-01-15" });
+
+    $(table, '[data-fk="tb:export"]').click();
+    $(table, ".k-dt-disclosure").click();
+    exportControl(table, "JSON").click();
+    exportControl(table, "Include column info").click();
+    submitExport(table);
+    detail = JSON.parse(events.at(-1).content);
+    assert.deepEqual(detail.columns[2], { key: "fee", label: "Fee", type: "currency" });
+    assert.equal(detail.data.length, 30);
+
+    // Back to CSV: labels again; a choice the user made sticks.
+    $(table, '[data-fk="tb:export"]').click();
+    exportControl(table, "JSON").click();
+    exportControl(table, "CSV").click();
+    assert.ok(exportControl(table, "Label").checked, "labels for CSV");
+    exportControl(table, "Key").click();
+    exportControl(table, "Excel").click();
+    assert.ok(exportControl(table, "Key").checked, "user choice kept");
+});
+
+test("export: XLSX downloads a workbook with typed cells", async () => {
+    const table = mount({ title: "Members", features: { export: true } });
+    const events = captureExports(table, { cancel: false });
+    $(table, '[data-fk="tb:export"]').click();
+    exportControl(table, "Excel").click();
+    assert.match($(table, '.k-dt-export input[type="text"]').value, /^Members_.*\.xlsx$/);
+    assert.ok(!exportControl(table, "Header row").closest("label").hidden, "header row option");
+    submitExport(table);
+    const detail = events.at(-1);
+    assert.equal(detail.format, "xlsx");
+    assert.ok(detail.content instanceof Uint8Array, "binary content");
+    assert.deepEqual(Array.from(detail.content.slice(0, 4)), [0x50, 0x4B, 0x03, 0x04], "ZIP signature");
+    const text = new TextDecoder().decode(detail.content);
+    assert.match(text, /<sheet name="Members"/);
+    assert.match(text, /<c r="C2" s="5"><v>0<\/v><\/c>/, "currency as number");
+    await announced(table, `30 rows exported to “${detail.filename}”`);
+});
+
+// Replaces the async Clipboard API for one test; returns the written texts.
+function stubClipboard() {
+    const written = [];
+    Object.defineProperty(navigator, "clipboard", {
+        configurable: true,
+        value: { writeText: async (text) => { written.push(text); } }
+    });
+    written.restore = () => { delete navigator.clipboard; };
+    return written;
+}
+
+test("export: clipboard destination copies text with tabs, hides XLSX and the file name", async () => {
+    const written = stubClipboard();
+    try {
+        const table = mount({ features: { export: true } });
+        const events = captureExports(table, { cancel: false });
+        $(table, '[data-fk="tb:export"]').click();
+        $(table, ".k-dt-disclosure").click();
+        exportControl(table, "Excel").click();
+        exportControl(table, "Copy to clipboard").click();
+        assert.ok(exportControl(table, "CSV").checked, "XLSX falls back to CSV");
+        assert.ok(exportControl(table, "Excel").closest("label").hidden, "XLSX not offered");
+        assert.ok($(table, '.k-dt-export input[type="text"]').closest(".k-dt-field").hidden, "no file name");
+        assert.equal($(table, ".k-dt-export select").value, "\t", "tab for pasting into spreadsheets");
+        const submit = $(table, ".k-dt-export button[type='submit']");
+        assert.equal(submit.textContent, "Copy");
+        submit.click();
+        assert.equal(events.at(-1).destination, "clipboard");
+        await announced(table, "30 rows copied to clipboard");
+        assert.equal(written[0].split("\r\n")[1], "1\tAnna\t0\tfalse\t2020-01-15");
+
+        // Back to download: the delimiter returns to its default.
+        $(table, '[data-fk="tb:export"]').click();
+        exportControl(table, "Copy to clipboard").click();
+        exportControl(table, "Download file").click();
+        assert.equal($(table, ".k-dt-export select").value, ";");
+        assert.equal($(table, ".k-dt-export button[type='submit']").textContent, "Export");
+    } finally {
+        written.restore();
+    }
+});
+
+test("copying cells, rows and columns neutralizes formulas", async () => {
+    const written = stubClipboard();
+    try {
+        const table = mount({ data: [{ id: 1, name: "=cmd|' /C calc'!A0", fee: -5, active: true, joined: "2020-01-01" }] });
+        rightClick($$(table, "tbody td")[1]);
+        menuItem(table, "Copy cell").click();
+        await announced(table, "Copied to clipboard: =cmd|' /C calc'!A0");
+        rightClick($$(table, "tbody td")[1]);
+        menuItem(table, "Copy row").click();
+        rightClick($$(table, "tbody td")[1]);
+        menuItem(table, "Copy column").click();
+        await waitFor(() => written.length === 3);
+        assert.equal(written[0], "'=cmd|' /C calc'!A0", "cell");
+        assert.equal(written[1].split("\t")[1], "'=cmd|' /C calc'!A0", "row");
+        assert.match(written[1].split("\t")[2], /^-/, "negative number unchanged");
+        assert.equal(written[2], "'=cmd|' /C calc'!A0", "column");
+    } finally {
+        written.restore();
+    }
 });
 
 test("export: header row off hides the column-name option for CSV", () => {
@@ -1401,6 +1502,7 @@ test("export: keyboard — Enter opens, Enter on the format submits, focus retur
     $(table, '[data-fk="tb:export"]').focus();
     await input.press("Enter");
     assert.ok(exportDialog(table), "dialog open");
+    await input.press("ArrowDown");   // XLSX
     await input.press("ArrowDown");   // JSON
     assert.ok(exportControl(table, "JSON").checked);
     await input.press("Enter");
@@ -1409,23 +1511,31 @@ test("export: keyboard — Enter opens, Enter on the format submits, focus retur
     assert.equal(deepActiveElement()?.dataset.fk, "tb:export", "focus back on the button");
 
     await input.press("Enter");
+    await input.press("Tab");         // destination
     await input.press("Tab");         // file name
     assert.equal(deepActiveElement()?.type, "text");
     await input.press("Enter");
     assert.equal(events.at(-1)?.format, "csv");
 }, { cdp: true });
 
-test("export: exportData() API, cancelable event, legacy csvExport flag", () => {
-    const table = mount({ title: "T", exportFilename: "list", features: { csvExport: true }, exportDefaults: { names: "key" } });
-    assert.ok($(table, '[data-fk="tb:export"]'), "csvExport still enables export");
+test("export: exportData() API, cancelable event, defaults", () => {
+    const table = mount({ title: "T", exportFilename: "list", features: { export: true }, exportDefaults: { names: "key" } });
     const events = captureExports(table);
     const result = table.exportData({ scope: "page", headers: true });
     assert.equal(result, null, "cancelled by the listener");
     assert.equal(events[0].rowCount, 10);
     assert.match(events[0].filename, /^list_.*\.csv$/, "exportFilename is the base name");
     assert.equal(events[0].content.split("\r\n")[0], "id;name;fee;active;joined", "exportDefaults apply");
-    table.exportCSV("x");
-    assert.equal(events[1].filename, "x.csv");
+    table.exportData({ format: "json", filename: "x" });
+    assert.equal(events[1].filename, "x.json");
+    table.exportData({ format: "xlsx", destination: "clipboard" });
+    assert.equal(events[2].destination, "download", "XLSX can only be downloaded");
+    assert.equal(table.exportCSV, undefined, "exportCSV() removed");
+});
+
+test("export: the former csvExport flag no longer enables export", () => {
+    const table = mount({ features: { csvExport: true } });
+    assert.equal($(table, '[data-fk="tb:export"]'), null);
 });
 
 test("copy column does not need the export feature", () => {
@@ -1433,36 +1543,4 @@ test("copy column does not need the export feature", () => {
     rightClick($$(table, "tbody td")[1]);
     assert.ok(menuItem(table, "Copy column"), "Copy column offered");
     assert.equal(menuItem(table, "Export…"), undefined, "no export without the feature");
-});
-
-// Replaces the async Clipboard API for one test; returns the written texts.
-function stubClipboard() {
-    const written = [];
-    Object.defineProperty(navigator, "clipboard", {
-        configurable: true,
-        value: { writeText: async (text) => { written.push(text); } }
-    });
-    written.restore = () => { delete navigator.clipboard; };
-    return written;
-}
-
-test("copying cells, rows and columns neutralizes formulas", async () => {
-    const written = stubClipboard();
-    try {
-        const table = mount({ data: [{ id: 1, name: "=cmd|' /C calc'!A0", fee: -5, active: true, joined: "2020-01-01" }] });
-        rightClick($$(table, "tbody td")[1]);
-        menuItem(table, "Copy cell").click();
-        await announced(table, "Copied to clipboard: =cmd|' /C calc'!A0");
-        rightClick($$(table, "tbody td")[1]);
-        menuItem(table, "Copy row").click();
-        rightClick($$(table, "tbody td")[1]);
-        menuItem(table, "Copy column").click();
-        await waitFor(() => written.length === 3);
-        assert.equal(written[0], "'=cmd|' /C calc'!A0", "cell");
-        assert.equal(written[1].split("\t")[1], "'=cmd|' /C calc'!A0", "row");
-        assert.match(written[1].split("\t")[2], /^-/, "negative number unchanged");
-        assert.equal(written[2], "'=cmd|' /C calc'!A0", "column");
-    } finally {
-        written.restore();
-    }
 });

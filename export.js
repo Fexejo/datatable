@@ -1,24 +1,35 @@
-// Export — builds CSV (RFC 4180) or JSON from rows and columns and downloads
-// it, entirely in the browser (no backend).
+// Export — builds CSV (RFC 4180), XLSX or JSON from rows and columns and
+// downloads it, entirely in the browser (no backend).
 
 import { getCellValue, isEmptyValue } from "./util.js";
 import { toText } from "./formatters.js";
+import { buildXLSX } from "./xlsx.js";
 
+// `text`: can go to the clipboard (XLSX is binary).
 export const EXPORT_FORMATS = {
-    csv: { extension: "csv", mime: "text/csv;charset=utf-8", bom: true },
-    json: { extension: "json", mime: "application/json;charset=utf-8", bom: false }
+    csv: { extension: "csv", mime: "text/csv;charset=utf-8", bom: true, text: true },
+    xlsx: { extension: "xlsx", mime: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", bom: false, text: false },
+    json: { extension: "json", mime: "application/json;charset=utf-8", bom: false, text: true }
 };
 
-// `scope`: "page" | "filtered" | "all"; `names`: "label" | "key".
+// `destination`: "download" | "clipboard"; `scope`: "page" | "filtered" | "all";
+// `names`: "label" | "key" (unset: see `defaultNames()`).
 export const EXPORT_DEFAULTS = {
     format: "csv",
+    destination: "download",
     scope: "filtered",
     allColumns: false,
     localized: false,
     headers: true,
-    names: "label",
+    names: undefined,
+    metadata: false,
     delimiter: ";"
 };
+
+// JSON property names are keys; headers in CSV and XLSX are labels.
+export function defaultNames(format) {
+    return format === "json" ? "key" : "label";
+}
 
 // ---- Values ---------------------------------------------------------------
 
@@ -30,13 +41,15 @@ export function rawValue(value) {
 }
 
 // Export value of one cell: `exportFormatter` wins, then the displayed text
-// (`localized`) or the raw value.
+// (`localized`) or the raw value (XLSX keeps Date objects to type the cell).
 export function exportValue(row, column, { locale = "en-US", localized = false, format = "csv" } = {}) {
     const raw = getCellValue(row, column);
     if (typeof column.exportFormatter === "function") {
         return column.exportFormatter(raw, { row, column, locale, localized, format });
     }
-    return localized ? toText(raw, column, locale, row) : rawValue(raw);
+    if (localized) return toText(raw, column, locale, row);
+    if (format === "xlsx") return isEmptyValue(raw) ? null : raw;
+    return rawValue(raw);
 }
 
 function valueToText(value) {
@@ -52,6 +65,12 @@ export function exportColumns(columns) {
 
 function columnName(column, names) {
     return names === "key" ? column.key : (column.label ?? column.key);
+}
+
+function resolveOptions(options, format) {
+    const opts = { ...EXPORT_DEFAULTS, ...options };
+    opts.names ??= defaultNames(format);
+    return opts;
 }
 
 // ---- CSV ------------------------------------------------------------------
@@ -78,7 +97,7 @@ function escapeField(value, delimiter) {
 
 // Builds the CSV string. Columns are exported as given (filtered by `exportable`).
 export function buildCSV(rows, columns, options = {}) {
-    const { locale = "en-US", delimiter, headers, names, localized } = { ...EXPORT_DEFAULTS, ...options };
+    const { locale = "en-US", delimiter, headers, names, localized } = resolveOptions(options, "csv");
     const cols = exportColumns(columns);
     const lines = [];
     if (headers) lines.push(cols.map((c) => escapeField(columnName(c, names), delimiter)).join(delimiter));
@@ -91,8 +110,10 @@ export function buildCSV(rows, columns, options = {}) {
 // ---- JSON -----------------------------------------------------------------
 
 // Array of objects. A name used twice falls back to the column key.
+// `metadata`: { columns: [{ key, label, type }], data: [...] } instead, shaped
+// like the table's own config (`key` is the property name in `data`).
 export function buildJSON(rows, columns, options = {}) {
-    const { locale = "en-US", names, localized } = { ...EXPORT_DEFAULTS, ...options };
+    const { locale = "en-US", names, localized, metadata } = resolveOptions(options, "json");
     const cols = exportColumns(columns);
     const used = new Set();
     const keys = cols.map((c) => {
@@ -104,11 +125,32 @@ export function buildJSON(rows, columns, options = {}) {
     const records = rows.map((row) => Object.fromEntries(
         cols.map((c, i) => [keys[i], exportValue(row, c, { locale, localized, format: "json" }) ?? null])
     ));
-    return JSON.stringify(records, null, 2);
+    if (!metadata) return JSON.stringify(records, null, 2);
+    const info = cols.map((c, i) => ({ key: keys[i], label: c.label ?? c.key, ...(c.type ? { type: c.type } : {}) }));
+    return JSON.stringify({ columns: info, data: records }, null, 2);
 }
 
+// ---- XLSX -----------------------------------------------------------------
+
+// One worksheet; numbers, booleans and dates stay typed unless `localized`.
+// Cells are written as text or values, never as formulas.
+export function buildSheet(rows, columns, options = {}) {
+    const { locale = "en-US", headers, names, localized, sheet } = resolveOptions(options, "xlsx");
+    const cols = exportColumns(columns);
+    return buildXLSX({
+        sheet,
+        header: headers ? cols.map((c) => columnName(c, names)) : null,
+        columns: cols,
+        rows: rows.map((row) => cols.map((c) => exportValue(row, c, { locale, localized, format: "xlsx" }))),
+        text: localized
+    });
+}
+
+// String for CSV / JSON, Uint8Array for XLSX.
 export function buildExport(rows, columns, options = {}) {
-    return options.format === "json" ? buildJSON(rows, columns, options) : buildCSV(rows, columns, options);
+    if (options.format === "json") return buildJSON(rows, columns, options);
+    if (options.format === "xlsx") return buildSheet(rows, columns, options);
+    return buildCSV(rows, columns, options);
 }
 
 // ---- File name & download ---------------------------------------------------
@@ -141,7 +183,7 @@ export function withExtension(filename, format = "csv") {
 // Starts the download. A leading BOM helps Excel detect UTF-8 in CSV files.
 export function downloadFile(content, filename, format = "csv") {
     const { mime, bom } = EXPORT_FORMATS[format];
-    const blob = new Blob([bom ? "﻿" + content : content], { type: mime });
+    const blob = new Blob([bom ? "\uFEFF" + content : content], { type: mime });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;

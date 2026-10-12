@@ -1,7 +1,7 @@
 // <jw-datatable> — configurable, reusable data table (Vanilla JS).
 //
 // Features: pagination, sorting (including multi-column), value and pattern filters,
-// quick filters and actions via context menu, CSV/JSON export, grid/card view,
+// quick filters and actions via context menu, CSV/XLSX/JSON export, grid/card view,
 // links (href / SPA routing / custom handlers), per-column copy buttons,
 // runtime data updates, and localStorage view templates.
 //
@@ -30,6 +30,7 @@ import {
     EXPORT_FORMATS,
     buildExport,
     exportColumns,
+    defaultNames,
     defaultFilename,
     withExtension,
     downloadFile,
@@ -178,9 +179,6 @@ class JwDataTable extends HTMLElement {
         this._config.emptyText ??= this._t.emptyData;
         this._config.noResultsText ??= this._t.noResults;
         this._features = { ...DEFAULT_FEATURES, ...(config.features || {}) };
-        // `csvExport` is the former name of `export`.
-        if (config.features?.export === undefined && config.features?.csvExport) this._features.export = true;
-        delete this._features.csvExport;
         this._columns = this._normalizeColumns(config.columns || []);
         this._sourceData = Array.isArray(config.data) ? config.data.slice() : [];
 
@@ -355,20 +353,24 @@ class JwDataTable extends HTMLElement {
         this._emitChange();
     }
 
-    // Builds the file and downloads it. `options` override the export defaults
-    // (see `_exportDefaults()`). Returns the event detail, or null when a
-    // `jw-datatable:export` listener cancelled the download.
+    // Builds the export and downloads it or copies it to the clipboard.
+    // `options` override `config.exportDefaults`. Returns the event detail, or
+    // null when a `jw-datatable:export` listener cancelled it.
     exportData(options = {}) {
         const opts = { ...this._exportDefaults(), ...options };
         if (!EXPORT_FORMATS[opts.format]) opts.format = EXPORT_DEFAULTS.format;
+        opts.names ??= defaultNames(opts.format);
+        // XLSX is binary and can only be downloaded.
+        if (opts.destination !== "clipboard" || !EXPORT_FORMATS[opts.format].text) opts.destination = "download";
         const rows = this._exportRows(opts.scope);
         const columns = exportColumns(opts.allColumns ? this._orderedColumns() : this._visibleColumns());
-        const content = buildExport(rows, columns, { ...opts, locale: this._config.locale });
+        const content = buildExport(rows, columns, { ...opts, locale: this._config.locale, sheet: this._exportBaseName() });
         const filename = opts.filename
             ? withExtension(opts.filename, opts.format)
             : defaultFilename(this._exportBaseName(), opts.format);
         const detail = {
             format: opts.format,
+            destination: opts.destination,
             filename,
             content,
             rowCount: rows.length,
@@ -376,13 +378,14 @@ class JwDataTable extends HTMLElement {
             options: { ...opts, filename }
         };
         if (!this._emit("export", detail, { cancelable: true })) return null;
-        downloadFile(content, filename, opts.format);
-        this._announce(this._t.exported(this._t.resultsCount(rows.length), filename));
+        const count = this._t.resultsCount(rows.length);
+        if (opts.destination === "clipboard") {
+            this._copyText(content, null, null, this._t.exportedClipboard(count));
+        } else {
+            downloadFile(content, filename, opts.format);
+            this._announce(this._t.exported(count, filename));
+        }
         return detail;
-    }
-
-    exportCSV(filename) {
-        return this.exportData({ format: "csv", filename });
     }
 
     openExportDialog() {
@@ -2225,13 +2228,8 @@ class JwDataTable extends HTMLElement {
 
     // ---- Export dialog -----------------------------------------------------
 
-    // Built-in defaults < `csvDelimiter` < `exportDefaults`.
     _exportDefaults() {
-        return {
-            ...EXPORT_DEFAULTS,
-            ...(this._config.csvDelimiter ? { delimiter: this._config.csvDelimiter } : {}),
-            ...(this._config.exportDefaults || {})
-        };
+        return { ...EXPORT_DEFAULTS, ...(this._config.exportDefaults || {}) };
     }
 
     // Rows in display order; "page" without pagination is the same as "filtered".
@@ -2245,8 +2243,8 @@ class JwDataTable extends HTMLElement {
         return this._config.exportFilename || this._config.title || "export";
     }
 
-    // Format and file name are always shown; everything else waits behind
-    // "More options" so a quick export is just Enter.
+    // Format, destination and file name are always shown; everything else
+    // waits behind "More options" so a quick export is just Enter.
     _openExportDialog(anchor, returnKey = this._focusKey()) {
         const t = this._t;
         const defaults = this._exportDefaults();
@@ -2262,16 +2260,21 @@ class JwDataTable extends HTMLElement {
         ]);
         const radios = (name, legend, options, value) => el("fieldset", { class: "k-dt-fieldset" }, [
             el("legend", { class: "k-dt-field-label", text: legend }),
-            ...options.map(([optionValue, text]) => el("label", { class: "k-dt-check" }, [
+            ...options.map(([optionValue, text]) => el("label", { class: "k-dt-check", "data-value": optionValue }, [
                 el("input", { type: "radio", name: `${id}-${name}`, value: optionValue, checked: optionValue === value }),
                 el("span", { class: "k-dt-check-label", text })
             ]))
         ]);
         const radioValue = (group) => group.querySelector("input:checked")?.value;
+        const setRadio = (group, value) => { group.querySelector(`input[value="${CSS.escape(value)}"]`).checked = true; };
 
         let format = EXPORT_FORMATS[defaults.format] ? defaults.format : EXPORT_DEFAULTS.format;
-        const formatGroup = radios("format", t.exportFormat, [["csv", "CSV"], ["json", "JSON"]], format);
+        const formatGroup = radios("format", t.exportFormat,
+            Object.keys(EXPORT_FORMATS).map((key) => [key, t.exportFormats[key]]), format);
         formatGroup.querySelector("input:checked").setAttribute("data-autofocus", "");
+        const destinationGroup = radios("destination", t.exportDestination,
+            [["download", t.exportDownload], ["clipboard", t.exportClipboard]],
+            defaults.destination === "clipboard" && EXPORT_FORMATS[format].text ? "clipboard" : "download");
         const filename = el("input", {
             type: "text",
             class: "k-dt-input",
@@ -2279,6 +2282,7 @@ class JwDataTable extends HTMLElement {
             autocomplete: "off",
             value: defaultFilename(this._exportBaseName(), format)
         });
+        const filenameField = field(t.exportFilename, filename);
 
         // ---- More options
         const scopes = [
@@ -2293,8 +2297,9 @@ class JwDataTable extends HTMLElement {
         const allColumns = hasHidden ? checkbox(t.exportAllColumns, defaults.allColumns) : null;
         const localized = checkbox(t.exportLocalized, defaults.localized);
         const headers = checkbox(t.exportHeaders, defaults.headers);
+        const metadata = checkbox(t.exportMetadata, defaults.metadata);
         const namesGroup = radios("names", t.exportNames,
-            [["label", t.exportNamesLabel], ["key", t.exportNamesKey]], defaults.names === "key" ? "key" : "label");
+            [["label", t.exportNamesLabel], ["key", t.exportNamesKey]], defaults.names ?? defaultNames(format));
         const delimiterNames = { ";": "semicolon", ",": "comma", "\t": "tab", "|": "pipe" };
         const delimiterOptions = Object.entries(delimiterNames).map(([value, key]) => [value, t.delimiters[key]]);
         if (!delimiterNames[defaults.delimiter]) delimiterOptions.push([defaults.delimiter, defaults.delimiter]);
@@ -2302,26 +2307,45 @@ class JwDataTable extends HTMLElement {
             delimiterOptions.map(([value, text]) => el("option", { value, text, selected: value === defaults.delimiter })));
         const delimiterField = field(t.exportDelimiter, delimiter);
         const more = el("div", { class: "k-dt-export-more", id: `${id}-more`, hidden: true },
-            [scopeGroup, allColumns, localized, headers, namesGroup, delimiterField]);
+            [scopeGroup, allColumns, localized, headers, namesGroup, metadata, delimiterField]);
 
-        // Header row and delimiter only exist in CSV; names need a header row there.
+        // Column names and the delimiter follow format and destination until
+        // the user picks one: keys for JSON, tabs for pasting into a spreadsheet.
+        let namesSet = defaults.names != null;
+        let delimiterSet = false;
+        namesGroup.addEventListener("change", () => { namesSet = true; });
+        delimiter.addEventListener("change", () => { delimiterSet = true; });
+
+        const submit = el("button", { type: "submit", class: "k-dt-btn k-dt-btn-primary" });
         const sync = () => {
-            const csv = format === "csv";
-            headers.hidden = !csv;
-            delimiterField.hidden = !csv;
-            namesGroup.hidden = csv && !inputOf(headers).checked;
+            const clipboard = radioValue(destinationGroup) === "clipboard";
+            // XLSX cannot go to the clipboard.
+            formatGroup.querySelector('[data-value="xlsx"]').hidden = clipboard;
+            filenameField.hidden = clipboard;
+            headers.hidden = format === "json";
+            metadata.hidden = format !== "json";
+            delimiterField.hidden = format !== "csv";
+            namesGroup.hidden = format !== "json" && !inputOf(headers).checked;
+            if (!namesSet) setRadio(namesGroup, defaultNames(format));
+            if (!delimiterSet) delimiter.value = clipboard ? "\t" : defaults.delimiter;
+            submit.textContent = clipboard ? t.exportCopySubmit : t.exportSubmit;
         };
-        headers.addEventListener("change", sync);
-        // A new format swaps the extension, unless the user typed another one.
-        formatGroup.addEventListener("change", () => {
-            const next = radioValue(formatGroup);
+        const setFormat = (next) => {
+            // A new format swaps the extension, unless the user typed another one.
             const oldExt = "." + EXPORT_FORMATS[format].extension;
             if (filename.value.toLowerCase().endsWith(oldExt)) {
                 filename.value = filename.value.slice(0, -oldExt.length) + "." + EXPORT_FORMATS[next].extension;
             }
             format = next;
+            setRadio(formatGroup, next);
             sync();
+        };
+        formatGroup.addEventListener("change", () => setFormat(radioValue(formatGroup)));
+        destinationGroup.addEventListener("change", () => {
+            if (radioValue(destinationGroup) === "clipboard" && !EXPORT_FORMATS[format].text) setFormat("csv");
+            else sync();
         });
+        headers.addEventListener("change", sync);
         sync();
 
         const toggle = el("button", {
@@ -2342,12 +2366,14 @@ class JwDataTable extends HTMLElement {
                 event.preventDefault();
                 const options = {
                     format,
+                    destination: radioValue(destinationGroup),
                     filename: filename.value,
                     scope: radioValue(scopeGroup),
                     allColumns: allColumns ? inputOf(allColumns).checked : false,
                     localized: inputOf(localized).checked,
                     headers: inputOf(headers).checked,
                     names: radioValue(namesGroup),
+                    metadata: inputOf(metadata).checked,
                     delimiter: delimiter.value
                 };
                 this._closeOverlay();
@@ -2355,12 +2381,13 @@ class JwDataTable extends HTMLElement {
             }
         }, [
             formatGroup,
-            field(t.exportFilename, filename),
+            destinationGroup,
+            filenameField,
             toggle,
             more,
             el("div", { class: "k-dt-panel-actions" }, [
                 el("button", { type: "button", class: "k-dt-btn", text: t.cancel, onclick: () => this._closeOverlay() }),
-                el("button", { type: "submit", class: "k-dt-btn k-dt-btn-primary", text: t.exportSubmit })
+                submit
             ])
         ]);
 
@@ -2472,12 +2499,13 @@ class JwDataTable extends HTMLElement {
 
     // ---- Copy ------------------------------------------------------------
 
-    // `shownValue`: optional value to include in the announcement.
-    _copyText(text, button, shownValue) {
+    // `shownValue`: optional value to include in the announcement;
+    // `message`: replaces the announcement altogether.
+    _copyText(text, button, shownValue, message) {
         // Decided at click time: a keyboard user has focus on the button.
         const buttonFocused = !!button && deepActiveElement() === button;
         const done = () => {
-            const message = shownValue ? this._t.copiedValue(this._truncate(shownValue, 60)) : this._t.copied;
+            message ??= shownValue ? this._t.copiedValue(this._truncate(shownValue, 60)) : this._t.copied;
             if (buttonFocused && button.isConnected) {
                 // Name + check icon stay until the button loses focus.
                 this._confirmOnButton(button, message);

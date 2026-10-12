@@ -77,21 +77,29 @@ test("CSV: formulas are neutralized, numbers are not", () => {
     assert.equal(neutralizeFormula("-1e5"), "-1e5");
 });
 
-test("JSON: raw values keep their types", () => {
+test("JSON: keys as property names by default, raw values keep their types", () => {
     const json = buildJSON([{ name: "Anna", fee: 1.5, secret: "x" }, { name: "", fee: null }], columns);
-    assert.deepEqual(JSON.parse(json), [{ Name: "Anna", Fee: 1.5 }, { Name: null, Fee: null }]);
+    assert.deepEqual(JSON.parse(json), [{ name: "Anna", fee: 1.5 }, { name: null, fee: null }]);
 });
 
-test("JSON: localized values, key names, duplicate names fall back to keys", () => {
+test("JSON: localized values, label names, duplicate names fall back to keys", () => {
     const cols = [{ key: "a", label: "X", type: "number" }, { key: "b", label: "X" }];
     const rows = [{ a: 1000, b: "y" }];
-    assert.deepEqual(JSON.parse(buildJSON(rows, cols, { localized: true, locale: "de-DE" })), [{ X: "1.000", b: "y" }]);
-    assert.deepEqual(JSON.parse(buildJSON(rows, cols, { names: "key" })), [{ a: 1000, b: "y" }]);
+    assert.deepEqual(JSON.parse(buildJSON(rows, cols, { localized: true, locale: "de-DE", names: "label" })), [{ X: "1.000", b: "y" }]);
+});
+
+test("JSON: metadata adds the columns with label and type, like the table config", () => {
+    const cols = [{ key: "a", label: "A", type: "integer" }, { key: "b" }];
+    assert.deepEqual(JSON.parse(buildJSON([{ a: 1, b: "y" }], cols, { metadata: true })), {
+        columns: [{ key: "a", label: "A", type: "integer" }, { key: "b", label: "b" }],
+        data: [{ a: 1, b: "y" }]
+    });
 });
 
 test("buildExport picks the format", () => {
     assert.equal(buildExport([{ name: "A", fee: 1 }], columns, { format: "csv", headers: false }), "A;1");
-    assert.equal(buildExport([{ name: "A", fee: 1 }], columns, { format: "json" }), '[\n  {\n    "Name": "A",\n    "Fee": 1\n  }\n]');
+    assert.equal(buildExport([{ name: "A", fee: 1 }], columns, { format: "json" }), '[\n  {\n    "name": "A",\n    "fee": 1\n  }\n]');
+    assert.ok(buildExport([{ name: "A", fee: 1 }], columns, { format: "xlsx" }) instanceof Uint8Array);
 });
 
 test("file names: timestamp, default name, extension, sanitizing", () => {

@@ -558,6 +558,7 @@ span.k-dt-th-label { cursor: default; }
 .k-dt-export-form, .k-dt-export-more { display: flex; flex-direction: column; gap: var(--k-space-s, 8px); }
 .k-dt-export-more { border-top: 1px solid var(--k-dt-border); padding-top: var(--k-space-s, 8px); }
 .k-dt-export .k-dt-check { min-height: 44px; }
+.k-dt-export .k-dt-check-label { white-space: normal; }
 /* Actions stay in view when the options make the dialog scroll. */
 .k-dt-export { padding-bottom: 0; }
 .k-dt-export .k-dt-panel-actions {
