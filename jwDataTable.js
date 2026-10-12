@@ -1855,10 +1855,13 @@ class JwDataTable extends HTMLElement {
         this._announce(this._t.columnOrderReset);
     }
 
-    // Header: Alt+Shift+←/→ moves the column; drag and drop on the desktop layout.
+    // Header: Ctrl+Shift+←/→ moves the column (Ctrl+Alt+arrows belong to screen
+    // reader table navigation and the Windows Magnifier, Alt+Shift switches the
+    // Windows keyboard layout); drag and drop on the desktop layout.
     _bindColumnMove(th, column) {
         th.addEventListener("keydown", (event) => {
-            if (!event.altKey || !event.shiftKey || !["ArrowLeft", "ArrowRight"].includes(event.key)) return;
+            if (!event.ctrlKey || !event.shiftKey || event.altKey || event.metaKey) return;
+            if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
             event.preventDefault();
             const keys = this._tableColumns().map((c) => c.key);
             this._moveColumn(column.key, keys.indexOf(column.key) + (event.key === "ArrowLeft" ? -1 : 1));

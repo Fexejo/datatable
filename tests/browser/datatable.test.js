@@ -1149,17 +1149,19 @@ test("drag and drop on the header reorders columns with a drop marker", () => {
     assert.equal($$(table, ".is-drop-before, .is-drop-after, .is-dragging").length, 0, "markers cleaned up");
 });
 
-test("Alt+Shift+Arrow on a header button moves the column and keeps focus", async () => {
+test("Ctrl+Shift+Arrow on a header button moves the column and keeps focus", async () => {
     const table = mount(REORDER);
     const tableEl = $(table, "table");
     const button = $(table, '[data-fk="sort:fee"]');
     button.focus();
     await input.press("ArrowLeft", ["Alt", "Shift"]);
+    assert.deepEqual(headerKeys(table), COLUMNS.map((c) => c.key), "Alt+Shift does nothing");
+    await input.press("ArrowLeft", ["Control", "Shift"]);
     assert.deepEqual(headerKeys(table), ["id", "fee", "name", "active", "joined"]);
     assert.equal(deepActiveElement(), button, "same focused button");
     assert.equal($(table, "table"), tableEl);
-    await input.press("ArrowRight", ["Alt", "Shift"]);
-    await input.press("ArrowRight", ["Alt", "Shift"]);
+    await input.press("ArrowRight", ["Control", "Shift"]);
+    await input.press("ArrowRight", ["Control", "Shift"]);
     assert.deepEqual(headerKeys(table), ["id", "name", "active", "fee", "joined"]);
     await announced(table, "Column “Fee” moved to position 4 of 5");
 }, { cdp: true });

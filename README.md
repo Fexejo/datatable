@@ -12,7 +12,7 @@ written in Vanilla JS (ES modules, Shadow DOM). No external dependencies.
 - **Global search** – full-text across searchable columns
 - **Context menu** – sort, filter, copy (cell/row/column), pin/hide column, export
 - **Record details** – dialog with all fields of a row (including hidden columns), previous/next through all results
-- **Column order** – move columns via drag and drop on the header (desktop), the context menu, `Alt+Shift+←/→` or the column chooser
+- **Column order** – move columns via drag and drop on the header (desktop), the context menu, `Ctrl+Shift+←/→` or the column chooser
 - **Column pinning** – pin any columns to the left edge (sticky while scrolling horizontally); scroll shadows show where more content is
 - **CSV export** – in the browser, Excel-friendly (with BOM)
 - **Grid / card view** – cards with label/value pairs as an alternative to the table (two columns, stacked on narrow cards)
@@ -340,7 +340,7 @@ by default.
 | `compactView` | off | Compact view in the view switch: key columns + details dialog per row (includes `rowDetails` behavior) |
 | `columnVisibility` | off | Show/hide columns chooser |
 | `columnPinning` | off | Pin columns to the left edge (context menu, column chooser) |
-| `columnReorder` | off | Move columns: drag and drop on the header, context menu, `Alt+Shift+←/→`, column chooser |
+| `columnReorder` | off | Move columns: drag and drop on the header, context menu, `Ctrl+Shift+←/→`, column chooser |
 | `rowDetails` | off | “Show details” in the context menu of cells/cards: dialog with all fields of the record |
 | `templates` | off | Save/load views (needs storage) |
 | `csvExport` | off | CSV export button |
@@ -445,7 +445,10 @@ With `features.columnReorder`, users can move columns:
 - **Context menu** of a header or cell: “Move left”, “Move right”, “Move to
   start”, “Move to end” (only the moves that are possible), and “Reset column
   order” once the order differs from `columns`.
-- **Keyboard shortcut** on a header button: `Alt+Shift+←` / `Alt+Shift+→`.
+- **Keyboard shortcut** on a header button: `Ctrl+Shift+←` / `Ctrl+Shift+→`
+  (deliberately not `Ctrl+Alt+arrows`, which screen readers use for table
+  navigation and the Windows Magnifier for panning, and not `Alt+Shift`, which
+  switches the keyboard layout on Windows).
 - **Column chooser** (`features.columnVisibility`): “Move up” / “Move down”
   per column; the list shows all columns in display order (top = left).
 
@@ -774,7 +777,7 @@ or touch also works with the keyboard alone.
 | Table cell | `Enter` | Activate the cell's link or action, otherwise `onCellClick` / `onRowClick`; in the compact view: open the row's details |
 | Card view | `←` `→` `↑` `↓`, `Home` / `End`, `Enter` | Move between cards, `Enter` triggers `onRowClick` |
 | Cell, card, header button | `Shift+F10` or context-menu key | Open the actions menu (same as right-click / long-press) |
-| Header button | `Alt+Shift+←` / `Alt+Shift+→` | Move the column (with `features.columnReorder`); focus stays on the button |
+| Header button | `Ctrl+Shift+←` / `Ctrl+Shift+→` | Move the column (with `features.columnReorder`); focus stays on the button |
 | Actions menu | `↑` `↓`, `Home` / `End`, `Enter` / `Space`, `Esc` / `Tab` | Navigate, activate, close (focus returns to where the menu was opened) |
 | Sort header | `Enter` / `Space` (`Shift+Enter` adds a sort key) | Sort |
 | Panels (filter, columns, templates, details) | `Tab` / `Shift+Tab`, `Esc` | Focus stays inside the panel; `Esc` closes and returns focus to the button that opened it |
@@ -807,7 +810,7 @@ table.
   `aria-haspopup="dialog"` / `aria-expanded`. The keyboard hint mentions that
   `Enter` opens the details.
 - Column order: every drag-and-drop move also works without dragging (context
-  menu, `Alt+Shift+←/→`, column chooser buttons named “Move up: <column>” /
+  menu, `Ctrl+Shift+←/→`, column chooser buttons named “Move up: <column>” /
   “Move down: <column>”). Moves are announced with the new position (“Column
   “Name” moved to position 3 of 8”, or pinned/unpinned when crossing the
   pinned block); the table and the focused control are kept in place.
