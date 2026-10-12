@@ -726,6 +726,10 @@ All events are `composed` and `bubbles`.
 }
 ```
 
+Entries that refer to columns which do not exist (in `sort`, `filters`,
+`hiddenColumns`, `pinnedColumns`, `columnOrder`) are ignored, e.g. a state
+stored before the column configuration changed.
+
 ---
 
 ## Theming & styling

@@ -221,7 +221,7 @@ class JwDataTable extends HTMLElement {
             this._templateStore = new TemplateStore(storage.adapter || new LocalStorageAdapter(namespace));
         }
 
-        const initial = config.initial || {};
+        const initial = this._knownColumnsOnly(config.initial || {});
         this._state = {
             sort: initial.sort ? initial.sort.slice() : [],
             filters: this._deserializeFilters(initial.filters || {}),
@@ -358,6 +358,7 @@ class JwDataTable extends HTMLElement {
     }
 
     setState(partial = {}) {
+        partial = this._knownColumnsOnly(partial);
         if (partial.sort) this._state.sort = partial.sort.slice();
         if (partial.filters) this._state.filters = this._deserializeFilters(partial.filters);
         if (partial.globalSearch != null) this._state.globalSearch = partial.globalSearch;
@@ -501,6 +502,19 @@ class JwDataTable extends HTMLElement {
         const keys = this._columns.map((c) => c.key);
         const known = (Array.isArray(order) ? order : []).filter((key, i, all) => keys.includes(key) && all.indexOf(key) === i);
         return [...known, ...keys.filter((key) => !known.includes(key))];
+    }
+
+    // Drops references to columns that do not exist (e.g. in a view saved
+    // before the column configuration changed).
+    _knownColumnsOnly(state) {
+        const known = new Set(this._columns.map((c) => c.key));
+        const result = { ...state };
+        if (Array.isArray(state.sort)) result.sort = state.sort.filter((s) => known.has(s?.key));
+        if (state.filters) result.filters = Object.fromEntries(Object.entries(state.filters).filter(([key]) => known.has(key)));
+        for (const list of ["hiddenColumns", "pinnedColumns"]) {
+            if (Array.isArray(state[list])) result[list] = state[list].filter((key) => known.has(key));
+        }
+        return result;
     }
 
     _orderChanged() {

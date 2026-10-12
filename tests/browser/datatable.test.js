@@ -150,6 +150,23 @@ test("templates save the view without the current page", async () => {
     assert.deepEqual(await table.listTemplates(), ["Desc"]);
 });
 
+test("state referring to unknown columns is dropped", () => {
+    const table = mount({
+        features: { sorting: true, filtering: true },
+        initial: { hiddenColumns: ["gone", "fee"] }
+    });
+    assert.deepEqual(table.getState().hiddenColumns, ["fee"], "initial");
+    table.setState({
+        sort: [{ key: "gone", direction: "asc" }, { key: "name", direction: "desc" }],
+        filters: { gone: { kind: "value", values: ["x"] } },
+        pinnedColumns: ["gone"]
+    });
+    const state = table.getState();
+    assert.deepEqual(state.sort, [{ key: "name", direction: "desc" }]);
+    assert.deepEqual(state.filters, {});
+    assert.deepEqual(state.pinnedColumns, []);
+});
+
 // ---- Search ---------------------------------------------------------------
 
 test("global search filters rows (debounced)", async () => {
