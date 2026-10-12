@@ -170,6 +170,7 @@ table.configure({ /* … */ });
 | `grid` | `object` | — | `{ minWidth, titleColumn }` |
 | `responsive` | `object` | *(on)* | `{ enabled, breakpoint, autoGridView, mobileView }` — see [Responsive & touch](#responsive--touch) |
 | `maxHeight` | `string` | — | e.g. `"60vh"`; scroll body, sticky header |
+| `columnMinWidth` | `string` | — | Minimum width of text columns, e.g. `"10rem"` (see [Column widths](#column-widths)) |
 | `cellOverflow` | `"wrap" \| "ellipsis"` | `"wrap"` | Long cell text wraps, or stays on one line with “…” (see [Long cell content](#long-cell-content)) |
 | `storage` | `object` | — | Templates: `{ adapter, namespace, key }` |
 | `searchPlaceholder` | `string` | *(from locale)* | Search input placeholder override |
@@ -199,7 +200,8 @@ Each column:
 | `exportFormatter` | `(value, ctx) => string` | Custom CSV value |
 | `options` | `{ value, label }[]` | Labels for `enum` / `select` |
 | `align` | `"left" \| "right" \| "center"` | Alignment (type-dependent default) |
-| `width` | `string` | Fixed width, e.g. `"80px"` |
+| `width` | `string` | Fixed width, e.g. `"80px"`; the column is never squeezed below it |
+| `minWidth` | `string` | Minimum width, e.g. `"14rem"`; overrides `columnMinWidth` (see [Column widths](#column-widths)) |
 | `overflow` | `"wrap" \| "ellipsis"` | Overrides `cellOverflow` for this column |
 | `maxWidth` | `string` | Content width limit for `"ellipsis"` cells (default `16rem`), e.g. `"200px"` |
 | `hidden` | `boolean` | Initially hidden |
@@ -216,11 +218,41 @@ Each column:
 
 Column flags apply only when the matching global feature is enabled.
 
+### Column widths
+
+Columns size to their content. When the table is wider than its space, the
+browser first squeezes every column down to its longest word (headers never
+wrap) and only then scrolls horizontally, so with many columns text ends up
+wrapped almost word by word. Set a floor to keep columns readable; the table
+scrolls instead:
+
+```js
+createDataTable("#c", {
+    columnMinWidth: "10rem",                    // all text columns
+    columns: [
+        { key: "id",    type: "integer" },      // numbers: natural width
+        { key: "email", minWidth: "16rem" },    // wider than the default
+        { key: "code",  width: "6rem" }         // fixed width
+    ]
+});
+```
+
+- **`columnMinWidth`** applies to text columns only (`string`, `text`, `enum`,
+  `select` and other non-number/date/boolean types).
+- **Numbers, dates and booleans** never wrap and keep their natural width.
+- **`minWidth`** per column wins over `columnMinWidth`; **`width`** also acts
+  as the floor, so a column with a fixed width is not squeezed.
+- Widths include the cell padding. A column is never narrower than its header
+  (label plus sort/filter/pin buttons), even with a smaller `width`.
+- With `"ellipsis"` cells the content is still cut at `maxWidth` (default
+  `16rem`); a larger `minWidth` only adds empty space, so keep it below.
+
 ### Long cell content
 
 By default long values wrap at spaces; a single word is only broken when it
-does not fit at all (`overflow-wrap: break-word`), so columns keep their
-natural width and a wide table scrolls horizontally. With `cellOverflow: "ellipsis"`
+does not fit at all (`overflow-wrap: break-word`); numbers, dates and booleans
+stay on one line. A floor against squeezed columns is described in
+[Column widths](#column-widths). With `cellOverflow: "ellipsis"`
 (or `overflow: "ellipsis"` per column) cells stay on one line, are capped at
 `maxWidth` (default `16rem`, CSS variable `--k-dt-cell-max-width`) and end in
 “…” when cut off:

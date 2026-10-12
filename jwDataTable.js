@@ -395,6 +395,10 @@ class JwDataTable extends HTMLElement {
                 copyable: this._features?.copyButtons !== false && !!col.copyable,
                 hidden: !!col.hidden,
                 pinned: !!col.pinned,
+                // Floor for the column width: explicit `minWidth`, else a fixed
+                // `width`, else the global default (text columns only; numbers,
+                // dates and booleans stay on one line at their natural width).
+                minWidth: col.minWidth || col.width || (group === "text" ? this._config.columnMinWidth : undefined) || null,
                 link,
                 optionsMap
             };
@@ -844,11 +848,12 @@ class JwDataTable extends HTMLElement {
 
     _renderHeaderCell(column) {
         const th = el("th", {
-            class: "k-dt-th k-dt-align-" + column.align,
+            class: "k-dt-th k-dt-align-" + column.align + (column.minWidth ? " k-dt-has-min" : ""),
             scope: "col",
             "data-key": column.key,
             "aria-sort": this._ariaSort(column),
-            style: column.width ? `width:${column.width};` : null
+            style: (column.width ? `width:${column.width};` : "")
+                + (column.minWidth ? `--k-dt-col-min:${column.minWidth};` : "") || null
         });
 
         const inner = el("div", { class: "k-dt-th-inner" });
@@ -958,6 +963,7 @@ class JwDataTable extends HTMLElement {
         const value = getCellValue(row, column);
         const fk = `cell:${index}:${column.key}`;
         const td = el("td", { class: "k-dt-td k-dt-align-" + column.align, tabIndex: -1, "data-fk": fk });
+        if (typeGroup(column.type) !== "text") td.classList.add("k-dt-nowrap");
         if (typeof column.cellClass === "function") {
             const cls = column.cellClass(value, row);
             if (cls) td.classList.add(...String(cls).split(/\s+/));

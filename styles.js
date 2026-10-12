@@ -179,7 +179,8 @@ export const datatableStyles = `
 }
 .k-dt-th, .k-dt-td {
     text-align: left;
-    padding: var(--k-space-xs, 6px) var(--k-space-s, 8px);
+    --k-dt-cell-px: var(--k-space-s, 8px);
+    padding: var(--k-space-xs, 6px) var(--k-dt-cell-px);
     border-bottom: 1px solid var(--k-dt-border);
     vertical-align: top;
 }
@@ -199,6 +200,12 @@ export const datatableStyles = `
 .k-dt-th.is-drop-before { box-shadow: inset 3px 0 0 var(--k-dt-accent); }
 .k-dt-th.is-drop-after { box-shadow: inset -3px 0 0 var(--k-dt-accent); }
 .k-dt-th-inner { display: flex; align-items: center; gap: var(--k-space-2xs, 4px); justify-content: inherit; }
+/* Column floor (minWidth / width / columnMinWidth). Set on the header content
+   rather than on the cell, because min-width on table cells is not reliable
+   across browsers; the value includes the cell padding, like width. */
+.k-dt-has-min .k-dt-th-inner {
+    min-width: calc(var(--k-dt-col-min) - 2 * var(--k-dt-cell-px));
+}
 .k-dt-align-right .k-dt-th-inner { flex-direction: row-reverse; }
 .k-dt-th-label {
     display: inline-flex;
@@ -264,6 +271,8 @@ span.k-dt-th-label { cursor: default; }
 .k-dt-cell { display: flex; align-items: center; gap: var(--k-space-xs, 6px); justify-content: inherit; }
 .k-dt-align-right .k-dt-cell { flex-direction: row-reverse; }
 .k-dt-value { overflow-wrap: break-word; }
+/* Numbers, dates and booleans never wrap. */
+.k-dt-nowrap .k-dt-value { white-space: nowrap; }
 /* Opt-in single-line cells (cellOverflow / column.overflow = "ellipsis").
    The focused cell shows its full content. */
 .k-dt-truncate .k-dt-cell { max-width: var(--k-dt-cell-max-width, 16rem); }
@@ -677,7 +686,7 @@ span.k-dt-th-label { cursor: default; }
     .k-dt-ic svg, .k-dt-search-ic svg { width: 1.1em; height: 1.1em; }
 
     .k-dt-table { font-size: 0.92rem; }
-    .k-dt-th, .k-dt-td { padding: var(--k-space-s, 8px) var(--k-space-l, 12px); }
+    .k-dt-th, .k-dt-td { --k-dt-cell-px: var(--k-space-l, 12px); padding: var(--k-space-s, 8px) var(--k-dt-cell-px); }
     .k-dt-filter-btn, .k-dt-pin-btn { padding: 2px; }
     .k-dt-pin-toggle { min-width: 32px; min-height: 32px; }
     .k-dt-details-btn { width: 32px; height: 32px; }

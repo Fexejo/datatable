@@ -880,6 +880,47 @@ test("cell overflow defaults to wrapping; columns can override the table setting
     assert.ok($(table, '[data-fk="cell:0:fee"]').classList.contains("k-dt-truncate"));
 });
 
+// ---- Column widths ------------------------------------------------------------
+
+// 40 text columns in a narrow table: without a floor the browser squeezes each
+// one down to its longest word.
+const WIDE_KEYS = Array.from({ length: 40 }, (_, i) => `c${i}`);
+const WIDE_DATA = [{ id: 1, ...Object.fromEntries(WIDE_KEYS.map((k) => [k, "some words that wrap a lot"])) }];
+const wideColumns = (extra = {}) => [
+    { key: "id", label: "ID", type: "integer" },
+    ...WIDE_KEYS.map((key) => ({ key, label: key.toUpperCase(), ...(extra[key] || {}) }))
+];
+const thWidth = (table, key) => $(table, `thead th[data-key="${key}"]`).getBoundingClientRect().width;
+
+test("columnMinWidth keeps text columns readable; numbers keep their natural width", async () => {
+    const table = mount({ data: WIDE_DATA, columns: wideColumns(), columnMinWidth: "10rem" });
+    table.style.width = "600px";
+    await nextFrame();
+    for (const key of WIDE_KEYS) assert.ok(thWidth(table, key) >= 159.5, `${key} is at least 10rem`);
+    assert.ok(thWidth(table, "id") < 100, "the number column gets no floor");
+    const body = $(table, ".k-dt-body");
+    assert.ok(body.scrollWidth > body.clientWidth, "the table scrolls instead");
+});
+
+test("column minWidth and width are floors that win over columnMinWidth", async () => {
+    const table = mount({
+        data: WIDE_DATA,
+        columns: wideColumns({ c0: { minWidth: "300px" }, c1: { width: "250px" } }),
+        columnMinWidth: "10rem"
+    });
+    table.style.width = "600px";
+    await nextFrame();
+    assert.ok(thWidth(table, "c0") >= 299.5, "minWidth");
+    assert.ok(Math.abs(thWidth(table, "c1") - 250) < 1, `width is not squeezed (${thWidth(table, "c1")})`);
+});
+
+test("numbers, dates and booleans never wrap; text does", () => {
+    const table = mount();
+    const whiteSpace = (key) => getComputedStyle($(table, `[data-fk="cell:0:${key}"] .k-dt-value`)).whiteSpace;
+    for (const key of ["id", "fee", "active", "joined"]) assert.equal(whiteSpace(key), "nowrap", key);
+    assert.equal(whiteSpace("name"), "normal");
+});
+
 // ---- Cards --------------------------------------------------------------------
 
 test("cards list their fields as label/value pairs (dl/dt/dd)", () => {
