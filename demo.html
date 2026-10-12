@@ -140,7 +140,7 @@
         <button class="ctrl" id="theme">Toggle theme</button>
         <button class="ctrl" id="reload">Reload data</button>
         <button class="ctrl" id="add">Add row</button>
-        <button class="ctrl" id="export">Export CSV</button>
+        <button class="ctrl" id="export">Export dialog</button>
         <button class="ctrl" id="state">Print state</button>
 
         <div class="ctrl-locale">
@@ -255,7 +255,7 @@
             ["filtering",        "Filtering",          false],
             ["globalSearch",     "Global search",      false],
             ["contextMenu",      "Context menu",       false],
-            ["csvExport",        "CSV export",         false],
+            ["export",           "Export",             false],
             ["grid",             "Grid / card view",   false],
             ["compactView",      "Compact view",       false],
             ["columnVisibility", "Column visibility",  false],
@@ -356,7 +356,7 @@
             });
             table.setData(data);
         };
-        document.getElementById("export").onclick = () => table.exportCSV("members");
+        document.getElementById("export").onclick = () => table.openExportDialog();
         document.getElementById("state").onclick  = () => log(JSON.stringify(table.getState(), null, 2));
     </script>
 </body>

@@ -27,7 +27,7 @@ const COLUMNS = [
 ];
 const ALL_FEATURES = {
     sorting: true, filtering: true, globalSearch: true, grid: true,
-    columnVisibility: true, columnReorder: true, templates: true, csvExport: true
+    columnVisibility: true, columnReorder: true, templates: true, export: true
 };
 
 function mount(config = {}) {
@@ -1248,8 +1248,189 @@ test("columnOrder in setState is normalized", () => {
     assert.deepEqual(headerKeys(table), ["fee", "id", "name", "active", "joined"]);
 });
 
+// ---- Export -----------------------------------------------------------------
+
+// Captures export events; `cancel` keeps the browser from downloading.
+function captureExports(table, { cancel = true } = {}) {
+    const events = [];
+    table.addEventListener("jw-datatable:export", (e) => {
+        events.push(e.detail);
+        if (cancel) e.preventDefault();
+    });
+    return events;
+}
+const exportDialog = (table) => $(table, ".k-dt-export[role='dialog']");
+const exportControl = (table, text) => $$(table, ".k-dt-export label").find((l) => l.textContent.trim().startsWith(text))?.querySelector("input");
+const submitExport = (table) => $(table, ".k-dt-export button[type='submit']").click();
+
+test("export: toolbar button opens a labelled dialog with format and file name", async () => {
+    const table = mount({ title: "Members", features: { export: true } });
+    const button = $(table, '[data-fk="tb:export"]');
+    assert.equal(accessibleName(button), "Export");
+    assert.equal(button.getAttribute("aria-haspopup"), "dialog");
+    button.focus();
+    button.click();
+
+    const dialog = exportDialog(table);
+    assert.ok(dialog, "dialog open");
+    assert.equal(dialog.getAttribute("aria-modal"), "true");
+    assert.equal(accessibleName(dialog), "Export");
+    assert.equal(button.getAttribute("aria-expanded"), "true");
+    assert.equal(deepActiveElement(), exportControl(table, "CSV"), "focus on the selected format");
+    assert.ok(exportControl(table, "CSV").checked, "CSV is the default format");
+    assert.equal(accessibleName(dialog.querySelector("fieldset legend")), "Format");
+    const filename = dialog.querySelector('input[type="text"]');
+    assert.equal(dialog.querySelector(`label[for="${filename.id}"]`)?.textContent, "File name");
+    assert.match(filename.value, /^Members_\d{4}-\d\d-\d\d_\d\d-\d\d-\d\d\.csv$/);
+
+    // Everything else waits behind "More options".
+    const toggle = $(table, ".k-dt-disclosure");
+    const more = $(table, ".k-dt-export-more");
+    assert.equal(accessibleName(toggle), "More options");
+    assert.equal(toggle.getAttribute("aria-expanded"), "false");
+    assert.equal(toggle.getAttribute("aria-controls"), more.id);
+    assert.ok(more.hidden, "options collapsed");
+    toggle.click();
+    assert.equal(toggle.getAttribute("aria-expanded"), "true");
+    assert.ok(!more.hidden, "options expanded");
+
+    // Defaults
+    assert.ok(exportControl(table, "Current filter").checked, "scope: current filter");
+    assert.equal(exportControl(table, "Include hidden columns"), undefined, "no hidden columns, no option");
+    assert.ok(!exportControl(table, "Values as displayed").checked, "raw values");
+    assert.ok(exportControl(table, "Header row").checked, "header row");
+    assert.ok(exportControl(table, "Label").checked, "labels as column names");
+    assert.equal(more.querySelector("select").value, ";", "delimiter");
+    assert.equal(dialog.querySelector(`label[for="${more.querySelector("select").id}"]`)?.textContent, "Delimiter");
+
+    $$(table, ".k-dt-export button").find((b) => b.textContent === "Cancel").click();
+    assert.equal(exportDialog(table), null, "closed");
+    assert.equal(deepActiveElement(), button, "focus back on the button");
+    assert.equal(button.getAttribute("aria-expanded"), "false");
+});
+
+test("export: default CSV has raw values of the filtered rows, then an announcement", async () => {
+    const table = mount({ features: { export: true, globalSearch: true }, initial: { globalSearch: "Anna" } });
+    const events = captureExports(table, { cancel: false });
+    $(table, '[data-fk="tb:export"]').click();
+    submitExport(table);
+    assert.equal(exportDialog(table), null, "dialog closed");
+    assert.equal(events.length, 1);
+    const [detail] = events;
+    assert.equal(detail.format, "csv");
+    assert.equal(detail.rowCount, 5);
+    assert.match(detail.filename, /^export_.*\.csv$/);
+    const lines = detail.content.split("\r\n");
+    assert.equal(lines[0], "ID;Name;Fee;Active;Joined");
+    assert.equal(lines[1], "1;Anna;0;false;2020-01-15");
+    assert.equal(lines.length, 6);
+    await announced(table, `5 rows exported to “${detail.filename}”`);
+});
+
+test("export: options for scope, columns, formatting, header and delimiter", () => {
+    const table = mount({ locale: "de-DE", features: { export: true }, initial: { hiddenColumns: ["fee"] } });
+    const events = captureExports(table);
+    const run = (setup) => {
+        $(table, '[data-fk="tb:export"]').click();
+        $(table, ".k-dt-disclosure").click();
+        setup();
+        submitExport(table);
+        return events.at(-1);
+    };
+    let detail = run(() => exportControl(table, "Aktuelle Seite").click());
+    assert.equal(detail.rowCount, 10, "current page");
+    assert.deepEqual(detail.columns, ["id", "name", "active", "joined"], "visible columns only");
+
+    detail = run(() => {
+        exportControl(table, "Gesamte Tabelle").click();
+        exportControl(table, "Ausgeblendete Spalten einbeziehen").click();
+        exportControl(table, "Werte wie angezeigt").click();
+        exportControl(table, "Kopfzeile").click();
+        const select = $(table, ".k-dt-export select");
+        select.value = ",";
+    });
+    assert.equal(detail.rowCount, 30, "entire table");
+    assert.deepEqual(detail.columns, ["id", "name", "fee", "active", "joined"], "hidden columns included in display order");
+    assert.equal(detail.content.split("\r\n")[0].replace(/\u00a0/g, " "), '1,Anna,"0,00 €",Nein,15.01.2020', "formatted, no header, comma");
+});
+
+test("export: JSON format swaps the extension and hides CSV-only options", () => {
+    const table = mount({ features: { export: true } });
+    const events = captureExports(table);
+    $(table, '[data-fk="tb:export"]').click();
+    $(table, ".k-dt-disclosure").click();
+    const filename = $(table, '.k-dt-export input[type="text"]');
+    const json = exportControl(table, "JSON");
+    json.click();
+    assert.match(filename.value, /\.json$/, "extension follows the format");
+    assert.ok(exportControl(table, "Header row").closest("label").hidden, "no header option");
+    assert.ok($(table, ".k-dt-export select").closest(".k-dt-field").hidden, "no delimiter");
+    exportControl(table, "Key").click();
+    filename.value = "members";
+    submitExport(table);
+    const detail = events.at(-1);
+    assert.equal(detail.filename, "members.json");
+    assert.deepEqual(JSON.parse(detail.content)[0], { id: 1, name: "Anna", fee: 0, active: false, joined: "2020-01-15" });
+});
+
+test("export: header row off hides the column-name option for CSV", () => {
+    const table = mount({ features: { export: true } });
+    $(table, '[data-fk="tb:export"]').click();
+    const names = exportControl(table, "Label").closest("fieldset");
+    assert.ok(!names.hidden);
+    exportControl(table, "Header row").click();
+    assert.ok(names.hidden);
+});
+
+test("export: context menu opens the dialog, Escape returns focus to the cell", async () => {
+    const table = mount({ features: { export: true } });
+    const cell = $(table, '[data-fk="cell:1:name"]');
+    cell.focus();
+    rightClick(cell);
+    menuItem(table, "Export…").click();
+    assert.ok(exportDialog(table), "dialog open");
+    await sleep(10);
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    assert.equal(exportDialog(table), null);
+    assert.equal(deepActiveElement()?.dataset.fk, "cell:1:name", "focus back on the cell");
+});
+
+test("export: keyboard — Enter opens, Enter on the format submits, focus returns", async () => {
+    const table = mount({ features: { export: true } });
+    const events = captureExports(table);
+    $(table, '[data-fk="tb:export"]').focus();
+    await input.press("Enter");
+    assert.ok(exportDialog(table), "dialog open");
+    await input.press("ArrowDown");   // JSON
+    assert.ok(exportControl(table, "JSON").checked);
+    await input.press("Enter");
+    assert.equal(exportDialog(table), null, "submitted");
+    assert.equal(events.at(-1)?.format, "json");
+    assert.equal(deepActiveElement()?.dataset.fk, "tb:export", "focus back on the button");
+
+    await input.press("Enter");
+    await input.press("Tab");         // file name
+    assert.equal(deepActiveElement()?.type, "text");
+    await input.press("Enter");
+    assert.equal(events.at(-1)?.format, "csv");
+}, { cdp: true });
+
+test("export: exportData() API, cancelable event, legacy csvExport flag", () => {
+    const table = mount({ title: "T", exportFilename: "list", features: { csvExport: true }, exportDefaults: { names: "key" } });
+    assert.ok($(table, '[data-fk="tb:export"]'), "csvExport still enables export");
+    const events = captureExports(table);
+    const result = table.exportData({ scope: "page", headers: true });
+    assert.equal(result, null, "cancelled by the listener");
+    assert.equal(events[0].rowCount, 10);
+    assert.match(events[0].filename, /^list_.*\.csv$/, "exportFilename is the base name");
+    assert.equal(events[0].content.split("\r\n")[0], "id;name;fee;active;joined", "exportDefaults apply");
+    table.exportCSV("x");
+    assert.equal(events[1].filename, "x.csv");
+});
+
 test("copy column does not need the export feature", () => {
     const table = mount();
     rightClick($$(table, "tbody td")[1]);
     assert.ok(menuItem(table, "Copy column"), "Copy column offered");
+    assert.equal(menuItem(table, "Export…"), undefined, "no export without the feature");
 });

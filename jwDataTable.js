@@ -1,7 +1,7 @@
 // <jw-datatable> — configurable, reusable data table (Vanilla JS).
 //
 // Features: pagination, sorting (including multi-column), value and pattern filters,
-// quick filters and actions via context menu, CSV export, grid/card view,
+// quick filters and actions via context menu, CSV/JSON export, grid/card view,
 // links (href / SPA routing / custom handlers), per-column copy buttons,
 // runtime data updates, and localStorage view templates.
 //
@@ -25,7 +25,15 @@ import {
     operatorMeta,
     isActiveFilter
 } from "./filtering.js";
-import { buildCSV, downloadCSV } from "./csv.js";
+import {
+    EXPORT_DEFAULTS,
+    EXPORT_FORMATS,
+    buildExport,
+    exportColumns,
+    defaultFilename,
+    withExtension,
+    downloadFile
+} from "./export.js";
 import { openContextMenu, closeContextMenu, deepActiveElement } from "./contextMenu.js";
 import { TemplateStore, LocalStorageAdapter } from "./templateStore.js";
 import { datatableStyles } from "./styles.js";
@@ -90,7 +98,7 @@ const DEFAULT_FEATURES = {
     filtering: false,
     globalSearch: false,
     contextMenu: true,
-    csvExport: false,
+    export: false,
     grid: false,
     compactView: false,
     columnVisibility: false,
@@ -169,6 +177,9 @@ class JwDataTable extends HTMLElement {
         this._config.emptyText ??= this._t.emptyData;
         this._config.noResultsText ??= this._t.noResults;
         this._features = { ...DEFAULT_FEATURES, ...(config.features || {}) };
+        // `csvExport` is the former name of `export`.
+        if (config.features?.export === undefined && config.features?.csvExport) this._features.export = true;
+        delete this._features.csvExport;
         this._columns = this._normalizeColumns(config.columns || []);
         this._sourceData = Array.isArray(config.data) ? config.data.slice() : [];
 
@@ -343,12 +354,38 @@ class JwDataTable extends HTMLElement {
         this._emitChange();
     }
 
+    // Builds the file and downloads it. `options` override the export defaults
+    // (see `_exportDefaults()`). Returns the event detail, or null when a
+    // `jw-datatable:export` listener cancelled the download.
+    exportData(options = {}) {
+        const opts = { ...this._exportDefaults(), ...options };
+        if (!EXPORT_FORMATS[opts.format]) opts.format = EXPORT_DEFAULTS.format;
+        const rows = this._exportRows(opts.scope);
+        const columns = exportColumns(opts.allColumns ? this._orderedColumns() : this._visibleColumns());
+        const content = buildExport(rows, columns, { ...opts, locale: this._config.locale });
+        const filename = opts.filename
+            ? withExtension(opts.filename, opts.format)
+            : defaultFilename(this._exportBaseName(), opts.format);
+        const detail = {
+            format: opts.format,
+            filename,
+            content,
+            rowCount: rows.length,
+            columns: columns.map((c) => c.key),
+            options: { ...opts, filename }
+        };
+        if (!this._emit("export", detail, { cancelable: true })) return null;
+        downloadFile(content, filename, opts.format);
+        this._announce(this._t.exported(this._t.resultsCount(rows.length), filename));
+        return detail;
+    }
+
     exportCSV(filename) {
-        const csv = buildCSV(this._viewData, this._visibleColumns(), {
-            locale: this._config.locale,
-            delimiter: this._config.csvDelimiter || ";"
-        });
-        downloadCSV(csv, filename || (this._config.exportFilename || "export") + ".csv");
+        return this.exportData({ format: "csv", filename });
+    }
+
+    openExportDialog() {
+        this._openExportDialog(this.shadow.querySelector('[data-fk="tb:export"]'));
     }
 
     listTemplates() {
@@ -690,14 +727,16 @@ class JwDataTable extends HTMLElement {
             }, [iconEl("save")]));
         }
 
-        if (this._features.csvExport) {
+        if (this._features.export) {
             right.appendChild(el("button", {
                 type: "button",
                 class: "k-dt-btn",
                 "data-fk": "tb:export",
-                title: this._t.exportCsv,
-                "aria-label": this._t.exportCsv,
-                onclick: () => this.exportCSV()
+                "aria-haspopup": "dialog",
+                "aria-expanded": String(this._overlayFk === "tb:export"),
+                title: this._t.exportData,
+                "aria-label": this._t.exportData,
+                onclick: (e) => this._openExportDialog(e.currentTarget)
             }, [iconEl("download")]));
         }
 
@@ -1517,9 +1556,9 @@ class JwDataTable extends HTMLElement {
             items.push({ label: this._t.hideColumn, icon: "eye-off", onSelect: () => this._toggleColumn(column.key, false) });
         }
 
-        if (this._features.csvExport) {
+        if (this._features.export) {
             items.push({ separator: true });
-            items.push({ label: this._t.exportCsv, icon: "download", onSelect: () => this.exportCSV() });
+            items.push({ label: this._t.exportMenu, icon: "download", onSelect: () => this._openExportDialog(null, returnKey) });
         }
 
         openContextMenu(this.shadow, {
@@ -2183,6 +2222,154 @@ class JwDataTable extends HTMLElement {
         this._showOverlay(panel, anchor);
     }
 
+    // ---- Export dialog -----------------------------------------------------
+
+    // Built-in defaults < `csvDelimiter` < `exportDefaults`.
+    _exportDefaults() {
+        return {
+            ...EXPORT_DEFAULTS,
+            ...(this._config.csvDelimiter ? { delimiter: this._config.csvDelimiter } : {}),
+            ...(this._config.exportDefaults || {})
+        };
+    }
+
+    // Rows in display order; "page" without pagination is the same as "filtered".
+    _exportRows(scope) {
+        if (scope === "page" && this._features.pagination) return this._pageData;
+        if (scope === "all") return sortData(this._sourceData, this._state.sort, this._columns, this._config.locale);
+        return this._viewData;
+    }
+
+    _exportBaseName() {
+        return this._config.exportFilename || this._config.title || "export";
+    }
+
+    // Format and file name are always shown; everything else waits behind
+    // "More options" so a quick export is just Enter.
+    _openExportDialog(anchor, returnKey = this._focusKey()) {
+        const t = this._t;
+        const defaults = this._exportDefaults();
+        const id = uid("kdt-exp");
+        const inputOf = (label) => label.querySelector("input");
+        const field = (text, control) => el("div", { class: "k-dt-field" }, [
+            el("label", { class: "k-dt-field-label", for: control.id, text }),
+            control
+        ]);
+        const checkbox = (text, checked) => el("label", { class: "k-dt-check" }, [
+            el("input", { type: "checkbox", checked }),
+            el("span", { class: "k-dt-check-label", text })
+        ]);
+        const radios = (name, legend, options, value) => el("fieldset", { class: "k-dt-fieldset" }, [
+            el("legend", { class: "k-dt-field-label", text: legend }),
+            ...options.map(([optionValue, text]) => el("label", { class: "k-dt-check" }, [
+                el("input", { type: "radio", name: `${id}-${name}`, value: optionValue, checked: optionValue === value }),
+                el("span", { class: "k-dt-check-label", text })
+            ]))
+        ]);
+        const radioValue = (group) => group.querySelector("input:checked")?.value;
+
+        let format = EXPORT_FORMATS[defaults.format] ? defaults.format : EXPORT_DEFAULTS.format;
+        const formatGroup = radios("format", t.exportFormat, [["csv", "CSV"], ["json", "JSON"]], format);
+        formatGroup.querySelector("input:checked").setAttribute("data-autofocus", "");
+        const filename = el("input", {
+            type: "text",
+            class: "k-dt-input",
+            id: `${id}-name`,
+            autocomplete: "off",
+            value: defaultFilename(this._exportBaseName(), format)
+        });
+
+        // ---- More options
+        const scopes = [
+            this._features.pagination && ["page", t.exportScopePage, this._pageData.length],
+            ["filtered", t.exportScopeFiltered, this._viewData.length],
+            ["all", t.exportScopeAll, this._sourceData.length]
+        ].filter(Boolean).map(([value, text, count]) => [value, t.exportScopeCount(text, t.resultsCount(count))]);
+        const scopeGroup = radios("scope", t.exportRows, scopes,
+            scopes.some(([value]) => value === defaults.scope) ? defaults.scope : "filtered");
+        // Only offered when some exportable column is hidden.
+        const hasHidden = exportColumns(this._orderedColumns()).length > exportColumns(this._visibleColumns()).length;
+        const allColumns = hasHidden ? checkbox(t.exportAllColumns, defaults.allColumns) : null;
+        const localized = checkbox(t.exportLocalized, defaults.localized);
+        const headers = checkbox(t.exportHeaders, defaults.headers);
+        const namesGroup = radios("names", t.exportNames,
+            [["label", t.exportNamesLabel], ["key", t.exportNamesKey]], defaults.names === "key" ? "key" : "label");
+        const delimiterNames = { ";": "semicolon", ",": "comma", "\t": "tab", "|": "pipe" };
+        const delimiterOptions = Object.entries(delimiterNames).map(([value, key]) => [value, t.delimiters[key]]);
+        if (!delimiterNames[defaults.delimiter]) delimiterOptions.push([defaults.delimiter, defaults.delimiter]);
+        const delimiter = el("select", { class: "k-dt-select", id: `${id}-delimiter` },
+            delimiterOptions.map(([value, text]) => el("option", { value, text, selected: value === defaults.delimiter })));
+        const delimiterField = field(t.exportDelimiter, delimiter);
+        const more = el("div", { class: "k-dt-export-more", id: `${id}-more`, hidden: true },
+            [scopeGroup, allColumns, localized, headers, namesGroup, delimiterField]);
+
+        // Header row and delimiter only exist in CSV; names need a header row there.
+        const sync = () => {
+            const csv = format === "csv";
+            headers.hidden = !csv;
+            delimiterField.hidden = !csv;
+            namesGroup.hidden = csv && !inputOf(headers).checked;
+        };
+        headers.addEventListener("change", sync);
+        // A new format swaps the extension, unless the user typed another one.
+        formatGroup.addEventListener("change", () => {
+            const next = radioValue(formatGroup);
+            const oldExt = "." + EXPORT_FORMATS[format].extension;
+            if (filename.value.toLowerCase().endsWith(oldExt)) {
+                filename.value = filename.value.slice(0, -oldExt.length) + "." + EXPORT_FORMATS[next].extension;
+            }
+            format = next;
+            sync();
+        });
+        sync();
+
+        const toggle = el("button", {
+            type: "button",
+            class: "k-dt-btn k-dt-disclosure",
+            "aria-expanded": "false",
+            "aria-controls": more.id,
+            onclick: () => {
+                more.hidden = !more.hidden;
+                toggle.setAttribute("aria-expanded", String(!more.hidden));
+            }
+        }, [iconEl("chevron-right"), el("span", { text: t.exportMoreOptions })]);
+
+        // Enter in the file name or on an option submits the form.
+        const form = el("form", {
+            class: "k-dt-export-form",
+            onsubmit: (event) => {
+                event.preventDefault();
+                const options = {
+                    format,
+                    filename: filename.value,
+                    scope: radioValue(scopeGroup),
+                    allColumns: allColumns ? inputOf(allColumns).checked : false,
+                    localized: inputOf(localized).checked,
+                    headers: inputOf(headers).checked,
+                    names: radioValue(namesGroup),
+                    delimiter: delimiter.value
+                };
+                this._closeOverlay();
+                this.exportData(options);
+            }
+        }, [
+            formatGroup,
+            field(t.exportFilename, filename),
+            toggle,
+            more,
+            el("div", { class: "k-dt-panel-actions" }, [
+                el("button", { type: "button", class: "k-dt-btn", text: t.cancel, onclick: () => this._closeOverlay() }),
+                el("button", { type: "submit", class: "k-dt-btn k-dt-btn-primary", text: t.exportSubmit })
+            ])
+        ]);
+
+        const panel = el("div", { class: "k-dt-panel k-dt-export" }, [
+            el("h2", { class: "k-dt-panel-head", text: t.exportTitle }),
+            form
+        ]);
+        this._showOverlay(panel, anchor, returnKey, { centered: true });
+    }
+
     // ---- Overlay (Panels) ------------------------------------------------
 
     // Panels are modal dialogs: focus moves in (to `[data-autofocus]` or the
@@ -2419,8 +2606,9 @@ class JwDataTable extends HTMLElement {
         return count;
     }
 
-    _emit(name, detail) {
-        this.dispatchEvent(new CustomEvent("jw-datatable:" + name, { detail, bubbles: true, composed: true }));
+    // Returns false when a listener cancelled a `cancelable` event.
+    _emit(name, detail, { cancelable = false } = {}) {
+        return this.dispatchEvent(new CustomEvent("jw-datatable:" + name, { detail, bubbles: true, composed: true, cancelable }));
     }
 
     _emitChange() {

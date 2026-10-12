@@ -24,7 +24,7 @@ export const LOCALES = {
         viewSwitch: "View",
         showHideColumns: "Show or hide columns",
         viewTemplates: "View templates",
-        exportCsv: "Export as CSV",
+        exportData: "Export",
 
         // Column header
         sortHint: "Sort (Shift+click for multi-column)",
@@ -68,6 +68,7 @@ export const LOCALES = {
         moveToStart: "Move to start",
         moveToEnd: "Move to end",
         resetColumnOrder: "Reset column order",
+        exportMenu: "Export…",
 
         // Filter panel
         filterPanelTitle: (label) => `Filter: ${label}`,
@@ -101,6 +102,33 @@ export const LOCALES = {
         nextRecord: "Next record",
         openRecord: "Open",
         close: "Close",
+
+
+        // Export dialog
+        exportTitle: "Export",
+        exportFormat: "Format",
+        exportFilename: "File name",
+        exportMoreOptions: "More options",
+        exportRows: "Rows",
+        exportScopePage: "Current page",
+        exportScopeFiltered: "Current filter",
+        exportScopeAll: "Entire table",
+        exportScopeCount: (scope, count) => `${scope} (${count})`,
+        exportAllColumns: "Include hidden columns",
+        exportLocalized: "Values as displayed (formatted)",
+        exportHeaders: "Header row",
+        exportNames: "Column names",
+        exportNamesLabel: "Label",
+        exportNamesKey: "Key",
+        exportDelimiter: "Delimiter",
+        delimiters: {
+            semicolon: "Semicolon (;)",
+            comma: "Comma (,)",
+            tab: "Tab",
+            pipe: "Vertical bar (|)"
+        },
+        exportSubmit: "Export",
+        cancel: "Cancel",
 
         // Templates panel
         templatesPanel: "View templates",
@@ -140,6 +168,7 @@ export const LOCALES = {
         pinsPaused: (label, paused) => `Column “${label}” pinned. Not enough room for all pinned columns; scrolling with the table for now: ${paused}.`,
         templateSaved: (name) => `Template “${name}” saved`,
         templateLoaded: (name) => `Template “${name}” loaded`,
+        exported: (count, filename) => `${count} exported to “${filename}”`,
 
         // Boolean cell display (overridable per column via format.trueLabel / format.falseLabel)
         boolTrue: "Yes",
@@ -182,7 +211,7 @@ export const LOCALES = {
         viewSwitch: "Ansicht",
         showHideColumns: "Spalten ein-/ausblenden",
         viewTemplates: "Ansichts-Vorlagen",
-        exportCsv: "Als CSV exportieren",
+        exportData: "Exportieren",
 
         // Column header
         sortHint: "Sortieren (Umschalt+Klick für Mehrspaltigkeit)",
@@ -226,6 +255,7 @@ export const LOCALES = {
         moveToStart: "An den Anfang verschieben",
         moveToEnd: "Ans Ende verschieben",
         resetColumnOrder: "Spaltenreihenfolge zurücksetzen",
+        exportMenu: "Exportieren…",
 
         // Filter panel
         filterPanelTitle: (label) => `Filter: ${label}`,
@@ -259,6 +289,33 @@ export const LOCALES = {
         nextRecord: "Nächster Datensatz",
         openRecord: "Öffnen",
         close: "Schließen",
+
+
+        // Export dialog
+        exportTitle: "Exportieren",
+        exportFormat: "Format",
+        exportFilename: "Dateiname",
+        exportMoreOptions: "Weitere Optionen",
+        exportRows: "Zeilen",
+        exportScopePage: "Aktuelle Seite",
+        exportScopeFiltered: "Aktueller Filter",
+        exportScopeAll: "Gesamte Tabelle",
+        exportScopeCount: (scope, count) => `${scope} (${count})`,
+        exportAllColumns: "Ausgeblendete Spalten einbeziehen",
+        exportLocalized: "Werte wie angezeigt (formatiert)",
+        exportHeaders: "Kopfzeile",
+        exportNames: "Spaltennamen",
+        exportNamesLabel: "Bezeichnung",
+        exportNamesKey: "Schlüssel",
+        exportDelimiter: "Trennzeichen",
+        delimiters: {
+            semicolon: "Semikolon (;)",
+            comma: "Komma (,)",
+            tab: "Tabulator",
+            pipe: "Senkrechter Strich (|)"
+        },
+        exportSubmit: "Exportieren",
+        cancel: "Abbrechen",
 
         // Templates panel
         templatesPanel: "Ansichts-Vorlagen",
@@ -298,6 +355,7 @@ export const LOCALES = {
         pinsPaused: (label, paused) => `Spalte „${label}“ fixiert. Zu wenig Platz für alle fixierten Spalten; vorerst scrollen mit: ${paused}.`,
         templateSaved: (name) => `Vorlage „${name}“ gespeichert`,
         templateLoaded: (name) => `Vorlage „${name}“ geladen`,
+        exported: (count, filename) => `${count} als „${filename}“ exportiert`,
 
         // Boolean cell display
         boolTrue: "Ja",

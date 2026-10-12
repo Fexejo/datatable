@@ -525,7 +525,8 @@ span.k-dt-th-label { cursor: default; }
     max-height: 85vh;
 }
 .k-dt-details { padding-top: 0; padding-bottom: 0; gap: var(--k-space-s, 8px); }
-.k-dt-details.k-dt-overlay--dialog, .k-dt-details.k-dt-overlay--sheet {
+.k-dt-details.k-dt-overlay--dialog, .k-dt-details.k-dt-overlay--sheet,
+.k-dt-export.k-dt-overlay--dialog, .k-dt-export.k-dt-overlay--sheet {
     box-shadow: 0 0 0 100vmax rgba(0,0,0,0.4), 0 10px 30px rgba(0,0,0,0.25);
 }
 .k-dt-details-head, .k-dt-details-actions {
@@ -551,6 +552,29 @@ span.k-dt-th-label { cursor: default; }
 }
 .k-dt-details-open { margin-right: auto; }
 .k-dt-btn:disabled { opacity: 0.4; cursor: default; }
+
+/* Export dialog */
+.k-dt-export.k-dt-overlay--dialog { width: min(28rem, calc(100vw - 32px)); }
+.k-dt-export-form, .k-dt-export-more { display: flex; flex-direction: column; gap: var(--k-space-s, 8px); }
+.k-dt-export-more { border-top: 1px solid var(--k-dt-border); padding-top: var(--k-space-s, 8px); }
+.k-dt-export .k-dt-check { min-height: 44px; }
+/* Actions stay in view when the options make the dialog scroll. */
+.k-dt-export { padding-bottom: 0; }
+.k-dt-export .k-dt-panel-actions {
+    position: sticky;
+    bottom: 0;
+    background: var(--k-color-page, #fff);
+    border-top: 1px solid var(--k-dt-border);
+    padding: var(--k-space-s, 8px) 0 max(var(--k-space-l, 12px), env(safe-area-inset-bottom));
+}
+.k-dt-field { display: flex; flex-direction: column; gap: var(--k-space-2xs, 4px); }
+.k-dt-fieldset { border: none; margin: 0; padding: 0; min-width: 0; }
+.k-dt-fieldset legend { padding: 0; margin-bottom: var(--k-space-2xs, 4px); }
+.k-dt-disclosure { align-self: flex-start; border-color: transparent; padding-left: var(--k-space-2xs, 4px); }
+.k-dt-disclosure:hover { background: var(--k-dt-hover); }
+.k-dt-disclosure .k-dt-ic { transition: transform 0.15s; }
+.k-dt-disclosure[aria-expanded="true"] .k-dt-ic { transform: rotate(90deg); }
+@media (prefers-reduced-motion: reduce) { .k-dt-disclosure .k-dt-ic { transition: none; } }
 .k-dt-tabs { display: flex; gap: var(--k-space-2xs, 4px); }
 .k-dt-tab {
     flex: 1;
@@ -719,6 +743,7 @@ span.k-dt-th-label { cursor: default; }
     .k-dt-tab { min-height: 0; padding: var(--k-space-2xs, 4px) var(--k-space-s, 8px); }
     .k-dt-input, .k-dt-overlay .k-dt-select { padding: var(--k-space-s, 8px); }
     .k-dt-check { padding: var(--k-space-2xs, 4px); }
+    .k-dt-export .k-dt-check { min-height: 0; }
     .k-dt-tpl-load { padding: var(--k-space-xs, 6px) var(--k-space-s, 8px); }
 }
 `;
