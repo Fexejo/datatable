@@ -373,7 +373,7 @@ by default.
 | `globalSearch` | off | Full-text search box in the toolbar |
 | `grid` | off | Card/grid view in the view switch (also drives responsive auto-view) |
 | `compactView` | off | Compact view in the view switch: key columns + details dialog per row (includes `rowDetails` behavior) |
-| `columnVisibility` | off | Show/hide columns chooser |
+| `columnVisibility` | off | Column chooser: one switch per column to show/hide it |
 | `columnPinning` | off | Pin columns to the left edge (context menu, column chooser) |
 | `columnReorder` | off | Move columns: drag and drop on the header, context menu, `Ctrl+Shift+←/→`, column chooser |
 | `rowDetails` | off | “Show details” in the context menu of cells/cards: dialog with all fields of the record |
@@ -410,12 +410,13 @@ Per column (filter icon in header or context menu):
 
 - **Values** – checkbox list with counts, search field, “Select all”.
   Searching works like Excel's AutoFilter: the matching values start out
-  checked (“Select all search results”), and an option below the list decides
-  what “Apply” (or `Enter` in the search field or on an option) does:
-  - **Show only these values** (default) – the filter becomes exactly the
+  checked (“Select all search results”), and a segmented control below the
+  list (“Search results”) decides what “Apply” (or `Enter` in the search field
+  or on an option) does:
+  - **Only these values** (default) – the filter becomes exactly the
     checked matches; values hidden by the search are not included.
-  - **Add these values to the filter** – the checked matches are added to the
-    selection from before the search.
+  - **Add to filter** – the checked matches are added to the selection from
+    before the search.
 
   Clearing the search field restores the selection from before the search.
 - **Pattern** – operator + operand(s), by type family:
@@ -966,13 +967,16 @@ table.
 - Panels are modal dialogs (`role="dialog"`, `aria-modal`, named by their
   heading); opener buttons carry `aria-haspopup="dialog"` and `aria-expanded`.
   The filter panel uses the tabs pattern (`tablist` / `tab` / `tabpanel`).
+- Segmented controls (export dialog, search-result option in the value
+  filter) are native radio groups (`fieldset` / `legend`, one tab stop, arrow
+  keys) drawn as adjacent options; the selected one is filled. Switches
+  (export options, column visibility in the column chooser) are native
+  checkboxes with `role="switch"` (“switch, on/off”, `Space` toggles), named by
+  their row; the knob position shows the state. Both keep a visible focus,
+  ≥ 44px touch targets on mobile and work in forced-colors mode.
 - Export dialog: named “Export” by its `<h2>` heading. Format, destination,
-  rows and column names are segmented controls: native radio groups
-  (`fieldset` / `legend`, one tab stop, arrow keys) drawn as adjacent options;
-  the selected one is filled. On/off options are switches: native checkboxes
-  with `role="switch"` (“switch, on/off”, `Space` toggles), the knob position
-  shows the state; both keep a visible focus, ≥ 44px touch targets on mobile
-  and work in forced-colors mode. “More options” is a disclosure button
+  rows and column names are segmented controls, on/off options are switches.
+  “More options” is a disclosure button
   (`aria-expanded`, `aria-controls`); options that do not apply to the chosen
   format or destination are hidden, not just disabled. Choosing the clipboard
   while XLSX is selected switches to CSV.
