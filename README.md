@@ -21,7 +21,7 @@ written in Vanilla JS (ES modules, Shadow DOM). No external dependencies.
 - **Links** – href, SPA routing event, or custom handler (e.g. open a dialog)
 - **Copy button** – per column when `copyable` is set (shown on hover on desktop, always visible on touch)
 - **Runtime data** – replace data anytime via `setData()` / `.data`
-- **Templates** – save sort, filters, view, etc. to `localStorage` (pluggable adapter, e.g. backend later)
+- **Saved views** – save, load, rename and delete views (sort, filters, columns, layout, …); stored in `localStorage` or through your own adapter (e.g. a backend), with events for each action
 - **Theming** – CSS variables (`--k-*`), `part` selectors, custom CSS
 
 ---
@@ -39,10 +39,10 @@ written in Vanilla JS (ES modules, Shadow DOM). No external dependencies.
 9. [Filters](#filters)
 10. [Column pinning](#column-pinning)
 11. [Column order](#column-order)
-12. [Views: table, cards, compact](#views-table-cards-compact)
+12. [Layouts: table, cards, compact](#layouts-table-cards-compact)
 13. [Record details](#record-details)
 14. [Export](#export)
-15. [Templates & storage adapter](#templates--storage-adapter)
+15. [Saved views & storage adapter](#saved-views--storage-adapter)
 16. [Events](#events)
 17. [Instance API](#instance-api)
 18. [Theming & styling](#theming--styling)
@@ -68,7 +68,7 @@ written in Vanilla JS (ES modules, Shadow DOM). No external dependencies.
 | `filtering.js` | Value/pattern filters, operators, distinct values |
 | `export.js` | CSV / XLSX / JSON build, formula neutralizing, file name & download |
 | `xlsx.js` | XLSX writer (one worksheet, uncompressed ZIP) |
-| `templateStore.js` | Template storage + `LocalStorageAdapter` |
+| `viewStore.js` | Saved-view storage (`ViewStore`) + `LocalStorageAdapter` |
 | `contextMenu.js` | Reusable context menu |
 | `styles.js` | Shadow DOM styles as a string |
 | `util.js` | Shared helpers |
@@ -94,7 +94,7 @@ and import it:
 ```js
 import { createDataTable } from "./vendor/jw-datatable.min.js";
 
-// Also exported: JwDataTable, LocalStorageAdapter, TemplateStore, inferColumns, inferType
+// Also exported: JwDataTable, LocalStorageAdapter, ViewStore, inferColumns, inferType
 // Default export: createDataTable
 ```
 
@@ -162,7 +162,7 @@ table.configure({ /* … */ });
 |----------|------|---------|-------------|
 | `columns` | `Column[]` | `[]` | Column definitions (required) |
 | `data` | `object[]` | `[]` | Row objects |
-| `id` | `string` | `"default"` | Id for template storage namespace |
+| `id` | `string` | `"default"` | Id for the saved-views storage namespace |
 | `title` | `string` | — | Toolbar title |
 | `locale` | `string` | `"en-US"` | BCP-47 locale — drives number/date formatting, sort, **and UI language** (see [i18n](#i18n--localization)) |
 | `features` | `object` | all on | Toggle features (see below) |
@@ -174,7 +174,7 @@ table.configure({ /* … */ });
 | `maxHeight` | `string` | — | e.g. `"60vh"`; scroll body, sticky header |
 | `columnMinWidth` | `string` | — | Minimum width of text columns, e.g. `"10rem"` (see [Column widths](#column-widths)) |
 | `cellOverflow` | `"wrap" \| "ellipsis"` | `"wrap"` | Long cell text wraps, or stays on one line with “…” (see [Long cell content](#long-cell-content)) |
-| `storage` | `object` | — | Templates: `{ adapter, namespace, key }` |
+| `storage` | `object` | — | Saved views: `{ adapter, namespace, key }` (see [Saved views](#saved-views--storage-adapter)) |
 | `searchPlaceholder` | `string` | *(from locale)* | Search input placeholder override |
 | `emptyText` | `string` | *(from locale)* | Override text shown when there are no rows |
 | `noResultsText` | `string` | *(from locale)* | Override text shown when filters match nothing |
@@ -376,13 +376,13 @@ by default.
 | `multiSort` | on\* | Multi-column sort via Shift+click (\*only active when `sorting` is on) |
 | `filtering` | off | Value / pattern filters per column |
 | `globalSearch` | off | Full-text search box in the toolbar |
-| `grid` | off | Card/grid view in the view switch (also drives responsive auto-view) |
-| `compactView` | off | Compact view in the view switch: key columns + details dialog per row (includes `rowDetails` behavior) |
+| `grid` | off | Card/grid view in the layout switch (also drives responsive auto-view) |
+| `compactView` | off | Compact view in the layout switch: key columns + details dialog per row (includes `rowDetails` behavior) |
 | `columnVisibility` | off | Column chooser: one switch per column to show/hide it |
 | `columnPinning` | off | Pin columns to the left edge (context menu, column chooser) |
 | `columnReorder` | off | Move columns: drag and drop on the header, context menu, `Ctrl+Shift+←/→`, column chooser |
 | `rowDetails` | off | “Show details” in the context menu of cells/cards: dialog with all fields of the record |
-| `templates` | off | Save/load views (needs storage) |
+| `savedViews` | off | Saved views: save, load, rename, delete (`localStorage` unless `storage.adapter` is set) |
 | `export` | off | Export button and context-menu entry (dialog: CSV / XLSX / JSON, download or clipboard) |
 
 Enable what you need:
@@ -398,7 +398,7 @@ features: {
     columnPinning: true,
     columnReorder: true,
     rowDetails: true,
-    templates: true,
+    savedViews: true,
     export: true
 }
 ```
@@ -461,7 +461,7 @@ is re-measured whenever the table or its container resizes.
   header that unpins them.
 - **Start state:** `pinned: true` on a column, or `initial.pinnedColumns: ["key", …]`.
 - **State:** `pinnedColumns` is part of `getState()` / `setState()` and of
-  saved templates.
+  saved views.
 - **Space limit:** pinned columns cover at most 60 % of the visible width.
   When they don't all fit (e.g. on a phone), the most recently pinned ones stay
   in place and the older ones scroll with the table until there is room again;
@@ -499,24 +499,24 @@ unpins it; dropping a column right at the boundary keeps its state. Pinned
 columns can be reordered among themselves (this changes `pinnedColumns`).
 
 **State:** `columnOrder` (all column keys, including hidden ones) is part of
-`getState()` / `setState()` / `initial` and saved templates. Unknown keys are
+`getState()` / `setState()` / `initial` and saved views. Unknown keys are
 ignored; columns missing from it keep their configured order at the end.
 CSV export and “Copy row” follow the displayed order. In the compact view the
 moves refer to the columns shown there.
 
 ---
 
-## Views: table, cards, compact
+## Layouts: table, cards, compact
 
-| View (`viewMode`) | Feature | What it shows |
+| Layout (`viewMode`) | Feature | What it shows |
 |-------------------|---------|---------------|
 | `"table"` | always | All visible columns |
 | `"grid"` | `features.grid` | One card per row with label/value pairs (`grid.titleColumn` as card title) |
 | `"compact"` | `features.compactView` | A table with only the key columns plus a details button per row |
 
-With more than one view enabled, the toolbar shows a **view switch**: one
-toggle button per view, the current one pressed. The chosen view is part of
-the state (`viewMode`) and of saved templates. A `viewMode` whose feature is
+With more than one layout enabled, the toolbar shows a **layout switch**: one
+toggle button per layout, the current one pressed. The chosen layout is part of
+the state (`viewMode`) and of saved views. A `viewMode` whose feature is
 off falls back to the table.
 
 **Compact view.** Columns marked `compact: true` are shown (default: the first
@@ -646,34 +646,73 @@ Without the dialog: `table.exportData({ format: "xlsx", scope: "all" })`.
 
 ---
 
-## Templates & storage adapter
+## Saved views & storage adapter
 
-Current state (sort, filters, search, page size, view, hidden columns) can be saved as a **template** via UI (save icon) or API:
+With `features.savedViews`, the toolbar gets a **Saved views** button
+(bookmark icon). Its panel saves the current state under a name, loads,
+renames and deletes views:
+
+- **Saving** a name that already exists asks before overwriting.
+- **Deleting** asks first.
+- **Renaming** happens in place; a name that is already taken is refused.
+- The **current view** (last saved or loaded) is shown with “modified” once the
+  state differs from it; **Update** saves the current state under its name.
+- **Errors** of the storage (e.g. the backend is offline) are shown in the
+  panel; loading the list can be retried.
+
+A view stores sort, filters, search, page size, layout (`viewMode`), hidden,
+pinned and the order of the columns — the [state](#instance-api) without the
+current page. Loading a view starts on page 1. References to columns that no
+longer exist are dropped when a view (or any state) is applied.
+
+Without the UI:
 
 ```js
-await table.saveTemplate("Active only");
-const names = await table.listTemplates();
-await table.loadTemplate("Active only");
-await table.removeTemplate("Active only");
+await table.saveView("Active only");          // overwrites without asking
+const names = await table.listViews();
+await table.loadView("Active only");          // false if there is no such view
+await table.renameView("Active only", "Active");
+await table.deleteView("Active");
+table.getActiveView();                        // { name, modified } or null
 ```
 
-Default storage is `localStorage` (namespace from `storage.namespace` + `id`).
-Swap in a **backend adapter** without changing the component:
+The methods return Promises that reject when the storage fails or
+`features.savedViews` is off.
+
+**Storage.** Without `storage.adapter`, views are kept in `localStorage`
+under the namespace `storage.namespace` (default `"jw-datatable"`) +
+`storage.key` (default: `id`). Give every table its own `id` so their views
+stay apart. To store them elsewhere, pass an **adapter**: an object with five
+methods, each may return a Promise:
+
+| Method | Returns | Does |
+|--------|---------|------|
+| `list()` | `string[]` | Names of all views, in display order |
+| `get(name)` | `object \| null` | The saved state |
+| `save(name, state)` | — | Save or overwrite |
+| `rename(oldName, newName)` | — | Rename (overwrites `newName`) |
+| `delete(name)` | — | Delete |
+
+All five are required (`configure()` throws otherwise). A rejected Promise or
+a thrown error is shown in the panel.
 
 ```js
+const views = "/api/table-views";
+const ok = (r) => { if (!r.ok) throw new Error(r.statusText); return r; };
 const backendAdapter = {
-    list:   ()           => fetch("/api/views").then(r => r.json()),
-    get:    (name)       => fetch(`/api/views/${name}`).then(r => r.json()),
-    save:   (name, data) => fetch(`/api/views/${name}`, { method: "PUT", body: JSON.stringify(data) }),
-    remove: (name)       => fetch(`/api/views/${name}`, { method: "DELETE" })
+    list:   ()         => fetch(views).then(ok).then((r) => r.json()),
+    get:    (name)     => fetch(`${views}/${encodeURIComponent(name)}`).then((r) => (r.status === 404 ? null : ok(r).json())),
+    save:   (name, s)  => fetch(`${views}/${encodeURIComponent(name)}`, { method: "PUT", body: JSON.stringify(s) }).then(ok),
+    rename: (from, to) => fetch(`${views}/${encodeURIComponent(from)}`, { method: "PATCH", body: JSON.stringify({ name: to }) }).then(ok),
+    delete: (name)     => fetch(`${views}/${encodeURIComponent(name)}`, { method: "DELETE" }).then(ok)
 };
 
-createDataTable("#c", { /* … */ storage: { adapter: backendAdapter } });
+createDataTable("#c", { /* … */ features: { savedViews: true }, storage: { adapter: backendAdapter } });
 ```
 
-Adapter methods may return Promises.
-
-Templates do not store the current page; loading a template always starts on page 1.
+**Events.** After each successful action the table fires
+`jw-datatable:viewsave`, `viewload`, `viewrename` or `viewdelete` (see
+[Events](#events)) — for logging or syncing, with or without an adapter.
 
 ---
 
@@ -687,6 +726,10 @@ All events are `composed` and `bubbles`.
 | `jw-datatable:change` | `{ state }` | State changed (sort, filter, page, …) |
 | `jw-datatable:datachange` | `{ data }` | Data replaced via `setData()` |
 | `jw-datatable:export` | `{ format, destination, filename, content, rowCount, columns, options }` | Before an export is downloaded or copied; `content` is a string (CSV, JSON) or `Uint8Array` (XLSX); **cancelable** (`preventDefault()` skips download/copy and announcement) |
+| `jw-datatable:viewsave` | `{ name, state }` | A view was saved (new, overwritten or updated) |
+| `jw-datatable:viewload` | `{ name, state }` | A view was loaded (`state` as applied) |
+| `jw-datatable:viewrename` | `{ oldName, name }` | A view was renamed |
+| `jw-datatable:viewdelete` | `{ name }` | A view was deleted |
 
 `onRowClick` / `onCellClick` are config callbacks, not events.
 
@@ -705,10 +748,12 @@ All events are `composed` and `bubbles`.
 | `clearFilters()` | — | Clear filters and search |
 | `openExportDialog()` | — | Open the export dialog (also without `features.export`) |
 | `exportData(options?)` | `object \| null` | Export without the dialog; `options` as in [Export](#export) plus `format`, `destination` (XLSX always downloads) and `filename`. Returns the event detail, `null` if cancelled |
-| `saveTemplate(name)` | `Promise` | Save current view |
-| `loadTemplate(name)` | `Promise` | Load template |
-| `listTemplates()` | `Promise<string[]>` | Template names |
-| `removeTemplate(name)` | `Promise` | Delete template |
+| `saveView(name)` | `Promise` | Save the current state as a view (overwrites) |
+| `loadView(name)` | `Promise<boolean>` | Load a view; `false` if it does not exist |
+| `listViews()` | `Promise<string[]>` | Names of the saved views |
+| `renameView(oldName, newName)` | `Promise` | Rename a view (overwrites `newName`) |
+| `deleteView(name)` | `Promise` | Delete a view |
+| `getActiveView()` | `{ name, modified } \| null` | The view last saved or loaded, and whether the state differs from it |
 
 **State shape** (`getState` / `setState` / `initial`):
 
@@ -818,7 +863,7 @@ buttons, inline toolbar/footer, full page-number pagination).
 | Toolbar | stacked, full-width search | inline, `space-between` |
 | Copy buttons | always visible | reveal on hover |
 | Pagination | first / prev / current / next / last | full page numbers + page-size select |
-| Filter / column / template panels | bottom sheet | popover anchored to the button |
+| Filter / column / saved-view panels | bottom sheet | popover anchored to the button |
 | Context menu | bottom sheet, opened via **long-press** | popover at the cursor, opened via **right-click** |
 
 **Configuration** (`config.responsive`, all optional):
@@ -840,7 +885,7 @@ Notes:
 
 - **Auto view switching** only kicks in when neither `defaultView` nor
   `initial.viewMode` is set, and is suspended once the user switches the view or
-  a template/`setState` sets `viewMode` — explicit choices always win.
+  a saved view/`setState` sets `viewMode` — explicit choices always win.
 - The CSS breakpoint is `640px`. If you change `responsive.breakpoint`, mirror it
   via `config.styles` so the visual layout and the JS view-switching agree.
 - **Long-press** (~500ms) on a header, cell, or card opens the context menu on
@@ -931,11 +976,11 @@ or touch also works with the keyboard alone.
 | Header button | `Ctrl+Shift+←` / `Ctrl+Shift+→` | Move the column (with `features.columnReorder`); focus stays on the button |
 | Actions menu | `↑` `↓`, `Home` / `End`, `Enter` / `Space`, `Esc` / `Tab` | Navigate, activate, close (focus returns to where the menu was opened) |
 | Sort header | `Enter` / `Space` (`Shift+Enter` adds a sort key) | Sort |
-| Panels (filter, columns, templates, details, export) | `Tab` / `Shift+Tab`, `Esc` | Focus stays inside the panel; `Esc` closes and returns focus to the button that opened it |
+| Panels (filter, columns, saved views, details, export) | `Tab` / `Shift+Tab`, `Esc` | Focus stays inside the panel; `Esc` closes and returns focus to the button that opened it |
 | Details dialog | `Shift+F10` on a cell/card → “Show details”; `Enter` on “Previous” / “Next” | Opens with focus on the dialog heading; focus stays on the pressed button (moves to the other one at the first/last record); closing returns focus to the shown record |
 | Filter panel tabs | `←` `→`, `Home` / `End` | Switch between “Values” and “Pattern” |
 | Filter panel, “Values” tab | `Enter` in the search field or on a search-result option | Apply (same as the “Apply” button); the search-result options are radio buttons (`↑` `↓`) |
-| Templates panel | `Enter` in the name field | Save |
+| Saved views panel | `Enter` in the name field or the rename field, `Esc` in a question or the rename field | Save / rename; `Esc` cancels the question or the rename (the panel stays open, focus returns to the button that started it). Questions open with focus on “Cancel”; after deleting, focus moves to the next view |
 | Export dialog | `←` `→` (or `↑` `↓`) in a segmented control, `Space` on a switch or “More options”, `Enter` in the file name or on an option | Select an option, toggle a switch, export (same as the “Export” button); focus starts on the selected format and returns to the opener afterwards |
 
 Focus is kept across re-renders (sorting, filtering, paging, …): the same
@@ -955,8 +1000,14 @@ table.
 - Keyboard hints are linked to the table/list via `aria-describedby`.
 - Icon-only buttons have an `aria-label` (per column where it matters, e.g.
   “Filter: Name”, “Copy value: Name”); icons are decorative (`aria-hidden`).
-- The view switch is a `group` named “View” with one toggle button per view
+- The layout switch is a `group` named “Layout” with one toggle button per layout
   (`aria-pressed`, named “Table view” / “Grid view” / “Compact view”).
+- Saved views panel: the views are a list; the current view's button has
+  `aria-current="true"` and a check mark. Rename/delete buttons are named
+  “Rename: <view>” / “Delete: <view>”. Questions (overwrite, delete) are a
+  `group` named by the question, which also describes its buttons. Errors are
+  shown in the panel, announced and linked to their field (`aria-invalid`,
+  `aria-describedby`); the panel is `aria-busy` while the adapter works.
 - Compact view: the details column has a visually hidden header “Details”;
   each row's button is named “Show details: <record>” and carries
   `aria-haspopup="dialog"` / `aria-expanded`. The keyboard hint mentions that
@@ -1001,7 +1052,7 @@ announced by screen readers. While a panel (modal dialog) is open, messages go
 to a live region inside the panel instead. Messages: number of results after
 search/filter, sort order, page range, “Copied to clipboard: <value>”, hidden
 column, pinned/unpinned column (including when there is not enough room to keep
-pinned columns in place), record shown in the details dialog, saved/loaded template, finished export (rows and file name, or rows copied to the clipboard). Repeated identical messages are announced again.
+pinned columns in place), record shown in the details dialog, saved/updated/loaded/renamed/deleted view and errors of the saved views panel, finished export (rows and file name, or rows copied to the clipboard). Repeated identical messages are announced again.
 All texts come from `i18n.js`.
 
 The result count of the global search is announced once typing pauses (1 s),

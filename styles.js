@@ -476,7 +476,7 @@ span.k-dt-th-label { cursor: default; }
 }
 .k-ctx-menu--sheet .k-ctx-item { padding: var(--k-space-l, 12px) var(--k-space-l, 12px); }
 
-/* Filter / columns / templates panel (overlay) */
+/* Filter / columns / saved views panel (overlay) */
 .k-dt-overlay {
     position: fixed;
     z-index: 1000;
@@ -735,16 +735,40 @@ span.k-dt-th-label { cursor: default; }
 .k-dt-check-label { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .k-dt-check-count { color: var(--k-color-text-muted, #666); font-size: 0.8rem; }
 .k-dt-panel-actions { display: flex; justify-content: flex-end; gap: var(--k-space-s, 8px); }
-.k-dt-tpl-save { display: flex; gap: var(--k-space-2xs, 4px); }
-.k-dt-tpl-list { display: flex; flex-direction: column; gap: 2px; }
-.k-dt-tpl-item { display: flex; align-items: center; gap: var(--k-space-2xs, 4px); }
-.k-dt-tpl-load {
-    flex: 1; text-align: left; font: inherit; cursor: pointer;
+/* Saved views panel: a little wider than the other popovers, so the name field fits its placeholder. */
+.k-dt-views-panel:not(.k-dt-overlay--sheet) { width: 320px; max-width: calc(100vw - 8px); }
+.k-dt-views-save { display: flex; gap: var(--k-space-2xs, 4px); }
+.k-dt-views-save .k-dt-input { flex: 1; min-width: 0; }
+.k-dt-views-extra:empty, .k-dt-views-active-wrap:empty { display: none; }
+.k-dt-views-active {
+    display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between;
+    gap: var(--k-space-2xs, 4px) var(--k-space-s, 8px);
+}
+.k-dt-views-active p, .k-dt-views-question, .k-dt-views-error { margin: 0; overflow-wrap: anywhere; }
+.k-dt-views-badge { color: var(--k-color-text-muted, #666); }
+.k-dt-views-error { color: var(--k-color-schicht-vertretung-bg, #c0392b); font-size: 0.88rem; }
+.k-dt-views-confirm, .k-dt-views-item.is-step { display: flex; flex-direction: column; align-items: stretch; gap: var(--k-space-s, 8px); }
+.k-dt-views-confirm, .k-dt-views-item.is-step {
+    padding: var(--k-space-s, 8px);
+    border: 1px solid var(--k-dt-border);
+    border-radius: var(--k-radius-s, 8px);
+}
+.k-dt-views-item.is-step .k-dt-views-confirm { padding: 0; border: none; }
+.k-dt-views-list { display: flex; flex-direction: column; gap: var(--k-space-s, 8px); }
+.k-dt-views-items { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.k-dt-views-item { display: flex; align-items: center; gap: var(--k-space-2xs, 4px); }
+.k-dt-views-item .k-dt-icon-btn { border-color: transparent; flex: none; }
+.k-dt-views-load {
+    flex: 1; min-width: 0; min-height: 44px; text-align: left; font: inherit; cursor: pointer;
+    display: flex; align-items: center; gap: var(--k-space-xs, 6px);
     background: none; border: none; color: inherit;
     padding: var(--k-space-s, 8px); border-radius: var(--k-radius-s, 8px);
 }
-.k-dt-tpl-load:hover { background: var(--k-dt-hover); }
-.k-dt-tpl-empty { color: var(--k-color-text-muted, #666); font-size: 0.88rem; }
+.k-dt-views-load .k-dt-ic { width: 16px; flex: none; }
+.k-dt-views-load[aria-current="true"] { font-weight: 600; }
+.k-dt-views-name { overflow-wrap: anywhere; }
+.k-dt-views-load:hover { background: var(--k-dt-hover); }
+.k-dt-views-empty { margin: 0; color: var(--k-color-text-muted, #666); font-size: 0.88rem; }
 
 /* Suppress the long-press text selection / callout on touch so our context menu wins. */
 /* Accessibility */
@@ -762,7 +786,7 @@ span.k-dt-th-label { cursor: default; }
 .k-dt-search:focus-within,
 .k-dt-td:focus-visible, .k-dt-card:focus-visible,
 .k-dt-link:focus-visible, .k-dt-cell-action:focus-visible,
-.k-dt-tab:focus-visible, .k-dt-tpl-load:focus-visible,
+.k-dt-tab:focus-visible, .k-dt-views-load:focus-visible,
 .k-dt-input:focus-visible, .k-dt-select:focus-visible,
 .k-dt-check input:focus-visible {
     outline: 2px solid var(--k-color-text, #222);
@@ -843,6 +867,6 @@ span.k-dt-th-label { cursor: default; }
     .k-dt-check { padding: var(--k-space-2xs, 4px); }
     .k-dt-segment-text { min-height: 36px; }
     .k-dt-switch { min-height: 36px; }
-    .k-dt-tpl-load { padding: var(--k-space-xs, 6px) var(--k-space-s, 8px); }
+    .k-dt-views-load { min-height: 36px; padding: var(--k-space-xs, 6px) var(--k-space-s, 8px); }
 }
 `;

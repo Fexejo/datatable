@@ -3,7 +3,7 @@
 // Features: pagination, sorting (including multi-column), value and pattern filters,
 // quick filters and actions via context menu, CSV/XLSX/JSON export, grid/card view,
 // links (href / SPA routing / custom handlers), per-column copy buttons,
-// runtime data updates, and localStorage view templates.
+// runtime data updates, and saved views (localStorage or a custom adapter).
 //
 // The convenient public API lives in `datatable.js`. This file is the Web Component itself.
 
@@ -37,7 +37,7 @@ import {
     neutralizeFormula
 } from "./export.js";
 import { openContextMenu, closeContextMenu, deepActiveElement } from "./contextMenu.js";
-import { TemplateStore, LocalStorageAdapter } from "./templateStore.js";
+import { ViewStore, LocalStorageAdapter } from "./viewStore.js";
 import { datatableStyles } from "./styles.js";
 
 // Small DOM helper.
@@ -90,6 +90,13 @@ function iconEl(name, className = "k-dt-ic") {
     return el("span", { class: className }, [createIcon(name)]);
 }
 
+// Saved view names are trimmed and must not be empty.
+function viewName(name) {
+    const result = String(name ?? "").trim();
+    if (!result) throw new TypeError("A saved view needs a name");
+    return result;
+}
+
 // Segmented control: native radios (one tab stop, arrow keys, "selected,
 // 1 of 3" for screen readers) drawn as adjacent options in one track.
 // `options`: [value, text, detail?]; `detail` is a second, smaller line.
@@ -136,7 +143,7 @@ const DEFAULT_FEATURES = {
     columnPinning: false,
     columnReorder: false,
     rowDetails: false,
-    templates: false,
+    savedViews: false,
     copyButtons: true
 };
 
@@ -154,7 +161,9 @@ class JwDataTable extends HTMLElement {
         this._state = null;
         this._viewData = [];
         this._pageData = [];
-        this._templateStore = null;
+        this._viewStore = null;
+        // { name, signature } of the saved view last saved or loaded.
+        this._activeView = null;
         this._instanceId = uid("kdt");
         // Responsive / touch state
         this._mql = null;
@@ -215,10 +224,12 @@ class JwDataTable extends HTMLElement {
         this._pageSizeOptions = pagination.pageSizeOptions || [10, 25, 50, 100];
 
         const storage = config.storage || {};
-        if (this._features.templates) {
+        this._viewStore = null;
+        this._activeView = null;
+        if (this._features.savedViews) {
             const storageKey = storage.key || config.id || "default";
             const namespace = (storage.namespace || "jw-datatable") + "::" + storageKey;
-            this._templateStore = new TemplateStore(storage.adapter || new LocalStorageAdapter(namespace));
+            this._viewStore = new ViewStore(storage.adapter || new LocalStorageAdapter(namespace));
         }
 
         const initial = this._knownColumnsOnly(config.initial || {});
@@ -422,25 +433,60 @@ class JwDataTable extends HTMLElement {
         this._openExportDialog(this.shadow.querySelector('[data-fk="tb:export"]'));
     }
 
-    listTemplates() {
-        return this._templateStore ? this._templateStore.list() : Promise.resolve([]);
+    // Saved views: the state without the current page, stored through the
+    // adapter. The methods reject when the adapter fails (or the feature is
+    // off); the `view*` events fire after success.
+
+    async listViews() {
+        return this._requireViewStore().list();
     }
 
-    async saveTemplate(name) {
-        if (!this._templateStore || !name) return;
-        await this._templateStore.save(name, this._serializeState({ includePage: false }));
+    async saveView(name) {
+        const store = this._requireViewStore();
+        name = viewName(name);
+        const state = this._viewState();
+        await store.save(name, state);
+        this._activeView = { name, signature: this._viewSignature() };
+        this._emit("viewsave", { name, state });
     }
 
-    async loadTemplate(name) {
-        if (!this._templateStore) return;
-        const data = await this._templateStore.get(name);
-        // A loaded view starts on page 1; templates do not store the page.
-        if (data) this.setState({ ...data, page: 1 });
+    // Resolves to false when there is no view with this name.
+    async loadView(name) {
+        const store = this._requireViewStore();
+        name = viewName(name);
+        const saved = await store.get(name);
+        if (!saved) return false;
+        // A loaded view starts on page 1.
+        this.setState({ ...saved, page: 1 });
+        this._activeView = { name, signature: this._viewSignature() };
+        this._emit("viewload", { name, state: this._viewState() });
+        return true;
     }
 
-    removeTemplate(name) {
-        if (!this._templateStore) return Promise.resolve();
-        return this._templateStore.remove(name);
+    // Overwrites a view named `newName`; the panel asks before that.
+    async renameView(oldName, newName) {
+        const store = this._requireViewStore();
+        oldName = viewName(oldName);
+        newName = viewName(newName);
+        if (oldName === newName) return;
+        await store.rename(oldName, newName);
+        if (this._activeView?.name === oldName) this._activeView.name = newName;
+        else if (this._activeView?.name === newName) this._activeView = null;
+        this._emit("viewrename", { oldName, name: newName });
+    }
+
+    async deleteView(name) {
+        const store = this._requireViewStore();
+        name = viewName(name);
+        await store.delete(name);
+        if (this._activeView?.name === name) this._activeView = null;
+        this._emit("viewdelete", { name });
+    }
+
+    // The view last saved or loaded: { name, modified }, or null.
+    getActiveView() {
+        if (!this._activeView) return null;
+        return { name: this._activeView.name, modified: this._viewSignature() !== this._activeView.signature };
     }
 
     // ---- Normalization & derivation --------------------------------------
@@ -761,17 +807,17 @@ class JwDataTable extends HTMLElement {
             }, [iconEl("columns-3")]));
         }
 
-        if (this._features.templates && this._templateStore) {
+        if (this._viewStore) {
             right.appendChild(el("button", {
                 type: "button",
                 class: "k-dt-btn",
-                "data-fk": "tb:templates",
+                "data-fk": "tb:saved-views",
                 "aria-haspopup": "dialog",
-                "aria-expanded": String(this._overlayFk === "tb:templates"),
-                title: this._t.viewTemplates,
-                "aria-label": this._t.viewTemplates,
-                onclick: (e) => this._openTemplatesMenu(e.currentTarget)
-            }, [iconEl("save")]));
+                "aria-expanded": String(this._overlayFk === "tb:saved-views"),
+                title: this._t.savedViews,
+                "aria-label": this._t.savedViews,
+                onclick: (e) => this._openViewsPanel(e.currentTarget)
+            }, [iconEl("bookmark")]));
         }
 
         if (this._features.export) {
@@ -2105,7 +2151,7 @@ class JwDataTable extends HTMLElement {
         this._rovingKey = retarget(this._rovingKey);
     }
 
-    // ---- Column visibility & templates -----------------------------------
+    // ---- Column visibility -----------------------------------------------
 
     _openColumnChooser(anchor) {
         const panel = el("div", { class: "k-dt-panel" });
@@ -2200,66 +2246,304 @@ class JwDataTable extends HTMLElement {
         }
     }
 
-    async _openTemplatesMenu(anchor) {
-        const panel = el("div", { class: "k-dt-panel" });
-        panel.appendChild(el("div", { class: "k-dt-panel-head", text: this._t.templatesPanel }));
+    // ---- Saved views panel ------------------------------------------------
+
+    _requireViewStore() {
+        if (!this._viewStore) throw new Error("Saved views are off (features.savedViews)");
+        return this._viewStore;
+    }
+
+    _viewState() {
+        return this._serializeState({ includePage: false });
+    }
+
+    // The view state with order-independent parts sorted, so the same view
+    // reached by different clicks compares equal.
+    _viewSignature() {
+        const state = this._viewState();
+        state.hiddenColumns.sort();
+        state.filters = Object.fromEntries(Object.entries(state.filters)
+            .sort(([a], [b]) => (a < b ? -1 : 1))
+            .map(([key, f]) => [key, f.kind === "value" ? { ...f, values: f.values.map(String).sort() } : f]));
+        return JSON.stringify(state);
+    }
+
+    // One panel to save, load, rename and delete views. Questions (overwrite?
+    // delete?), the rename field and errors appear inside the panel; the parts
+    // are rebuilt in place and focus moves to the element with that `data-vk`.
+    // The name field is never rebuilt, so typing survives the list loading.
+    _openViewsPanel(anchor) {
+        const t = this._t;
+        // names: null while loading; step: { kind: "overwrite"|"rename"|"delete", name };
+        // error: { text, at: "name"|"rename"|"list" }.
+        const ui = { names: null, step: null, error: null, busy: false, renameDraft: "" };
+        const errorId = uid("kdt-verr");
 
         const nameInput = el("input", {
             type: "text",
             class: "k-dt-input",
-            placeholder: this._t.templateNamePlaceholder,
-            "aria-label": this._t.templateNamePlaceholder,
-            // Enter in the name field saves.
-            onkeydown: (e) => { if (e.key === "Enter") { e.preventDefault(); saveRow.querySelector("button").click(); } }
+            placeholder: t.viewNamePlaceholder,
+            "aria-label": t.viewNamePlaceholder,
+            "data-vk": "name",
+            "data-autofocus": "",
+            onkeydown: (e) => { if (e.key === "Enter") { e.preventDefault(); save(); } }
         });
-        const saveRow = el("div", { class: "k-dt-tpl-save" }, [
-            nameInput,
-            el("button", {
-                type: "button",
-                class: "k-dt-btn k-dt-btn-primary",
-                text: this._t.save,
-                onclick: async () => {
-                    const name = nameInput.value.trim();
-                    if (!name) return;
-                    await this.saveTemplate(name);
-                    this._closeOverlay();
-                    // Announce in the reopened panel (the old one is gone).
-                    await this._openTemplatesMenu(anchor);
-                    this._announce(this._t.templateSaved(name));
-                }
-            })
+        const activeSection = el("div", { class: "k-dt-views-active-wrap" });
+        const saveExtra = el("div", { class: "k-dt-views-extra" });
+        const listSection = el("div", { class: "k-dt-views-list" });
+        const panel = el("div", { class: "k-dt-panel k-dt-views-panel" }, [
+            el("h2", { class: "k-dt-panel-head", text: t.savedViews }),
+            activeSection,
+            el("div", { class: "k-dt-views-save" }, [
+                nameInput,
+                el("button", { type: "button", class: "k-dt-btn k-dt-btn-primary", text: t.save, "data-vk": "save", onclick: () => save() })
+            ]),
+            saveExtra,
+            listSection
         ]);
-        panel.appendChild(saveRow);
 
-        const names = await this.listTemplates();
-        const list = el("div", { class: "k-dt-tpl-list" });
-        if (names.length === 0) {
-            list.appendChild(el("div", { class: "k-dt-tpl-empty", text: this._t.noTemplates }));
-        }
-        names.forEach((name) => {
-            list.appendChild(el("div", { class: "k-dt-tpl-item" }, [
-                el("button", {
-                    type: "button",
-                    class: "k-dt-tpl-load",
-                    text: name,
-                    title: this._t.loadTemplate,
-                    onclick: async () => {
-                        await this.loadTemplate(name);
-                        this._closeOverlay();
-                        this._announce(this._t.templateLoaded(name));
-                    }
-                }),
-                el("button", {
-                    type: "button",
-                    class: "k-dt-icon-btn",
-                    title: this._t.deleteTemplate,
-                    "aria-label": `${this._t.deleteTemplate}: ${name}`,
-                    onclick: async () => { await this.removeTemplate(name); this._closeOverlay(); this._openTemplatesMenu(anchor); }
-                }, [iconEl("trash")])
+        const isOpen = () => this._overlay === panel;
+        const errorEl = (at) => (ui.error?.at === at
+            ? el("p", { class: "k-dt-views-error", id: errorId, text: ui.error.text })
+            : null);
+        // Escape inside a question or the rename field steps back, not out of the panel.
+        const onEscape = (focusKey) => (e) => {
+            if (e.key !== "Escape") return;
+            e.preventDefault();
+            e.stopPropagation();
+            ui.step = null;
+            ui.error = null;
+            render(focusKey);
+        };
+        // A question with its answers; focus goes to Cancel (the safe answer).
+        const question = (text, okText, onOk, cancelKey) => {
+            const id = uid("kdt-vq");
+            return el("div", { class: "k-dt-views-confirm", role: "group", "aria-labelledby": id, onkeydown: onEscape(cancelKey) }, [
+                el("p", { class: "k-dt-views-question", id, text }),
+                el("div", { class: "k-dt-panel-actions" }, [
+                    el("button", { type: "button", class: "k-dt-btn k-dt-btn-primary", text: okText, "aria-describedby": id, onclick: onOk }),
+                    el("button", {
+                        type: "button", class: "k-dt-btn", text: t.cancel, "data-vk": "step-cancel", "aria-describedby": id,
+                        onclick: () => { ui.step = null; render(cancelKey); }
+                    })
+                ])
+            ]);
+        };
+
+        const renderActive = () => {
+            const active = this.getActiveView();
+            if (!active) { activeSection.replaceChildren(); return; }
+            const id = uid("kdt-vact");
+            activeSection.replaceChildren(el("div", { class: "k-dt-views-active" }, [
+                el("p", { id }, [
+                    `${t.activeView}: `,
+                    el("strong", { text: active.name }),
+                    active.modified && el("span", { class: "k-dt-views-badge", text: ` (${t.viewModified})` })
+                ]),
+                active.modified && el("button", {
+                    type: "button", class: "k-dt-btn", text: t.updateView, "data-vk": "update", "aria-describedby": id,
+                    onclick: () => run(() => this.saveView(active.name), {
+                        message: t.viewUpdated(active.name), focus: `load:${active.name}`, errorAt: "list", errorFocus: "update"
+                    })
+                })
             ]));
-        });
-        panel.appendChild(list);
+        };
+
+        const renderItem = (name) => {
+            const step = ui.step?.name === name ? ui.step.kind : null;
+            if (step === "delete") {
+                return el("li", { class: "k-dt-views-item is-step" }, [question(t.confirmDelete(name), t.deleteView, () => remove(name), `delete:${name}`)]);
+            }
+            if (step === "rename") {
+                const input = el("input", {
+                    type: "text",
+                    class: "k-dt-input",
+                    value: ui.renameDraft,
+                    "aria-label": t.newViewName(name),
+                    "data-vk": "rename-input",
+                    "aria-invalid": ui.error?.at === "rename" ? "true" : null,
+                    "aria-describedby": ui.error?.at === "rename" ? errorId : null,
+                    oninput: (e) => { ui.renameDraft = e.target.value; },
+                    onkeydown: (e) => { if (e.key === "Enter") { e.preventDefault(); rename(name); } }
+                });
+                return el("li", { class: "k-dt-views-item is-step", onkeydown: onEscape(`rename:${name}`) }, [
+                    input,
+                    errorEl("rename"),
+                    el("div", { class: "k-dt-panel-actions" }, [
+                        el("button", { type: "button", class: "k-dt-btn k-dt-btn-primary", text: t.renameView, onclick: () => rename(name) }),
+                        el("button", {
+                            type: "button", class: "k-dt-btn", text: t.cancel,
+                            onclick: () => { ui.step = null; ui.error = null; render(`rename:${name}`); }
+                        })
+                    ])
+                ]);
+            }
+            const isActive = this._activeView?.name === name;
+            return el("li", { class: "k-dt-views-item" }, [
+                el("button", {
+                    type: "button",
+                    class: "k-dt-views-load",
+                    title: t.loadView,
+                    "data-vk": `load:${name}`,
+                    "aria-current": isActive ? "true" : null,
+                    onclick: () => load(name)
+                }, [isActive ? iconEl("check") : el("span", { class: "k-dt-ic" }), el("span", { class: "k-dt-views-name", text: name })]),
+                el("button", {
+                    type: "button", class: "k-dt-icon-btn", title: t.renameView,
+                    "aria-label": t.renameViewNamed(name), "data-vk": `rename:${name}`,
+                    onclick: () => { ui.step = { kind: "rename", name }; ui.error = null; ui.renameDraft = name; render("rename-input"); }
+                }, [iconEl("pencil")]),
+                el("button", {
+                    type: "button", class: "k-dt-icon-btn", title: t.deleteView,
+                    "aria-label": t.deleteViewNamed(name), "data-vk": `delete:${name}`,
+                    onclick: () => { ui.step = { kind: "delete", name }; ui.error = null; render("step-cancel"); }
+                }, [iconEl("trash")])
+            ]);
+        };
+
+        const renderList = () => {
+            const nodes = [errorEl("list")];
+            if (ui.names === null && ui.error?.at === "list") {
+                nodes.push(el("button", { type: "button", class: "k-dt-btn", text: t.retry, "data-vk": "retry", onclick: () => loadList("retry") }));
+            } else if (ui.names === null) {
+                nodes.push(el("p", { class: "k-dt-views-empty", text: t.viewsLoading }));
+            } else if (ui.names.length === 0) {
+                nodes.push(el("p", { class: "k-dt-views-empty", text: t.noSavedViews }));
+            } else {
+                nodes.push(el("ul", { class: "k-dt-views-items", "aria-label": t.savedViews }, ui.names.map(renderItem)));
+            }
+            listSection.replaceChildren(...nodes.filter(Boolean));
+        };
+
+        const render = (focusKey) => {
+            if (!isOpen()) return;
+            const focused = deepActiveElement();
+            renderActive();
+            const nameError = ui.error?.at === "name";
+            if (nameError) {
+                nameInput.setAttribute("aria-invalid", "true");
+                nameInput.setAttribute("aria-describedby", errorId);
+            } else {
+                nameInput.removeAttribute("aria-invalid");
+                nameInput.removeAttribute("aria-describedby");
+            }
+            saveExtra.replaceChildren(...[
+                errorEl("name"),
+                ui.step?.kind === "overwrite" && question(t.confirmOverwrite(ui.step.name), t.overwrite, () => doSave(ui.step.name), "name")
+            ].filter(Boolean));
+            renderList();
+            const target = focusKey && panel.querySelector(`[data-vk="${CSS.escape(focusKey)}"]`);
+            if (target) target.focus();
+            else if (!focused?.isConnected || !panel.contains(focused)) nameInput.focus();
+        };
+
+        // Runs an adapter action; failures stay in the panel as a message.
+        const run = async (action, { message, focus, errorAt, errorFocus }) => {
+            if (ui.busy) return;
+            ui.busy = true;
+            panel.setAttribute("aria-busy", "true");
+            try {
+                await action();
+                ui.names = await this.listViews();
+                ui.step = null;
+                ui.error = null;
+                render(typeof focus === "function" ? focus() : focus);
+                if (isOpen()) this._announce(message);
+            } catch {
+                ui.error = { text: t.viewActionFailed, at: errorAt };
+                render(errorFocus);
+                if (isOpen()) this._announce(ui.error.text);
+            } finally {
+                ui.busy = false;
+                panel.removeAttribute("aria-busy");
+            }
+        };
+        const fail = (text, at, focusKey) => {
+            ui.error = { text, at };
+            render(focusKey);
+            this._announce(text);
+        };
+
+        const save = () => {
+            const name = nameInput.value.trim();
+            if (!name) return fail(t.viewNameRequired, "name", "name");
+            if (ui.names?.includes(name)) {
+                ui.error = null;
+                ui.step = { kind: "overwrite", name };
+                render("step-cancel");
+                return;
+            }
+            doSave(name);
+        };
+        const doSave = (name) => run(async () => {
+            await this.saveView(name);
+            nameInput.value = "";
+        }, { message: t.viewSaved(name), focus: "name", errorAt: "name", errorFocus: "name" });
+
+        const rename = (oldName) => {
+            const newName = ui.renameDraft.trim();
+            if (!newName) return fail(t.viewNameRequired, "rename", "rename-input");
+            if (newName === oldName) { ui.step = null; ui.error = null; render(`rename:${oldName}`); return; }
+            if (ui.names?.includes(newName)) return fail(t.viewNameTaken(newName), "rename", "rename-input");
+            run(() => this.renameView(oldName, newName), {
+                message: t.viewRenamed(oldName, newName), focus: `load:${newName}`, errorAt: "rename", errorFocus: "rename-input"
+            });
+        };
+
+        const remove = (name) => {
+            const index = ui.names?.indexOf(name) ?? -1;
+            run(() => this.deleteView(name), {
+                message: t.viewDeleted(name),
+                // Focus the next view, else the previous one, else the name field.
+                focus: () => {
+                    const next = ui.names[index] ?? ui.names[index - 1];
+                    return next != null ? `load:${next}` : "name";
+                },
+                errorAt: "list",
+                errorFocus: "step-cancel"
+            });
+        };
+
+        const load = async (name) => {
+            if (ui.busy) return;
+            ui.busy = true;
+            panel.setAttribute("aria-busy", "true");
+            try {
+                if (await this.loadView(name)) {
+                    this._closeOverlay();
+                    this._announce(t.viewLoaded(name));
+                    return;
+                }
+                ui.names = await this.listViews();
+                ui.error = { text: t.viewNotFound(name), at: "list" };
+            } catch {
+                ui.error = { text: t.viewActionFailed, at: "list" };
+            } finally {
+                ui.busy = false;
+                panel.removeAttribute("aria-busy");
+            }
+            render(`load:${name}`);
+            this._announce(ui.error.text);
+        };
+
+        const loadList = async (focusKey) => {
+            ui.names = null;
+            ui.error = null;
+            render(focusKey === "retry" ? null : focusKey);
+            panel.setAttribute("aria-busy", "true");
+            try {
+                ui.names = await this.listViews();
+            } catch {
+                ui.error = { text: t.viewsLoadFailed, at: "list" };
+                if (isOpen()) this._announce(ui.error.text);
+            } finally {
+                panel.removeAttribute("aria-busy");
+            }
+            render(ui.error ? "retry" : (focusKey === "retry" ? "name" : null));
+        };
+
         this._showOverlay(panel, anchor);
+        loadList();
     }
 
     // ---- Export dialog -----------------------------------------------------
@@ -2492,7 +2776,10 @@ class JwDataTable extends HTMLElement {
             const path = event.composedPath ? event.composedPath() : [event.target];
             if (!path.includes(panel) && !path.includes(anchor)) this._closeOverlay({ restoreFocus: false });
         };
-        this._overlayKey = (event) => { if (event.key === "Escape") this._closeOverlay(); };
+        // Escape inside the panel is the panel's own (a step inside may handle it).
+        this._overlayKey = (event) => {
+            if (event.key === "Escape" && !event.composedPath().includes(panel)) this._closeOverlay();
+        };
         setTimeout(() => {
             if (this._overlay !== panel) return;
             document.addEventListener("pointerdown", this._overlayOutside, true);
@@ -2626,7 +2913,7 @@ class JwDataTable extends HTMLElement {
 
     // ---- State serialization & events ------------------------------------
 
-    // Templates omit `page` (a saved view should open on page 1).
+    // Saved views omit `page` (a saved view should open on page 1).
     _serializeState({ includePage = true } = {}) {
         const filters = {};
         for (const [key, filter] of Object.entries(this._state.filters)) {

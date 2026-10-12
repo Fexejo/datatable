@@ -4,7 +4,7 @@
 // creates the element, configures it, and mounts it in a container.
 
 import { JwDataTable } from "./jwDataTable.js";
-import { LocalStorageAdapter, TemplateStore } from "./templateStore.js";
+import { LocalStorageAdapter, ViewStore } from "./viewStore.js";
 import { inferColumns, inferType } from "./columns.js";
 
 /**
@@ -23,5 +23,5 @@ export function createDataTable(container, config = {}) {
     return table;
 }
 
-export { JwDataTable, LocalStorageAdapter, TemplateStore, inferColumns, inferType };
+export { JwDataTable, LocalStorageAdapter, ViewStore, inferColumns, inferType };
 export default createDataTable;

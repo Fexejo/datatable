@@ -495,7 +495,7 @@
             ["columnPinning",    "Column pinning"],
             ["columnReorder",    "Column reorder"],
             ["rowDetails",       "Row details"],
-            ["templates",        "Templates"],
+            ["savedViews",       "Saved views"],
             ["copyButtons",      "Copy buttons"]
         ];
         const COLUMN_FLAGS = ["hidden", "pinned", "compact", "sortable", "filterable", "searchable", "exportable", "copyable"];
@@ -663,6 +663,10 @@
             const d = e.detail;
             log("export", `${d.format} → ${d.destination}, ${d.rowCount} rows, ${d.columns.length} columns, "${d.filename}"`);
         });
+        table.addEventListener("jw-datatable:viewsave", (e) => log("viewsave", `"${e.detail.name}"`));
+        table.addEventListener("jw-datatable:viewload", (e) => log("viewload", `"${e.detail.name}"`));
+        table.addEventListener("jw-datatable:viewrename", (e) => log("viewrename", `"${e.detail.oldName}" → "${e.detail.name}"`));
+        table.addEventListener("jw-datatable:viewdelete", (e) => log("viewdelete", `"${e.detail.name}"`));
 
         // ── Top bar ──────────────────────────────────────────────────────────
         const rowCount = document.getElementById("row-count");
