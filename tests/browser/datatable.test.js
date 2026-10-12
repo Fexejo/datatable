@@ -345,6 +345,18 @@ test("Enter on a cell activates its link or the row handler", async () => {
     assert.equal(rowClicked, 5);
 }, { cdp: true });
 
+test("empty values get no link or action button", () => {
+    const columns = COLUMNS.map((c) =>
+        c.key === "name" ? { ...c, link: (row) => `/m/${row.id}` } :
+        c.key === "fee" ? { ...c, action: () => {} } : c);
+    const data = [{ id: 1, name: "Anna", fee: 5 }, { id: 2, name: "", fee: null }];
+    const table = mount({ columns, data });
+    assert.ok($(table, '[data-fk="cell:0:name:link"]'), "filled value is a link");
+    assert.ok($(table, '[data-fk="cell:0:fee:action"]'), "filled value is a button");
+    assert.equal($(table, '[data-fk="cell:1:name:link"]'), null, "empty value: no link");
+    assert.equal($(table, '[data-fk="cell:1:fee:action"]'), null, "empty value: no button");
+});
+
 test("cards: single tab stop, arrow navigation, Enter triggers onRowClick", async () => {
     let clicked = null;
     const table = mount({ features: { grid: true }, defaultView: "grid", onRowClick: (row) => { clicked = row.id; } });

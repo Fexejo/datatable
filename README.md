@@ -354,6 +354,9 @@ table.addEventListener("jw-datatable:navigate", (e) => {
 { key: "action", action: (row, value, e) => openDetailDialog(row) }
 ```
 
+Empty values (nothing to display) get neither a link nor a button, so there
+is no focus stop without a name.
+
 ---
 
 ## Enabling / disabling features

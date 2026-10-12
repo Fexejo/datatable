@@ -1075,6 +1075,8 @@ class JwDataTable extends HTMLElement {
     _valueNode(column, row, value, fk) {
         const display = formatValue(value, column, this._config.locale, row);
         const content = display instanceof Node ? display : document.createTextNode(display);
+        // An empty value gets no link or button: it would be a focus stop without a name.
+        if (typeof display === "string" && !display.trim()) return el("span", { class: "k-dt-value" }, [content]);
 
         const link = column.link;
         if (link && (link.url || link.spa || typeof link.handler === "function")) {
