@@ -14,7 +14,7 @@ written in Vanilla JS (ES modules, Shadow DOM). No external dependencies.
 - **Record details** – dialog with all fields of a row (including hidden columns), previous/next through all results
 - **Column order** – move columns via drag and drop on the header (desktop), the context menu, `Ctrl+Shift+←/→` or the column chooser
 - **Column pinning** – pin any columns to the left edge (sticky while scrolling horizontally); scroll shadows show where more content is
-- **CSV export** – in the browser, Excel-friendly (with BOM)
+- **Export** – CSV or JSON in the browser via a dialog (rows, columns, raw or formatted values, header, delimiter); Excel-friendly (BOM), protected against formula injection
 - **Grid / card view** – cards with label/value pairs as an alternative to the table (two columns, stacked on narrow cards)
 - **Compact view** – summary table with a few key columns; a tap on a row opens all its fields in a details dialog
 - **Mobile First / responsive** – compact, touch-optimized layout; auto-switches to the card or compact view on small screens; bottom-sheet panels; long-press context menu
@@ -41,18 +41,19 @@ written in Vanilla JS (ES modules, Shadow DOM). No external dependencies.
 11. [Column order](#column-order)
 12. [Views: table, cards, compact](#views-table-cards-compact)
 13. [Record details](#record-details)
-14. [Templates & storage adapter](#templates--storage-adapter)
-15. [Events](#events)
-16. [Instance API](#instance-api)
-17. [Theming & styling](#theming--styling)
+14. [Export](#export)
+15. [Templates & storage adapter](#templates--storage-adapter)
+16. [Events](#events)
+17. [Instance API](#instance-api)
+18. [Theming & styling](#theming--styling)
     - [Size & placement](#size--placement)
     - [Icons](#icons)
-18. [Responsive & touch](#responsive--touch)
-19. [i18n / Localization](#i18n--localization)
-20. [Accessibility](#accessibility)
-21. [Demo](#demo)
-22. [Development & tests](#development--tests)
-23. [Releases & build](#releases--build)
+19. [Responsive & touch](#responsive--touch)
+20. [i18n / Localization](#i18n--localization)
+21. [Accessibility](#accessibility)
+22. [Demo](#demo)
+23. [Development & tests](#development--tests)
+24. [Releases & build](#releases--build)
 
 ---
 
@@ -65,7 +66,7 @@ written in Vanilla JS (ES modules, Shadow DOM). No external dependencies.
 | `formatters.js` | Type-dependent display formatting |
 | `comparators.js` | Sort comparison, multi-column sort |
 | `filtering.js` | Value/pattern filters, operators, distinct values |
-| `csv.js` | CSV build & download |
+| `export.js` | CSV / JSON build, formula neutralizing, file name & download |
 | `templateStore.js` | Template storage + `LocalStorageAdapter` |
 | `contextMenu.js` | Reusable context menu |
 | `styles.js` | Shadow DOM styles as a string |
@@ -176,8 +177,9 @@ table.configure({ /* … */ });
 | `searchPlaceholder` | `string` | *(from locale)* | Search input placeholder override |
 | `emptyText` | `string` | *(from locale)* | Override text shown when there are no rows |
 | `noResultsText` | `string` | *(from locale)* | Override text shown when filters match nothing |
-| `csvDelimiter` | `string` | `";"` | CSV delimiter |
-| `exportFilename` | `string` | `"export"` | Default CSV filename |
+| `csvDelimiter` | `string` | `";"` | Default CSV delimiter (see [Export](#export)) |
+| `exportFilename` | `string` | `title`, else `"export"` | Base of the default file name (timestamp and extension are appended) |
+| `exportDefaults` | `object` | — | Defaults of the export dialog and `exportData()` (see [Export](#export)) |
 | `styles` | `string` | — | Extra CSS injected into shadow root |
 | `rowClass` | `(row, index) => string` | — | CSS class(es) per row |
 | `onRowClick` | `(row, index) => void` | — | Row/card click (compact view: “Open” button in the details dialog) |
@@ -197,7 +199,7 @@ Each column:
 | `accessor` | `(row) => any` | Custom value instead of `key` |
 | `format` | `object` | Format options (type-dependent) |
 | `formatter` | `(value, ctx) => string \| Node` | Custom display; `ctx = { row, column, locale }` |
-| `exportFormatter` | `(value, ctx) => string` | Custom CSV value |
+| `exportFormatter` | `(value, ctx) => any` | Custom export value; `ctx = { row, column, locale, localized, format }` |
 | `options` | `{ value, label }[]` | Labels for `enum` / `select` |
 | `align` | `"left" \| "right" \| "center"` | Alignment (type-dependent default) |
 | `width` | `string` | Fixed width, e.g. `"80px"`; the column is never squeezed below it |
@@ -210,7 +212,7 @@ Each column:
 | `sortable` | `boolean` | Allow sort (default `true`) |
 | `filterable` | `boolean` | Allow filter (default `true`) |
 | `searchable` | `boolean` | Include in global search (default `true`) |
-| `exportable` | `boolean` | Include in CSV (default `true`) |
+| `exportable` | `boolean` | Include in exports (default `true`) |
 | `copyable` | `boolean` | Show copy button on hover |
 | `link` | `object \| function` | Link behind the value (see below) |
 | `action` | `(row, value, event) => void` | Render value as a button |
@@ -376,7 +378,7 @@ by default.
 | `columnReorder` | off | Move columns: drag and drop on the header, context menu, `Ctrl+Shift+←/→`, column chooser |
 | `rowDetails` | off | “Show details” in the context menu of cells/cards: dialog with all fields of the record |
 | `templates` | off | Save/load views (needs storage) |
-| `csvExport` | off | CSV export button |
+| `export` | off | Export button and context-menu entry (dialog: CSV / JSON); `csvExport` still works as the former name |
 
 Enable what you need:
 
@@ -392,7 +394,7 @@ features: {
     columnReorder: true,
     rowDetails: true,
     templates: true,
-    csvExport: true
+    export: true
 }
 ```
 
@@ -555,6 +557,69 @@ copy buttons work.
 
 ---
 
+## Export
+
+With `features.export`, the toolbar button (download icon) and **“Export…”**
+in the context menu open the export dialog (centered on desktop, bottom sheet
+on mobile). Everything happens in the browser, no backend.
+
+Always shown, so a quick export is just `Enter`:
+
+- **Format** – CSV (default) or JSON.
+- **File name** – default: `exportFilename`, else `title`, else `"export"`,
+  plus a timestamp and the extension, e.g. `Members_2026-10-12_14-30-05.csv`.
+  Switching the format swaps the extension; a missing extension is added.
+
+Behind **“More options”** (collapsed):
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| Rows (`scope`) | `"filtered"` | `"page"` current page (only with pagination), `"filtered"` all rows matching filters and search, `"all"` the entire data. Always in the current sort order; the dialog shows the row count of each choice |
+| Include hidden columns (`allColumns`) | `false` | Also export hidden columns (only offered when columns are hidden). Columns always come in display order; `exportable: false` columns are never exported |
+| Values as displayed (`localized`) | `false` | `false`: raw values (numbers with `.` decimal point, booleans as `true`/`false`, `Date` objects as ISO strings). `true`: the formatted text from the table (locale, `format`, `formatter`) |
+| Header row (`headers`) | `true` | CSV only |
+| Column names (`names`) | `"label"` | `"label"` or `"key"`; header row in CSV, property names in JSON |
+| Delimiter (`delimiter`) | `csvDelimiter`, else `";"` | CSV only: `;` `,` tab `\|` |
+
+`exportDefaults` changes these defaults for the dialog and `exportData()`:
+
+```js
+createDataTable("#c", { /* … */
+    features: { export: true },
+    exportFilename: "members",
+    exportDefaults: { format: "json", names: "key", localized: true }
+});
+```
+
+A column's `exportFormatter(value, ctx)` replaces its value in every export
+(`ctx = { row, column, locale, localized, format }`).
+
+**CSV** follows RFC 4180 (quoted fields, CRLF line endings) and starts with a
+BOM so Excel detects UTF-8. **JSON** is an array of objects (one per row);
+raw values keep their types, empty values become `null`. If two columns share a
+label, the second one uses its key.
+
+**Formula injection.** Spreadsheet apps run CSV cells that start with `=`, `+`,
+`-`, `@`, tab or carriage return (and their full-width forms) as formulas. Such
+cells — header and values — get a leading `'`, so they show as text. Numbers,
+including signed and formatted ones like `-5` or `-1.234,56 €`, stay unchanged.
+JSON is not affected.
+
+After the download, the result is announced (“30 rows exported to
+“Members_….csv””). The `jw-datatable:export` event fires before the download
+and can cancel it (see [Events](#events)), e.g. to send the file elsewhere:
+
+```js
+table.addEventListener("jw-datatable:export", (e) => {
+    e.preventDefault();                  // no download
+    upload(e.detail.filename, e.detail.content);
+});
+```
+
+Without the dialog: `table.exportData({ format: "json", scope: "all" })`.
+
+---
+
 ## Templates & storage adapter
 
 Current state (sort, filters, search, page size, view, hidden columns) can be saved as a **template** via UI (save icon) or API:
@@ -595,6 +660,7 @@ All events are `composed` and `bubbles`.
 | `jw-datatable:navigate` | `{ href, row, column, value }` | SPA link clicked (`link.spa`) |
 | `jw-datatable:change` | `{ state }` | State changed (sort, filter, page, …) |
 | `jw-datatable:datachange` | `{ data }` | Data replaced via `setData()` |
+| `jw-datatable:export` | `{ format, filename, content, rowCount, columns, options }` | Before an export downloads; **cancelable** (`preventDefault()` skips the download and the announcement) |
 
 `onRowClick` / `onCellClick` are config callbacks, not events.
 
@@ -611,7 +677,9 @@ All events are `composed` and `bubbles`.
 | `getState()` | `object` | Serializable state |
 | `setState(partial)` | — | Apply partial state |
 | `clearFilters()` | — | Clear filters and search |
-| `exportCSV(filename?)` | — | Download filtered/sorted view as CSV |
+| `openExportDialog()` | — | Open the export dialog (also without `features.export`) |
+| `exportData(options?)` | `object \| null` | Export without the dialog; `options` as in [Export](#export) plus `filename`. Returns the event detail, `null` if cancelled |
+| `exportCSV(filename?)` | `object \| null` | Shortcut for `exportData({ format: "csv", filename })` |
 | `saveTemplate(name)` | `Promise` | Save current view |
 | `loadTemplate(name)` | `Promise` | Load template |
 | `listTemplates()` | `Promise<string[]>` | Template names |
@@ -834,11 +902,12 @@ or touch also works with the keyboard alone.
 | Header button | `Ctrl+Shift+←` / `Ctrl+Shift+→` | Move the column (with `features.columnReorder`); focus stays on the button |
 | Actions menu | `↑` `↓`, `Home` / `End`, `Enter` / `Space`, `Esc` / `Tab` | Navigate, activate, close (focus returns to where the menu was opened) |
 | Sort header | `Enter` / `Space` (`Shift+Enter` adds a sort key) | Sort |
-| Panels (filter, columns, templates, details) | `Tab` / `Shift+Tab`, `Esc` | Focus stays inside the panel; `Esc` closes and returns focus to the button that opened it |
+| Panels (filter, columns, templates, details, export) | `Tab` / `Shift+Tab`, `Esc` | Focus stays inside the panel; `Esc` closes and returns focus to the button that opened it |
 | Details dialog | `Shift+F10` on a cell/card → “Show details”; `Enter` on “Previous” / “Next” | Opens with focus on the dialog heading; focus stays on the pressed button (moves to the other one at the first/last record); closing returns focus to the shown record |
 | Filter panel tabs | `←` `→`, `Home` / `End` | Switch between “Values” and “Pattern” |
 | Filter panel, “Values” tab | `Enter` in the search field or on a search-result option | Apply (same as the “Apply” button); the search-result options are radio buttons (`↑` `↓`) |
 | Templates panel | `Enter` in the name field | Save |
+| Export dialog | `Enter` in the file name or on an option; `Space` on “More options” | Export (same as the “Export” button); focus starts on the selected format (`↑` `↓` switch formats) and returns to the opener afterwards |
 
 Focus is kept across re-renders (sorting, filtering, paging, …): the same
 control — or its closest equivalent, e.g. the current page when “next” becomes
@@ -878,6 +947,10 @@ table.
 - Panels are modal dialogs (`role="dialog"`, `aria-modal`, named by their
   heading); opener buttons carry `aria-haspopup="dialog"` and `aria-expanded`.
   The filter panel uses the tabs pattern (`tablist` / `tab` / `tabpanel`).
+- Export dialog: named “Export” by its `<h2>` heading; format, rows and
+  column names are radio groups (`fieldset` / `legend`); “More options” is a
+  disclosure button (`aria-expanded`, `aria-controls`); options that do not
+  apply to the chosen format are hidden, not just disabled.
 - Details dialog: named “Details: <record>” by its `<h2>` heading, fields as a
   description list, “Previous” / “Next” named “Previous record” / “Next
   record”; moving to another record announces “Record n of total: <record>”.
@@ -890,7 +963,7 @@ announced by screen readers. While a panel (modal dialog) is open, messages go
 to a live region inside the panel instead. Messages: number of results after
 search/filter, sort order, page range, “Copied to clipboard: <value>”, hidden
 column, pinned/unpinned column (including when there is not enough room to keep
-pinned columns in place), record shown in the details dialog, saved/loaded template. Repeated identical messages are announced again.
+pinned columns in place), record shown in the details dialog, saved/loaded template, finished export (rows and file name). Repeated identical messages are announced again.
 All texts come from `i18n.js`.
 
 The result count of the global search is announced once typing pauses (1 s),
@@ -923,7 +996,7 @@ focus in place.
 
 ## Demo
 
-`demo.html` is a full playground (137 sample rows, theme toggle, reload, CSV export, state dump). Serve over HTTP, e.g.:
+`demo.html` is a full playground (137 sample rows, theme toggle, reload, export dialog, state dump). Serve over HTTP, e.g.:
 
 ```bash
 python3 -m http.server 8000
