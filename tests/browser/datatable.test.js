@@ -1434,3 +1434,35 @@ test("copy column does not need the export feature", () => {
     assert.ok(menuItem(table, "Copy column"), "Copy column offered");
     assert.equal(menuItem(table, "Export…"), undefined, "no export without the feature");
 });
+
+// Replaces the async Clipboard API for one test; returns the written texts.
+function stubClipboard() {
+    const written = [];
+    Object.defineProperty(navigator, "clipboard", {
+        configurable: true,
+        value: { writeText: async (text) => { written.push(text); } }
+    });
+    written.restore = () => { delete navigator.clipboard; };
+    return written;
+}
+
+test("copying cells, rows and columns neutralizes formulas", async () => {
+    const written = stubClipboard();
+    try {
+        const table = mount({ data: [{ id: 1, name: "=cmd|' /C calc'!A0", fee: -5, active: true, joined: "2020-01-01" }] });
+        rightClick($$(table, "tbody td")[1]);
+        menuItem(table, "Copy cell").click();
+        await announced(table, "Copied to clipboard: =cmd|' /C calc'!A0");
+        rightClick($$(table, "tbody td")[1]);
+        menuItem(table, "Copy row").click();
+        rightClick($$(table, "tbody td")[1]);
+        menuItem(table, "Copy column").click();
+        await waitFor(() => written.length === 3);
+        assert.equal(written[0], "'=cmd|' /C calc'!A0", "cell");
+        assert.equal(written[1].split("\t")[1], "'=cmd|' /C calc'!A0", "row");
+        assert.match(written[1].split("\t")[2], /^-/, "negative number unchanged");
+        assert.equal(written[2], "'=cmd|' /C calc'!A0", "column");
+    } finally {
+        written.restore();
+    }
+});

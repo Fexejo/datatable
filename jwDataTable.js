@@ -32,7 +32,8 @@ import {
     exportColumns,
     defaultFilename,
     withExtension,
-    downloadFile
+    downloadFile,
+    neutralizeFormula
 } from "./export.js";
 import { openContextMenu, closeContextMenu, deepActiveElement } from "./contextMenu.js";
 import { TemplateStore, LocalStorageAdapter } from "./templateStore.js";
@@ -1087,7 +1088,7 @@ class JwDataTable extends HTMLElement {
             onclick: (e) => {
                 e.stopPropagation();
                 const text = toText(value, column, this._config.locale, row);
-                this._copyText(text, e.currentTarget, text);
+                this._copyText(neutralizeFormula(text), e.currentTarget, text);
             }
         }, [iconEl("copy")]);
     }
@@ -1539,7 +1540,7 @@ class JwDataTable extends HTMLElement {
         if (row) {
             items.push({ label: this._t.copyCell, icon: "copy", onSelect: () => {
                 const text = toText(value, column, this._config.locale, row);
-                this._copyText(text, null, text);
+                this._copyText(neutralizeFormula(text), null, text);
             } });
             items.push({ label: this._t.copyRow, icon: "copy", onSelect: () => this._copyRow(row) });
         }
@@ -2553,16 +2554,18 @@ class JwDataTable extends HTMLElement {
         done?.();
     }
 
+    // Copied text may be pasted into a spreadsheet, which would run cells
+    // starting with "=", "+", … as formulas (see `neutralizeFormula`).
     _copyRow(row) {
         const text = this._visibleColumns()
-            .map((column) => toText(getCellValue(row, column), column, this._config.locale, row))
+            .map((column) => neutralizeFormula(toText(getCellValue(row, column), column, this._config.locale, row)))
             .join("\t");
         this._copyText(text);
     }
 
     _copyColumn(column) {
         const text = this._viewData
-            .map((row) => toText(getCellValue(row, column), column, this._config.locale, row))
+            .map((row) => neutralizeFormula(toText(getCellValue(row, column), column, this._config.locale, row)))
             .join("\n");
         this._copyText(text);
     }
