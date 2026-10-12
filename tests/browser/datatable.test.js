@@ -468,7 +468,7 @@ test("value search checks the matches and restores the selection when cleared", 
     assert.ok(!mode.hidden, "result options shown while searching");
     assert.equal(mode.querySelector("legend").textContent, "Search results");
     assert.deepEqual(Array.from(mode.querySelectorAll('input[type="radio"]')).map((r) => [accessibleName(r.closest("label")), r.checked]),
-        [["Show only these values", true], ["Add these values to the filter", false]]);
+        [["Only these values", true], ["Add to filter", false]]);
 
     valueBox(table, "Emma").click();
     assert.ok(!toggleAll.querySelector("input").checked, "select all follows the boxes");
@@ -538,6 +538,25 @@ test("Tab is trapped inside an open panel", async () => {
     await input.press("Tab", ["Shift"]);
     assert.equal(deepActiveElement(), boxes.at(-1), "wraps to last");
 }, { cdp: true });
+
+test("column chooser: one switch per column, named by the column", () => {
+    const table = mount({ features: { columnVisibility: true }, initial: { hiddenColumns: ["fee"] } });
+    $(table, '[data-fk="tb:columns"]').click();
+    const switches = $$(table, '.k-dt-overlay input[type="checkbox"]');
+    assert.ok(switches.every((s) => s.getAttribute("role") === "switch"), "role=switch");
+    assert.deepEqual(switches.map((s) => s.labels[0].textContent), COLUMNS.map((c) => c.label));
+    assert.deepEqual(switches.map((s) => s.checked), [true, true, false, true, true], "on = visible");
+});
+
+test("value search mode is a segmented radio group", async () => {
+    const table = mount({ features: { filtering: true } });
+    await openNameFilter(table);
+    const mode = $(table, ".k-dt-search-mode");
+    assert.equal(mode.tagName, "FIELDSET");
+    assert.equal(mode.querySelector("legend").textContent, "Search results");
+    assert.ok(mode.querySelector(".k-dt-segmented"), "drawn as segments");
+    assert.equal($$(table, '.k-dt-search-mode input[type="radio"]').length, 2);
+});
 
 test("column chooser stays open while toggling columns", () => {
     const table = mount({ features: { columnVisibility: true } });

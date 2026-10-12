@@ -111,10 +111,11 @@ function segmentedEl(name, legend, options, value) {
 
 // On/off switch: a native checkbox with role="switch" (announced as
 // "switch, on/off", Space toggles); the whole row is the click target.
-function switchEl(text, checked) {
+// `props` go to the input (e.g. `onchange`).
+function switchEl(text, checked, props = {}) {
     return el("label", { class: "k-dt-switch" }, [
         el("span", { class: "k-dt-switch-label", text }),
-        el("input", { type: "checkbox", role: "switch", checked })
+        el("input", { type: "checkbox", role: "switch", checked, ...props })
     ]);
 }
 
@@ -1763,16 +1764,12 @@ class JwDataTable extends HTMLElement {
         container.appendChild(list);
 
         // Only shown while searching.
-        const modeName = uid("kdt-smode");
-        const radio = (value, text, checked) => el("label", { class: "k-dt-check" }, [
-            el("input", { type: "radio", name: modeName, value, checked }),
-            el("span", { class: "k-dt-check-label", text })
-        ]);
-        const searchMode = el("fieldset", { class: "k-dt-search-mode", hidden: true }, [
-            el("legend", { class: "k-dt-field-label", text: this._t.searchResultsMode }),
-            radio("replace", this._t.searchResultsOnly, true),
-            radio("add", this._t.searchResultsAdd, false)
-        ]);
+        const searchMode = segmentedEl(uid("kdt-smode"), this._t.searchResultsMode, [
+            ["replace", this._t.searchResultsOnly],
+            ["add", this._t.searchResultsAdd]
+        ], "replace");
+        searchMode.classList.add("k-dt-search-mode");
+        searchMode.hidden = true;
         container.appendChild(searchMode);
 
         return {
@@ -2100,14 +2097,9 @@ class JwDataTable extends HTMLElement {
         const list = el("div", { class: "k-dt-check-list" });
         this._orderedColumns().forEach((column) => {
             const visible = !this._state.hiddenColumns.has(column.key);
-            const check = el("label", { class: "k-dt-check" }, [
-                el("input", {
-                    type: "checkbox",
-                    checked: visible,
-                    onchange: (e) => this._toggleColumn(column.key, e.target.checked)
-                }),
-                el("span", { class: "k-dt-check-label", text: column.label })
-            ]);
+            const check = switchEl(column.label, visible, {
+                onchange: (e) => this._toggleColumn(column.key, e.target.checked)
+            });
             if (!this._features.columnPinning && !this._features.columnReorder) { list.appendChild(check); return; }
             const row = el("div", { class: "k-dt-col-row", "data-key": column.key }, [check]);
             if (this._features.columnPinning) {

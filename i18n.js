@@ -80,8 +80,8 @@ export const LOCALES = {
         selectAll: "Select all",
         selectAllResults: "Select all search results",
         searchResultsMode: "Search results",
-        searchResultsOnly: "Show only these values",
-        searchResultsAdd: "Add these values to the filter",
+        searchResultsOnly: "Only these values",
+        searchResultsAdd: "Add to filter",
         emptyValue: "(empty)",
         condition: "Condition",
 
@@ -273,8 +273,8 @@ export const LOCALES = {
         selectAll: "Alle auswählen",
         selectAllResults: "Alle Suchergebnisse auswählen",
         searchResultsMode: "Suchergebnisse",
-        searchResultsOnly: "Nur diese Werte anzeigen",
-        searchResultsAdd: "Diese Werte zum Filter hinzufügen",
+        searchResultsOnly: "Nur diese Werte",
+        searchResultsAdd: "Zum Filter hinzufügen",
         emptyValue: "(leer)",
         condition: "Bedingung",
 

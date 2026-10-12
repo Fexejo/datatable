@@ -708,9 +708,11 @@ span.k-dt-th-label { cursor: default; }
 .k-dt-check:hover { background: var(--k-dt-hover); }
 .k-dt-check input[type="checkbox"], .k-dt-check input[type="radio"] { width: 18px; height: 18px; flex: none; }
 .k-dt-search-mode { border: none; border-top: 1px solid var(--k-dt-border); margin: 0; padding: var(--k-space-s, 8px) 0 0; min-width: 0; }
-.k-dt-search-mode legend { padding: 0; float: left; width: 100%; }
+/* Floated legend: keeps the top border from running through it. */
+.k-dt-search-mode legend { float: left; width: 100%; }
+.k-dt-search-mode .k-dt-segmented { clear: both; }
 .k-dt-col-row { display: flex; align-items: center; gap: var(--k-space-2xs, 4px); }
-.k-dt-col-row .k-dt-check { flex: 1; min-width: 0; }
+.k-dt-col-row .k-dt-switch { flex: 1; min-width: 0; }
 .k-dt-move-btn { border-color: transparent; flex: none; }
 .k-dt-move-btn:disabled { opacity: 0.35; cursor: default; background: none; }
 /* Pressed = filled accent (not color alone: background + border change). */
