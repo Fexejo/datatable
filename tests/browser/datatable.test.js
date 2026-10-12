@@ -834,6 +834,19 @@ test("scroll shadows mark the edges with more content", async () => {
         { message: "no shadows without overflow" });
 });
 
+test("as a grid item the table stays inside its track and scrolls", async () => {
+    const fixture = document.getElementById("fixture");
+    fixture.style.cssText = "display:grid;grid-template-columns:1fr;width:300px";
+    try {
+        const table = mount();
+        const body = $(table, ".k-dt-body");
+        await waitFor(() => body.scrollWidth > body.clientWidth, { message: "body overflows" });
+        assert.ok(table.getBoundingClientRect().width <= 300.5, "host keeps the track width");
+    } finally {
+        fixture.style.cssText = "";
+    }
+});
+
 // ---- Cell overflow -----------------------------------------------------------
 
 const LONG = "A remarkably long value that cannot possibly fit into a narrow column";

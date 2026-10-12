@@ -13,6 +13,9 @@
 export const datatableStyles = `
 :host {
     display: block;
+    /* As a flex/grid item, shrink to the track and scroll inside instead of
+       stretching the layout to the table's width. */
+    min-width: 0;
     font-family: var(--k-font-family-base, system-ui, sans-serif);
     color: var(--k-color-text, #222);
     --k-dt-border: var(--k-color-border, #d8d8d8);

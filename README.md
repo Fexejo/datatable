@@ -45,6 +45,7 @@ written in Vanilla JS (ES modules, Shadow DOM). No external dependencies.
 15. [Events](#events)
 16. [Instance API](#instance-api)
 17. [Theming & styling](#theming--styling)
+    - [Size & placement](#size--placement)
     - [Icons](#icons)
 18. [Responsive & touch](#responsive--touch)
 19. [i18n / Localization](#i18n--localization)
@@ -629,6 +630,27 @@ createDataTable("#c", { /* … */ styles: `
     .k-dt-tr:hover .k-dt-td { background: #fffbe6; }
 ` });
 ```
+
+### Size & placement
+
+`<jw-datatable>` is a block element (`display: block; min-width: 0`): without
+a width it fills its parent, otherwise it takes whatever width you give it from
+outside (`width`, `max-width`, a grid track, a flex basis). A table wider than
+that scrolls horizontally inside the component; toolbar and footer stay put.
+Because of `min-width: 0` it also shrinks to its track as a flex or grid item
+instead of stretching the layout.
+
+```css
+jw-datatable { max-width: 48rem; }                 /* fixed or capped width */
+.layout { display: grid; grid-template-columns: 1fr 20rem; } /* shrinks with the track */
+```
+
+Height grows with the rows; set `maxHeight` (e.g. `"60vh"`) to scroll the body
+vertically under a sticky header.
+
+The switch to the mobile layout follows the **viewport** width
+(`responsive.breakpoint`), not the component's own width: a narrow table on a
+wide screen keeps the table view and scrolls horizontally.
 
 ### Icons
 
