@@ -1504,9 +1504,7 @@ class JwDataTable extends HTMLElement {
             } });
             items.push({ label: this._t.copyRow, icon: "copy", onSelect: () => this._copyRow(row) });
         }
-        if (this._features.csvExport) {
-            items.push({ label: this._t.copyColumn, icon: "copy", onSelect: () => this._copyColumn(column) });
-        }
+        items.push({ label: this._t.copyColumn, icon: "copy", onSelect: () => this._copyColumn(column) });
 
         if (this._features.columnVisibility || this._features.columnPinning || this._features.columnReorder) items.push({ separator: true });
         if (this._features.columnReorder) items.push(...this._moveMenuItems(column));

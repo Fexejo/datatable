@@ -1247,3 +1247,9 @@ test("columnOrder in setState is normalized", () => {
     assert.deepEqual(table.getState().columnOrder, ["fee", "id", "name", "active", "joined"]);
     assert.deepEqual(headerKeys(table), ["fee", "id", "name", "active", "joined"]);
 });
+
+test("copy column does not need the export feature", () => {
+    const table = mount();
+    rightClick($$(table, "tbody td")[1]);
+    assert.ok(menuItem(table, "Copy column"), "Copy column offered");
+});
