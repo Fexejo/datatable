@@ -1,7 +1,7 @@
 // XLSX writer — one worksheet as an Office Open XML workbook, packed in an
 // uncompressed ZIP. No dependencies, no DOM; runs in the browser and in Node.
 
-import { toDate, typeGroup } from "./util.js";
+import { toDate, typeGroup } from "../core/util.js";
 
 // ---- ZIP (stored, no compression) -------------------------------------------
 

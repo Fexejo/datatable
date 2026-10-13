@@ -1,12 +1,13 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync, readdirSync } from "node:fs";
-import { ICONS } from "../../icons.js";
+import { ICONS } from "../../src/ui/icons.js";
 
-const root = new URL("../../", import.meta.url);
-const source = readdirSync(root)
-    .filter((f) => f.endsWith(".js") && f !== "icons.js")
-    .map((f) => readFileSync(new URL(f, root), "utf8"))
+// All bundled sources except the icon table itself.
+const src = new URL("../../src/", import.meta.url);
+const source = readdirSync(src, { recursive: true })
+    .filter((f) => f.endsWith(".js") && !f.endsWith("icons.js"))
+    .map((f) => readFileSync(new URL(f, src), "utf8"))
     .join("\n");
 
 test("icon keys are kebab-case Lucide names", () => {

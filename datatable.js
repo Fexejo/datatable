@@ -3,9 +3,9 @@
 // Registers the <jw-datatable> custom element and provides a factory that
 // creates the element, configures it, and mounts it in a container.
 
-import { JwDataTable } from "./jwDataTable.js";
-import { LocalStorageAdapter, ViewStore } from "./viewStore.js";
-import { inferColumns, inferType } from "./columns.js";
+import { JwDataTable } from "./src/jwDataTable.js";
+import { LocalStorageAdapter, ViewStore } from "./src/core/viewStore.js";
+import { inferColumns, inferType } from "./src/core/columns.js";
 
 /**
  * Creates a configured data table and appends it to `container`.

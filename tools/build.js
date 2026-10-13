@@ -9,13 +9,13 @@
 // set ESBUILD_BIN to use a local esbuild binary instead.
 //
 // Steps:
-// 1. Copy all source modules to a temp dir.
-// 2. Shrink what esbuild can't: minify the CSS string in styles.js and
-//    compact the Lucide SVG markup in icons.js.
+// 1. Copy the entry point and src/ to a temp dir.
+// 2. Shrink what esbuild can't: minify the CSS string in src/ui/styles.js and
+//    compact the Lucide SVG markup in src/ui/icons.js.
 // 3. Bundle + minify from datatable.js into one ES module with a banner.
 
 import { spawnSync } from "node:child_process";
-import { cpSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -40,19 +40,19 @@ function esbuild(args, input) {
 
 const tmp = mkdtempSync(join(tmpdir(), "jw-datatable-build-"));
 try {
-    // 1. Copy sources (top-level *.js only — tests/tools are not part of the bundle).
-    for (const file of readdirSync(ROOT).filter((f) => f.endsWith(".js"))) {
-        cpSync(join(ROOT, file), join(tmp, file));
-    }
+    // 1. Copy sources (tests/tools are not part of the bundle).
+    cpSync(join(ROOT, "datatable.js"), join(tmp, "datatable.js"));
+    cpSync(join(ROOT, "src"), join(tmp, "src"), { recursive: true });
 
     // 2a. Minify the shadow-DOM CSS.
-    const { datatableStyles } = await import(pathToFileURL(join(ROOT, "styles.js")).href);
+    const stylesFile = join("src", "ui", "styles.js");
+    const { datatableStyles } = await import(pathToFileURL(join(ROOT, stylesFile)).href);
     const css = esbuild(["--loader=css", "--minify"], datatableStyles).trim();
-    writeFileSync(join(tmp, "styles.js"), `export const datatableStyles = ${JSON.stringify(css)};\n`);
+    writeFileSync(join(tmp, stylesFile), `export const datatableStyles = ${JSON.stringify(css)};\n`);
 
     // 2b. Compact icon markup ('<path d="…" />' → '<path d="…"/>').
-    const icons = readFileSync(join(tmp, "icons.js"), "utf8").replace(/" \/>/g, '"/>');
-    writeFileSync(join(tmp, "icons.js"), icons);
+    const iconsFile = join(tmp, "src", "ui", "icons.js");
+    writeFileSync(iconsFile, readFileSync(iconsFile, "utf8").replace(/" \/>/g, '"/>'));
 
     // 3. Bundle + minify.
     const banner = `/*! jw-datatable v${version} | Icons: Lucide (ISC License, https://lucide.dev) */`;

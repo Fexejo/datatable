@@ -59,22 +59,13 @@ written in Vanilla JS (ES modules, Shadow DOM). No external dependencies.
 
 ## Files & layout
 
-| File | Role |
+| Path | Role |
 |------|------|
 | `datatable.js` | **Public API** – registers `<jw-datatable>` and exports `createDataTable()` |
-| `jwDataTable.js` | Web Component (rendering, state, interaction) |
-| `formatters.js` | Type-dependent display formatting |
-| `comparators.js` | Sort comparison, multi-column sort |
-| `filtering.js` | Value/pattern filters, operators, distinct values |
-| `export.js` | CSV / XLSX / JSON build, formula neutralizing, file name & download |
-| `xlsx.js` | XLSX writer (one worksheet, uncompressed ZIP) |
-| `viewStore.js` | Saved-view storage (`ViewStore`) + `LocalStorageAdapter` |
-| `contextMenu.js` | Reusable context menu |
-| `styles.js` | Shadow DOM styles as a string |
-| `util.js` | Shared helpers |
-| `icons.js` | [Lucide](https://lucide.dev) icons, bundled inline (see [Icons](#icons)) |
-| `i18n.js` | UI translations + `getTranslations()` helper |
-| `columns.js` | Column inference from data |
+| `src/jwDataTable.js` | The Web Component (state, rendering, interaction) |
+| `src/core/` | DOM-free logic: formatting, sorting, filtering, column inference, translations (`i18n.js`), saved-view storage, shared helpers |
+| `src/export/` | CSV / XLSX / JSON export and the XLSX writer |
+| `src/ui/` | Styles, [Lucide](https://lucide.dev) icons (see [Icons](#icons)), context menu |
 | `demo.html` | Runnable demo |
 | `tests/` | Unit and browser tests (not needed in consuming projects) |
 | `dist/jw-datatable.min.js` | Single-file bundle for consuming projects (built by CI) |
@@ -103,8 +94,8 @@ dependencies. Its first line names the version
 (`/*! jw-datatable vX.Y.Z … */`). `dist/` always holds the latest release;
 it is built by CI and must not be edited by hand.
 
-**Alternatively: the sources.** Copy all top-level `*.js` files into one folder
-and import `datatable.js` — same API, unminified, handy for debugging:
+**Alternatively: the sources.** Copy `datatable.js` and the `src/` folder
+into one folder and import `datatable.js` — same API, unminified, handy for debugging:
 
 ```js
 import { createDataTable } from "./datatable/datatable.js";
@@ -832,7 +823,7 @@ wide screen keeps the table layout and scrolls horizontally.
 ### Icons
 
 All icons are [Lucide](https://lucide.dev/icons) icons (ISC license), bundled
-in `icons.js` — no icon package or `.svg` files are loaded at runtime. They use
+in `src/ui/icons.js` — no icon package or `.svg` files are loaded at runtime. They use
 `stroke="currentColor"`, so they follow the text color of their control, and
 are sized via CSS (`.k-dt-ic svg`, `.k-ctx-icon svg`).
 
@@ -844,7 +835,7 @@ own `aria-label` from the i18n bundle.
 1. Look up the canonical name on <https://lucide.dev/icons> (no aliases).
 2. `curl -sSL https://cdn.jsdelivr.net/npm/lucide-static@latest/icons/<name>.svg`
 3. Copy only the inner markup of `<svg>` (paths, circles, …) as one line into
-   `ICONS` in `icons.js`, keyed by the Lucide name.
+   `ICONS` in `src/ui/icons.js`, keyed by the Lucide name.
 4. Use it via `createIcon("<name>")` (returns an `SVGSVGElement`), or the
    `iconEl()` helper in `jwDataTable.js` / `icon:` in context-menu items.
 
@@ -935,10 +926,10 @@ createDataTable("#c", {
 
 ### Adding a new language
 
-Open `i18n.js` and add a new entry to the `LOCALES` object using the BCP-47 language subtag as the key:
+Open `src/core/i18n.js` and add a new entry to the `LOCALES` object using the BCP-47 language subtag as the key:
 
 ```js
-// i18n.js
+// src/core/i18n.js
 export const LOCALES = {
     en: { /* … */ },
     de: { /* … */ },

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { formatValue, toText } from "../../formatters.js";
+import { formatValue, toText } from "../../src/core/formatters.js";
 
 // Intl output can contain narrow no-break spaces; normalize for comparisons.
 const norm = (s) => String(s).replace(/[  ]/g, " ");

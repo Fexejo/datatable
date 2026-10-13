@@ -2,7 +2,7 @@
 // `?dist` in the page URL runs them against the built bundle instead of the sources.
 
 import { test, assert, nextFrame, sleep, waitFor, deepActiveElement, accessibleName, input } from "./harness.js";
-import { createIcon } from "../../icons.js";
+import { createIcon } from "../../src/ui/icons.js";
 
 const ENTRY = new URLSearchParams(location.search).has("dist")
     ? "../../dist/jw-datatable.min.js"

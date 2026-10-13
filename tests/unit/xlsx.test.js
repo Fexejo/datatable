@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { crc32, zip, buildXLSX, columnLetter, dateSerial, sheetName } from "../../xlsx.js";
-import { buildSheet } from "../../export.js";
+import { crc32, zip, buildXLSX, columnLetter, dateSerial, sheetName } from "../../src/export/xlsx.js";
+import { buildSheet } from "../../src/export/export.js";
 
 // Minimal reader for stored (uncompressed) ZIP archives: name → text.
 function unzip(bytes) {

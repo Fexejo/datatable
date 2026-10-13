@@ -7,24 +7,24 @@
 //
 // The convenient public API lives in `datatable.js`. This file is the Web Component itself.
 
-import { createIcon } from "./icons.js";
-import { getTranslations } from "./i18n.js";
+import { createIcon } from "./ui/icons.js";
+import { getTranslations } from "./core/i18n.js";
 import {
     getCellValue,
     clamp,
     debounce,
     uid,
     typeGroup
-} from "./util.js";
-import { formatValue, toText } from "./formatters.js";
-import { sortData, toggleSort } from "./comparators.js";
+} from "./core/util.js";
+import { formatValue, toText } from "./core/formatters.js";
+import { sortData, toggleSort } from "./core/comparators.js";
 import {
     applyFilters,
     distinctValues,
     operatorsForType,
     operatorMeta,
     isActiveFilter
-} from "./filtering.js";
+} from "./core/filtering.js";
 import {
     EXPORT_DEFAULTS,
     EXPORT_FORMATS,
@@ -35,10 +35,10 @@ import {
     withExtension,
     downloadFile,
     neutralizeFormula
-} from "./export.js";
-import { openContextMenu, closeContextMenu, deepActiveElement } from "./contextMenu.js";
-import { ViewStore, LocalStorageAdapter } from "./viewStore.js";
-import { datatableStyles } from "./styles.js";
+} from "./export/export.js";
+import { openContextMenu, closeContextMenu, deepActiveElement } from "./ui/contextMenu.js";
+import { ViewStore, LocalStorageAdapter } from "./core/viewStore.js";
+import { datatableStyles } from "./ui/styles.js";
 
 // Small DOM helper.
 function el(tag, props = {}, children = []) {

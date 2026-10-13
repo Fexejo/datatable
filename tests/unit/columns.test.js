@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { inferColumns, inferType } from "../../columns.js";
+import { inferColumns, inferType } from "../../src/core/columns.js";
 
 test("inferType skips empty values", () => {
     const rows = [{ a: null }, { a: "" }, { a: 3 }];

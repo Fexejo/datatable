@@ -1,6 +1,6 @@
 import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
-import { LocalStorageAdapter, ViewStore } from "../../viewStore.js";
+import { LocalStorageAdapter, ViewStore } from "../../src/core/viewStore.js";
 
 // Minimal in-memory localStorage for Node.
 let backing;

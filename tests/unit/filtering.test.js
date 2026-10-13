@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { applyFilters, matchesPattern, isActiveFilter, distinctValues, operatorsForType } from "../../filtering.js";
+import { applyFilters, matchesPattern, isActiveFilter, distinctValues, operatorsForType } from "../../src/core/filtering.js";
 
 const columns = [
     { key: "name", type: "string" },

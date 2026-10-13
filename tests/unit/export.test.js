@@ -9,7 +9,7 @@ import {
     withExtension,
     sanitizeFilename,
     timestamp
-} from "../../export.js";
+} from "../../src/export/export.js";
 
 const columns = [
     { key: "name", label: "Name", type: "string" },

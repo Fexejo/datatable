@@ -1,8 +1,8 @@
 // Export — builds CSV (RFC 4180), XLSX or JSON from rows and columns and
 // downloads it, entirely in the browser (no backend).
 
-import { getCellValue, isEmptyValue } from "./util.js";
-import { toText } from "./formatters.js";
+import { getCellValue, isEmptyValue } from "../core/util.js";
+import { toText } from "../core/formatters.js";
 import { buildXLSX } from "./xlsx.js";
 
 // `text`: can go to the clipboard (XLSX is binary).

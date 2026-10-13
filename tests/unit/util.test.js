@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { getByPath, getCellValue, isEmptyValue, toDate, toNumber, toBoolean, typeGroup, clamp } from "../../util.js";
+import { getByPath, getCellValue, isEmptyValue, toDate, toNumber, toBoolean, typeGroup, clamp } from "../../src/core/util.js";
 
 test("getByPath reads flat and nested keys", () => {
     const row = { name: "Anna", address: { city: "Berlin" } };

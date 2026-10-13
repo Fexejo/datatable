@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { LOCALES, LOCALE_NAMES, getTranslations } from "../../i18n.js";
+import { LOCALES, LOCALE_NAMES, getTranslations } from "../../src/core/i18n.js";
 
 test("locale resolution: exact, language prefix, English fallback", () => {
     assert.equal(getTranslations("de-AT"), LOCALES.de);

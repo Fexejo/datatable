@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { compareValues, sortData, toggleSort } from "../../comparators.js";
+import { compareValues, sortData, toggleSort } from "../../src/core/comparators.js";
 
 const columns = [
     { key: "name", type: "string" },
