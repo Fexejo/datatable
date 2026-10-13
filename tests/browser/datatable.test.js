@@ -712,6 +712,21 @@ test("filter summary: \"Filter (n)\" opens the active filters with their values"
     assert.equal(table.getState().filters.name?.values.length, 2, "filters unchanged");
 }, { cdp: true });
 
+test("typing in the search field updates \"Filter (n)\" and keeps focus in the field", async () => {
+    const table = mount({ features: { filtering: true, globalSearch: true } });
+    const field = $(table, ".k-dt-search-input");
+    field.focus();
+    await type("an");
+    await waitFor(() => $(table, '[data-fk="tb:filters"]'), { message: "filter buttons shown" });
+    assert.equal($(table, '[data-fk="tb:filters"]').textContent, "Filter (1)");
+    assert.equal(deepActiveElement(), field, "the same search field keeps focus");
+
+    await input.press("Backspace");
+    await input.press("Backspace");
+    await waitFor(() => !$(table, '[data-fk="tb:filters"]'), { message: "filter buttons gone" });
+    assert.equal(deepActiveElement(), field);
+}, { cdp: true });
+
 test("filter summary: removing one filter keeps the panel open, the last one closes it", async () => {
     const table = mountFiltered();
     $(table, '[data-fk="tb:filters"]').click();

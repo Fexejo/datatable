@@ -31,26 +31,7 @@ export function buildToolbar({
     ]);
 
     const right = el("div", { class: "k-dt-toolbar-right" }, [
-        filterCount > 0 && el("div", { class: "k-dt-btn-group" }, [
-            el("button", {
-                type: "button",
-                class: "k-dt-btn",
-                "data-fk": "tb:filters",
-                "aria-haspopup": "dialog",
-                "aria-expanded": String(openerKey === "tb:filters"),
-                title: t.showFilters,
-                text: t.filterCount(filterCount),
-                onclick: (e) => onShowFilters(e.currentTarget)
-            }),
-            el("button", {
-                type: "button",
-                class: "k-dt-btn",
-                "data-fk": "tb:clear",
-                title: t.clearFilters,
-                "aria-label": t.clearFilters,
-                onclick: onClearFilters
-            }, [iconEl("x")])
-        ]),
+        buildFilterButtons({ t, filterCount, onShowFilters, onClearFilters, openerKey }),
         // One toggle button per layout; the current one is pressed.
         layouts.length > 1 && el("div", { class: "k-dt-layout-switch", role: "group", "aria-label": t.layoutSwitch },
             layouts.map(({ layout, icon, label }) => el("button", {
@@ -75,4 +56,30 @@ export function buildToolbar({
     ]);
 
     return el("div", { class: "k-dt-toolbar", part: "toolbar" }, [left, right]);
+}
+
+// "Filter (n)" joined with its "x", or null without active filters. Also
+// used on its own to update them while the search field keeps focus.
+export function buildFilterButtons({ t, filterCount, onShowFilters, onClearFilters, openerKey }) {
+    if (!(filterCount > 0)) return null;
+    return el("div", { class: "k-dt-btn-group" }, [
+        el("button", {
+            type: "button",
+            class: "k-dt-btn",
+            "data-fk": "tb:filters",
+            "aria-haspopup": "dialog",
+            "aria-expanded": String(openerKey === "tb:filters"),
+            title: t.showFilters,
+            text: t.filterCount(filterCount),
+            onclick: (e) => onShowFilters(e.currentTarget)
+        }),
+        el("button", {
+            type: "button",
+            class: "k-dt-btn",
+            "data-fk": "tb:clear",
+            title: t.clearFilters,
+            "aria-label": t.clearFilters,
+            onclick: onClearFilters
+        }, [iconEl("x")])
+    ]);
 }

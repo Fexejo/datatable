@@ -117,6 +117,7 @@ const KEYS = {
     Tab: { code: "Tab", keyCode: 9 },
     Enter: { code: "Enter", keyCode: 13, text: "\r" },
     Escape: { code: "Escape", keyCode: 27 },
+    Backspace: { code: "Backspace", keyCode: 8 },
     " ": { code: "Space", keyCode: 32, text: " " },
     ArrowUp: { code: "ArrowUp", keyCode: 38 },
     ArrowDown: { code: "ArrowDown", keyCode: 40 },

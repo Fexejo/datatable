@@ -36,7 +36,7 @@ import { waitForLongPress } from "./ui/longPress.js";
 import { initRoving, tableCellTarget, listItemTarget } from "./ui/keyboard.js";
 import { bindColumnMove } from "./ui/columnDrag.js";
 import { layoutPinned, updateScrollShadows } from "./ui/pinnedLayout.js";
-import { buildToolbar } from "./render/toolbar.js";
+import { buildToolbar, buildFilterButtons } from "./render/toolbar.js";
 import { buildFooter } from "./render/footer.js";
 import { buildFilterPanel } from "./panels/filterPanel.js";
 import { buildFilterSummary } from "./panels/filterSummary.js";
@@ -509,9 +509,7 @@ class JwDataTable extends HTMLElement {
                 placeholder: this._config.searchPlaceholder || t.searchPlaceholder,
                 onInput: (value) => this._debouncedSearch(value)
             } : null,
-            filterCount: features.filtering ? activeFilterCount(this._state, { globalSearch: features.globalSearch }) : 0,
-            onShowFilters: (anchor) => this._openFilterSummary(anchor),
-            onClearFilters: () => this.clearFilters(),
+            ...this._filterButtonProps(),
             layouts: this._availableLayouts().map((layout) => ({ layout, ...layoutMeta[layout] })),
             currentLayout: this._currentLayout(),
             onLayout: (layout) => {
@@ -521,6 +519,27 @@ class JwDataTable extends HTMLElement {
             panels,
             openerKey: this._overlay.openerKey
         });
+    }
+
+    _filterButtonProps() {
+        const features = this._features;
+        return {
+            filterCount: features.filtering ? activeFilterCount(this._state, { globalSearch: features.globalSearch }) : 0,
+            onShowFilters: (anchor) => this._openFilterSummary(anchor),
+            onClearFilters: () => this.clearFilters()
+        };
+    }
+
+    // "Filter (n)" and its "x" in place: typing in the search field changes
+    // the count without re-rendering the toolbar.
+    _refreshFilterButtons() {
+        const right = this.shadow.querySelector(".k-dt-toolbar-right");
+        if (!right) return;
+        const next = buildFilterButtons({ t: this._t, ...this._filterButtonProps(), openerKey: this._overlay.openerKey });
+        const current = right.querySelector(":scope > .k-dt-btn-group");
+        if (current && next) current.replaceWith(next);
+        else if (current) current.remove();
+        else if (next) right.prepend(next);
     }
 
     _renderTable() {
@@ -839,13 +858,15 @@ class JwDataTable extends HTMLElement {
 
     // ---- Partial refresh (the focused element stays the same) -------------
 
-    // Replaces table body and footer only (toolbar/search field unchanged).
+    // Replaces table body and footer only; of the toolbar only the filter
+    // buttons (the search field stays).
     _refreshBody() {
         const root = this.shadow.querySelector(".k-dt");
         if (!root) { this._render(); return; }
         const focusKey = this._focusKey();
 
         root.querySelector(".k-dt-body").replaceWith(this._renderBody());
+        this._refreshFilterButtons();
 
         if (this._features.pagination) {
             const newFooter = this._renderFooter();
