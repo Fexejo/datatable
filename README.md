@@ -401,6 +401,11 @@ features: {
 ```
 
 To turn an always-on feature off, set it to `false` (e.g. `pagination: false`).
+Without pagination, every row that matches the filters and search is rendered
+at once; there is no virtualization (deliberately: it would hurt screen readers,
+keyboard navigation, find-in-page, the card layout and wrapping rows). For large
+data sets, keep pagination on.
+
 Column-level flags (`sortable`, `filterable`, …) apply only when the matching
 global feature is enabled.
 
