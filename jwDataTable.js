@@ -86,6 +86,19 @@ function getAnnouncer() {
     return node;
 }
 
+function supportsAdoptedStyles() {
+    return typeof CSSStyleSheet === "function" && "adoptedStyleSheets" in ShadowRoot.prototype;
+}
+
+let componentSheet = null;
+function sharedSheet() {
+    if (!componentSheet) {
+        componentSheet = new CSSStyleSheet();
+        componentSheet.replaceSync(datatableStyles);
+    }
+    return componentSheet;
+}
+
 function iconEl(name, className = "k-dt-ic") {
     return el("span", { class: className }, [createIcon(name)]);
 }
@@ -191,7 +204,7 @@ class JwDataTable extends HTMLElement {
         getAnnouncer();
         if (!this._configured) return;
         if (!this._mql) this._setupResponsive();
-        if (!this.shadow.firstChild) this._render();
+        if (!this.shadow.querySelector(".k-dt")) this._render();
     }
 
     disconnectedCallback() {
@@ -213,6 +226,7 @@ class JwDataTable extends HTMLElement {
             ...config
         };
         this._t = getTranslations(this._config.locale);
+        this._applyStyles();
         // Derive text defaults from translation bundle; allow explicit config override.
         this._config.emptyText ??= this._t.emptyData;
         this._config.noResultsText ??= this._t.noResults;
@@ -256,6 +270,25 @@ class JwDataTable extends HTMLElement {
         this._deriveView();
         this._render();
         return this;
+    }
+
+    // The component CSS is parsed once and shared by all tables; `config.styles`
+    // is a second, per-table sheet.
+    _applyStyles() {
+        const extra = this._config.styles || "";
+        if (!supportsAdoptedStyles()) {
+            let style = this.shadow.querySelector("style");
+            if (!style) style = this.shadow.appendChild(document.createElement("style"));
+            style.textContent = datatableStyles + extra;
+            return;
+        }
+        const sheets = [sharedSheet()];
+        if (extra) {
+            const sheet = new CSSStyleSheet();
+            sheet.replaceSync(extra);
+            sheets.push(sheet);
+        }
+        this.shadow.adoptedStyleSheets = sheets;
     }
 
     // ---- Responsive (Mobile First) --------------------------------------
@@ -616,13 +649,8 @@ class JwDataTable extends HTMLElement {
     _render() {
         if (!this._configured) return;
         const focusKey = this._focusKey();
-        // Replace only style + table root; open panels, the context menu and the
-        // live region stay in place.
-        for (const child of Array.from(this.shadow.children)) {
-            if (child.tagName === "STYLE" || child.classList.contains("k-dt")) child.remove();
-        }
-        const style = el("style", { html: datatableStyles + (this._config.styles || "") });
-        this.shadow.prepend(style);
+        // Replace only the table root; open panels and the context menu stay in place.
+        const previous = this.shadow.querySelector(".k-dt");
 
         const root = el("div", { class: "k-dt", part: "root" });
         // Suppress the browser's native context menu anywhere in the table (incl.
@@ -642,7 +670,8 @@ class JwDataTable extends HTMLElement {
         root.appendChild(el("div", { class: "k-dt-viewport" }, [this._renderBody()]));
 
         if (this._features.pagination) root.appendChild(this._renderFooter());
-        style.after(root);
+        if (previous) previous.replaceWith(root);
+        else this.shadow.prepend(root);
         this._observeLayout();
         this._restoreFocus(focusKey);
     }

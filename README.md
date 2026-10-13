@@ -180,7 +180,7 @@ table.configure({ /* … */ });
 | `noResultsText` | `string` | *(from locale)* | Override text shown when filters match nothing |
 | `exportFilename` | `string` | `title`, else `"export"` | Base of the default file name (timestamp and extension are appended) |
 | `exportDefaults` | `object` | — | Defaults of the export dialog and `exportData()` (see [Export](#export)) |
-| `styles` | `string` | — | Extra CSS injected into shadow root |
+| `styles` | `string` | — | Extra CSS for this table (own stylesheet in the shadow root) |
 | `rowClass` | `(row, index) => string` | — | CSS class(es) per row |
 | `onRowClick` | `(row, index) => void` | — | Row/card click (compact layout: “Open” button in the details dialog) |
 | `onCellClick` | `(value, row, column) => void` | — | Cell click (not in the compact layout) |
@@ -799,7 +799,7 @@ jw-datatable::part(card)    { box-shadow: 0 2px 8px rgba(0,0,0,.1); }
 
 Parts: `root`, `toolbar`, `body`, `table`, `grid`, `card`, `footer`.
 
-**3. `config.styles`** (injected into shadow root):
+**3. `config.styles`** (an extra stylesheet in this table's shadow root, after the built-in styles):
 
 ```js
 createDataTable("#c", { /* … */ styles: `

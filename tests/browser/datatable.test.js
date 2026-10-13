@@ -66,6 +66,18 @@ test(`public API is exported (${ENTRY})`, () => {
     assert.equal(customElements.get("jw-datatable"), api.JwDataTable, "custom element registered");
 });
 
+test("tables share one parsed stylesheet; config.styles adds a per-table sheet", () => {
+    const a = mount();
+    const b = mount({ styles: ".k-dt-title { color: rgb(1, 2, 3); }", title: "B" });
+    a.after(b);
+    const [shared] = a.shadowRoot.adoptedStyleSheets;
+    assert.equal(a.shadowRoot.adoptedStyleSheets.length, 1);
+    assert.equal(b.shadowRoot.adoptedStyleSheets[0], shared, "same sheet object");
+    assert.equal(getComputedStyle($(b, ".k-dt-title")).color, "rgb(1, 2, 3)");
+    assert.equal(a.shadowRoot.querySelector("style"), null, "no <style> element per render");
+    b.remove();
+});
+
 // ---- Rendering ------------------------------------------------------------
 
 test("renders a semantic table with column headers and one page of rows", () => {
