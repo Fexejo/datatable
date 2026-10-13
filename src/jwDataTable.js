@@ -5,64 +5,44 @@
 // links (href / SPA routing / custom handlers), per-column copy buttons,
 // runtime data updates, and saved views (localStorage or a custom adapter).
 //
-// The convenient public API lives in `datatable.js`. This file is the Web Component itself.
+// This file is the Web Component: it owns the state, renders the table and
+// cards, handles events and opens panels. State logic lives in core/, the
+// panels in panels/, toolbar and footer in render/, DOM building blocks in
+// ui/. The public API is `datatable.js`.
 
 import { getTranslations } from "./core/i18n.js";
-import {
-    getCellValue,
-    clamp,
-    debounce,
-    uid,
-    typeGroup
-} from "./core/util.js";
+import { getCellValue, clamp, debounce, uid, typeGroup } from "./core/util.js";
 import { formatValue, toText } from "./core/formatters.js";
 import { sortData, toggleSort } from "./core/comparators.js";
+import { distinctValues, isActiveFilter } from "./core/filtering.js";
 import { normalizeColumns } from "./core/columns.js";
 import { pageRange } from "./core/pagination.js";
 import {
-    createState,
-    mergeState,
-    serializeState,
-    viewSignature,
-    activeFilterCount,
-    normalizeOrder,
-    orderedColumns,
-    moveColumn,
-    deriveRows
+    createState, mergeState, serializeState, viewSignature, activeFilterCount,
+    normalizeOrder, orderedColumns, moveColumn, deriveRows
 } from "./core/state.js";
+import { ViewStore, LocalStorageAdapter } from "./core/viewStore.js";
 import {
-    distinctValues,
-    isActiveFilter
-} from "./core/filtering.js";
-import {
-    EXPORT_DEFAULTS,
-    EXPORT_FORMATS,
-    buildExport,
-    exportColumns,
-    defaultNames,
-    defaultFilename,
-    withExtension,
-    downloadFile,
-    neutralizeFormula
+    EXPORT_DEFAULTS, EXPORT_FORMATS, buildExport, exportColumns, defaultNames,
+    defaultFilename, withExtension, downloadFile, neutralizeFormula
 } from "./export/export.js";
-import { openContextMenu, closeContextMenu } from "./ui/contextMenu.js";
 import { el, iconEl, deepActiveElement, focusIsLost, truncate } from "./ui/dom.js";
+import { applyStyles } from "./ui/stylesheet.js";
 import { Announcer, getAnnouncer } from "./ui/announcer.js";
 import { Overlay } from "./ui/overlay.js";
+import { openContextMenu, closeContextMenu } from "./ui/contextMenu.js";
 import { writeClipboard, confirmOnButton, flashCopied } from "./ui/clipboard.js";
 import { waitForLongPress } from "./ui/longPress.js";
 import { initRoving, tableCellTarget, listItemTarget } from "./ui/keyboard.js";
 import { bindColumnMove } from "./ui/columnDrag.js";
 import { layoutPinned, updateScrollShadows } from "./ui/pinnedLayout.js";
-import { ViewStore, LocalStorageAdapter } from "./core/viewStore.js";
+import { buildToolbar } from "./render/toolbar.js";
+import { buildFooter } from "./render/footer.js";
 import { buildFilterPanel } from "./panels/filterPanel.js";
 import { buildExportDialog } from "./panels/exportDialog.js";
 import { buildColumnChooser } from "./panels/columnChooser.js";
 import { buildDetailsDialog } from "./panels/detailsDialog.js";
 import { buildViewsPanel } from "./panels/viewsPanel.js";
-import { applyStyles } from "./ui/stylesheet.js";
-import { buildToolbar } from "./render/toolbar.js";
-import { buildFooter } from "./render/footer.js";
 
 // Saved view names are trimmed and must not be empty.
 function viewName(name) {
@@ -164,7 +144,7 @@ class JwDataTable extends HTMLElement {
         this._resizeObserver?.disconnect();
     }
 
-    // ---- Public API ------------------------------------------------------
+    // ---- Public API -------------------------------------------------------
 
     configure(config = {}) {
         this._config = {
@@ -210,86 +190,6 @@ class JwDataTable extends HTMLElement {
         this._deriveView();
         this._render();
         return this;
-    }
-
-    // ---- Responsive (Mobile First) --------------------------------------
-
-    // Sets up a matchMedia listener that, when `responsive.autoLayout` is on,
-    // switches to `responsive.mobileLayout` (cards by default) below the
-    // breakpoint and back to the table on desktop — unless the developer/user
-    // chose a layout explicitly.
-    _setupResponsive() {
-        this._teardownResponsive();
-        const r = this._config.responsive || {};
-        this._responsive = {
-            enabled: r.enabled !== false,
-            breakpoint: typeof r.breakpoint === "number" ? r.breakpoint : 640,
-            autoLayout: r.autoLayout !== false,
-            mobileLayout: r.mobileLayout || "grid"
-        };
-
-        if (!this._responsive.enabled || typeof window.matchMedia !== "function") {
-            this._mobileMatches = false;
-            return;
-        }
-
-        this._mql = window.matchMedia(`(max-width: ${this._responsive.breakpoint - 0.02}px)`);
-        this._mobileMatches = this._mql.matches;
-        this._mqlHandler = (event) => this._onBreakpointChange(event.matches);
-        this._mql.addEventListener("change", this._mqlHandler);
-        this._applyAutoLayout();
-    }
-
-    _teardownResponsive() {
-        if (this._mql && this._mqlHandler) this._mql.removeEventListener("change", this._mqlHandler);
-        this._mql = null;
-        this._mqlHandler = null;
-    }
-
-    _applyAutoLayout() {
-        if (!this._responsive || !this._responsive.enabled || !this._responsive.autoLayout) return;
-        if (this._layoutUserSet || !this._availableLayouts().includes(this._responsive.mobileLayout)) return;
-        this._state.layout = this._mobileMatches ? this._responsive.mobileLayout : "table";
-    }
-
-    _onBreakpointChange(matches) {
-        this._mobileMatches = matches;
-        // Transient popups computed for the previous layout are no longer valid.
-        this._closeOverlay();
-        closeContextMenu();
-
-        const mobileLayout = this._responsive.mobileLayout;
-        if (!this._responsive.autoLayout || this._layoutUserSet || !this._availableLayouts().includes(mobileLayout)) return;
-        const next = matches ? mobileLayout : "table";
-        if (next !== this._state.layout) this._commit({ layout: next });
-    }
-
-    _isMobile() {
-        return !!this._mobileMatches;
-    }
-
-    // ---- Layouts: table, cards ("grid"), compact table + details -----------
-
-    _availableLayouts() {
-        return ["table", this._features.grid && "grid", this._features.compact && "compact"].filter(Boolean);
-    }
-
-    // The layout to render: the chosen one if its feature is on, else the table.
-    _currentLayout() {
-        return this._availableLayouts().includes(this._state.layout) ? this._state.layout : "table";
-    }
-
-    _isCompact() {
-        return this._currentLayout() === "compact";
-    }
-
-    // Columns of the table layout; the compact layout shows only the columns
-    // marked `compact: true`, else the first two visible ones.
-    _tableColumns() {
-        const visible = this._visibleColumns();
-        if (!this._isCompact()) return visible;
-        const marked = visible.filter((c) => c.compact);
-        return marked.length ? marked : visible.slice(0, 2);
     }
 
     set data(rows) {
@@ -422,7 +322,87 @@ class JwDataTable extends HTMLElement {
         return { name: this._activeView.name, modified: this._viewSignature() !== this._activeView.signature };
     }
 
-    // ---- Normalization & derivation --------------------------------------
+    // ---- Responsive (Mobile First) ----------------------------------------
+
+    // Sets up a matchMedia listener that, when `responsive.autoLayout` is on,
+    // switches to `responsive.mobileLayout` (cards by default) below the
+    // breakpoint and back to the table on desktop — unless the developer/user
+    // chose a layout explicitly.
+    _setupResponsive() {
+        this._teardownResponsive();
+        const r = this._config.responsive || {};
+        this._responsive = {
+            enabled: r.enabled !== false,
+            breakpoint: typeof r.breakpoint === "number" ? r.breakpoint : 640,
+            autoLayout: r.autoLayout !== false,
+            mobileLayout: r.mobileLayout || "grid"
+        };
+
+        if (!this._responsive.enabled || typeof window.matchMedia !== "function") {
+            this._mobileMatches = false;
+            return;
+        }
+
+        this._mql = window.matchMedia(`(max-width: ${this._responsive.breakpoint - 0.02}px)`);
+        this._mobileMatches = this._mql.matches;
+        this._mqlHandler = (event) => this._onBreakpointChange(event.matches);
+        this._mql.addEventListener("change", this._mqlHandler);
+        this._applyAutoLayout();
+    }
+
+    _teardownResponsive() {
+        if (this._mql && this._mqlHandler) this._mql.removeEventListener("change", this._mqlHandler);
+        this._mql = null;
+        this._mqlHandler = null;
+    }
+
+    _applyAutoLayout() {
+        if (!this._responsive || !this._responsive.enabled || !this._responsive.autoLayout) return;
+        if (this._layoutUserSet || !this._availableLayouts().includes(this._responsive.mobileLayout)) return;
+        this._state.layout = this._mobileMatches ? this._responsive.mobileLayout : "table";
+    }
+
+    _onBreakpointChange(matches) {
+        this._mobileMatches = matches;
+        // Transient popups computed for the previous layout are no longer valid.
+        this._closeOverlay();
+        closeContextMenu();
+
+        const mobileLayout = this._responsive.mobileLayout;
+        if (!this._responsive.autoLayout || this._layoutUserSet || !this._availableLayouts().includes(mobileLayout)) return;
+        const next = matches ? mobileLayout : "table";
+        if (next !== this._state.layout) this._commit({ layout: next });
+    }
+
+    _isMobile() {
+        return !!this._mobileMatches;
+    }
+
+    // ---- Layouts: table, cards ("grid"), compact table + details ----------
+
+    _availableLayouts() {
+        return ["table", this._features.grid && "grid", this._features.compact && "compact"].filter(Boolean);
+    }
+
+    // The layout to render: the chosen one if its feature is on, else the table.
+    _currentLayout() {
+        return this._availableLayouts().includes(this._state.layout) ? this._state.layout : "table";
+    }
+
+    _isCompact() {
+        return this._currentLayout() === "compact";
+    }
+
+    // Columns of the table layout; the compact layout shows only the columns
+    // marked `compact: true`, else the first two visible ones.
+    _tableColumns() {
+        const visible = this._visibleColumns();
+        if (!this._isCompact()) return visible;
+        const marked = visible.filter((c) => c.compact);
+        return marked.length ? marked : visible.slice(0, 2);
+    }
+
+    // ---- Normalization & derivation ---------------------------------------
 
     // All columns (including hidden ones) in display order.
     _orderedColumns() {
@@ -454,7 +434,7 @@ class JwDataTable extends HTMLElement {
         this._state.page = rows.page;
     }
 
-    // ---- State changes ---------------------------------------------------
+    // ---- State changes ----------------------------------------------------
 
     // Every change from the UI or the API goes through here: apply `patch`,
     // re-derive the rows, update the DOM no more than `update` needs, emit
@@ -474,25 +454,7 @@ class JwDataTable extends HTMLElement {
         announce?.();
     }
 
-    // Replaces table body and footer only (toolbar/search field unchanged).
-    _refreshBody() {
-        const root = this.shadow.querySelector(".k-dt");
-        if (!root) { this._render(); return; }
-        const focusKey = this._focusKey();
-
-        root.querySelector(".k-dt-body").replaceWith(this._renderBody());
-
-        if (this._features.pagination) {
-            const newFooter = this._renderFooter();
-            const oldFooter = root.querySelector(".k-dt-footer");
-            if (oldFooter) oldFooter.replaceWith(newFooter);
-            else root.appendChild(newFooter);
-        }
-        this._observeLayout();
-        if (focusIsLost()) this._restoreFocus(focusKey);
-    }
-
-    // ---- Rendering -------------------------------------------------------
+    // ---- Rendering --------------------------------------------------------
 
     _render() {
         if (!this._configured) return;
@@ -518,50 +480,6 @@ class JwDataTable extends HTMLElement {
         if (this._config.maxHeight) body.style.maxHeight = this._config.maxHeight;
         body.appendChild(this._currentLayout() === "grid" ? this._renderGrid() : this._renderTable());
         return body;
-    }
-
-    // ---- Layout: pinned columns & scroll shadows ---------------------------
-
-    // Lays out pinned columns now and again whenever the body or table resizes.
-    _observeLayout() {
-        this._layoutPinned();
-        if (typeof ResizeObserver !== "function") return;
-        this._resizeObserver ??= new ResizeObserver(() => this._layoutPinned());
-        this._resizeObserver.disconnect();
-        const body = this.shadow.querySelector(".k-dt-body");
-        const table = this.shadow.querySelector(".k-dt-table");
-        if (body) this._resizeObserver.observe(body);
-        if (table) this._resizeObserver.observe(table);
-    }
-
-    // Pinned columns that don't fit are paused (see ui/pinnedLayout.js).
-    _layoutPinned() {
-        const viewport = this.shadow.querySelector(".k-dt-viewport");
-        this._pausedPins = viewport ? layoutPinned(viewport) : [];
-    }
-
-    // Marks the cell at `index` as pinned (sticky offset + last-pinned edge).
-    _pinCell(cell, index, columns) {
-        if (!this._isPinned(columns[index])) return cell;
-        cell.classList.add("k-dt-pinned");
-        cell.style.setProperty("--k-dt-pin-left", `var(--k-dt-pin-${index})`);
-        if (!this._isPinned(columns[index + 1])) cell.classList.add("k-dt-pinned-last");
-        return cell;
-    }
-
-    _togglePin(key, pinned) {
-        const pinnedColumns = this._state.pinnedColumns.filter((k) => k !== key);
-        if (pinned) pinnedColumns.push(key);
-        const labelOf = (k) => this._columns.find((c) => c.key === k)?.label ?? k;
-        const label = labelOf(key);
-        this._commit({ pinnedColumns }, {
-            update: "columns",
-            announce: () => {
-                // The chooser's toggle button announces its own state; everything else needs a message.
-                if (pinned && this._pausedPins.length) this._announce(this._t.pinsPaused(label, this._pausedPins.map(labelOf).join(", ")));
-                else if (!this._overlay.isOpen()) this._announce(pinned ? this._t.columnPinned(label) : this._t.columnUnpinned(label));
-            }
-        });
     }
 
     _renderToolbar() {
@@ -654,94 +572,6 @@ class JwDataTable extends HTMLElement {
         return tbody;
     }
 
-    // Sorting updates the existing table in place (header state + body + footer)
-    // instead of a full re-render: the focused header button stays the same
-    // element, so screen readers don't re-announce the whole table context.
-    _refreshSort() {
-        const table = this.shadow.querySelector(".k-dt-table");
-        if (!table) { this._render(); return; }   // cards: no header to keep
-        const focusKey = this._focusKey();
-        const columns = this._tableColumns();
-        for (const th of table.tHead.rows[0].cells) {
-            const column = columns.find((c) => c.key === th.dataset.key);
-            if (!column) continue;
-            th.setAttribute("aria-sort", this._ariaSort(column));
-            th.querySelector(".k-dt-sort-ind")?.replaceWith(this._sortIndicator(column));
-        }
-        table.tBodies[0].replaceWith(this._renderTbody(columns));
-        if (this._features.pagination) this.shadow.querySelector(".k-dt-footer")?.replaceWith(this._renderFooter());
-        this._layoutPinned();
-        if (focusIsLost()) this._restoreFocus(focusKey);
-    }
-
-    // Column changes (pin, show/hide) also update the existing table in place:
-    // header cells are reused and reordered around the focused one (moving a
-    // focused element would drop focus), so the table and the focused control
-    // stay the same elements and screen readers don't re-announce the table.
-    _refreshColumns() {
-        this._syncColumnChooser();
-        const table = this.shadow.querySelector(".k-dt-table");
-        if (!table) { this._render(); return; }   // cards: rebuilt as a whole
-        const focusKey = this._focusKey();
-        const columns = this._tableColumns();
-        const headRow = table.tHead.rows[0];
-        const existing = new Map(Array.from(headRow.cells).filter((th) => th.dataset.key).map((th) => [th.dataset.key, th]));
-        const cells = columns.map((column, i) => {
-            const th = existing.get(column.key) || this._renderHeaderCell(column);
-            existing.delete(column.key);
-            this._setHeaderPin(th, column, i, columns);
-            return th;
-        });
-        const detailsTh = headRow.querySelector(".k-dt-details-col");
-        if (detailsTh) cells.push(detailsTh);
-        existing.forEach((th) => th.remove());
-
-        const active = deepActiveElement();
-        const anchor = cells.find((th) => th.contains(active));
-        const at = cells.indexOf(anchor);
-        cells.forEach((th, i) => {
-            if (i < at) headRow.insertBefore(th, anchor);
-            else if (i > at) headRow.appendChild(th);
-        });
-
-        table.tBodies[0].replaceWith(this._renderTbody(columns));
-        this._layoutPinned();
-        if (focusIsLost()) this._restoreFocus(focusKey);
-    }
-
-    // Brings a reused header cell's pinned state (sticky offset, unpin button) up to date.
-    _setHeaderPin(th, column, index, columns) {
-        th.classList.remove("k-dt-pinned", "k-dt-pinned-last");
-        th.style.removeProperty("--k-dt-pin-left");
-        this._pinCell(th, index, columns);
-        const button = th.querySelector(".k-dt-pin-btn");
-        if (this._isPinned(column)) {
-            if (!button) th.querySelector(".k-dt-th-inner").appendChild(this._unpinButton(column));
-        } else {
-            button?.remove();
-        }
-    }
-
-    _ariaSort(column) {
-        const sort = this._state.sort.find((s) => s.key === column.key);
-        return sort ? (sort.direction === "asc" ? "ascending" : "descending") : "none";
-    }
-
-    // Sort icon, plus rank (visual) and priority (screen readers) for multi-sort.
-    _sortIndicator(column) {
-        const sortIndex = this._state.sort.findIndex((s) => s.key === column.key);
-        const sort = sortIndex >= 0 ? this._state.sort[sortIndex] : null;
-        const icon = sort ? (sort.direction === "asc" ? "arrow-up" : "arrow-down") : "arrow-up-down";
-        const wrap = el("span", { class: "k-dt-sort-ind" }, [
-            iconEl(icon, "k-dt-sort-ic" + (sort ? " is-active" : ""))
-        ]);
-        if (sort && this._state.sort.length > 1) {
-            wrap.appendChild(el("span", { class: "k-dt-sort-rank", "aria-hidden": "true", text: String(sortIndex + 1) }));
-            wrap.appendChild(el("span", { class: "k-dt-sr-only", text: this._t.sortPriority(sortIndex + 1) }));
-        }
-        return wrap;
-    }
-
     _renderHeaderCell(column) {
         const th = el("th", {
             class: "k-dt-th k-dt-align-" + column.align + (column.minWidth ? " k-dt-has-min" : ""),
@@ -800,6 +630,26 @@ class JwDataTable extends HTMLElement {
             });
         }
         return th;
+    }
+
+    _ariaSort(column) {
+        const sort = this._state.sort.find((s) => s.key === column.key);
+        return sort ? (sort.direction === "asc" ? "ascending" : "descending") : "none";
+    }
+
+    // Sort icon, plus rank (visual) and priority (screen readers) for multi-sort.
+    _sortIndicator(column) {
+        const sortIndex = this._state.sort.findIndex((s) => s.key === column.key);
+        const sort = sortIndex >= 0 ? this._state.sort[sortIndex] : null;
+        const icon = sort ? (sort.direction === "asc" ? "arrow-up" : "arrow-down") : "arrow-up-down";
+        const wrap = el("span", { class: "k-dt-sort-ind" }, [
+            iconEl(icon, "k-dt-sort-ic" + (sort ? " is-active" : ""))
+        ]);
+        if (sort && this._state.sort.length > 1) {
+            wrap.appendChild(el("span", { class: "k-dt-sort-rank", "aria-hidden": "true", text: String(sortIndex + 1) }));
+            wrap.appendChild(el("span", { class: "k-dt-sr-only", text: this._t.sortPriority(sortIndex + 1) }));
+        }
+        return wrap;
     }
 
     // Shown in the header of pinned columns.
@@ -981,11 +831,139 @@ class JwDataTable extends HTMLElement {
         });
     }
 
-    _goToPage(page) {
-        this._commit({ page: clamp(page, 1, this._pageCount) }, { announce: () => this._announcePage() });
+    // ---- Partial refresh (the focused element stays the same) -------------
+
+    // Replaces table body and footer only (toolbar/search field unchanged).
+    _refreshBody() {
+        const root = this.shadow.querySelector(".k-dt");
+        if (!root) { this._render(); return; }
+        const focusKey = this._focusKey();
+
+        root.querySelector(".k-dt-body").replaceWith(this._renderBody());
+
+        if (this._features.pagination) {
+            const newFooter = this._renderFooter();
+            const oldFooter = root.querySelector(".k-dt-footer");
+            if (oldFooter) oldFooter.replaceWith(newFooter);
+            else root.appendChild(newFooter);
+        }
+        this._observeLayout();
+        if (focusIsLost()) this._restoreFocus(focusKey);
     }
 
-    // ---- Sorting ---------------------------------------------------------
+    // Sorting updates the existing table in place (header state + body + footer)
+    // instead of a full re-render: the focused header button stays the same
+    // element, so screen readers don't re-announce the whole table context.
+    _refreshSort() {
+        const table = this.shadow.querySelector(".k-dt-table");
+        if (!table) { this._render(); return; }   // cards: no header to keep
+        const focusKey = this._focusKey();
+        const columns = this._tableColumns();
+        for (const th of table.tHead.rows[0].cells) {
+            const column = columns.find((c) => c.key === th.dataset.key);
+            if (!column) continue;
+            th.setAttribute("aria-sort", this._ariaSort(column));
+            th.querySelector(".k-dt-sort-ind")?.replaceWith(this._sortIndicator(column));
+        }
+        table.tBodies[0].replaceWith(this._renderTbody(columns));
+        if (this._features.pagination) this.shadow.querySelector(".k-dt-footer")?.replaceWith(this._renderFooter());
+        this._layoutPinned();
+        if (focusIsLost()) this._restoreFocus(focusKey);
+    }
+
+    // Column changes (pin, show/hide) also update the existing table in place:
+    // header cells are reused and reordered around the focused one (moving a
+    // focused element would drop focus), so the table and the focused control
+    // stay the same elements and screen readers don't re-announce the table.
+    _refreshColumns() {
+        this._syncColumnChooser();
+        const table = this.shadow.querySelector(".k-dt-table");
+        if (!table) { this._render(); return; }   // cards: rebuilt as a whole
+        const focusKey = this._focusKey();
+        const columns = this._tableColumns();
+        const headRow = table.tHead.rows[0];
+        const existing = new Map(Array.from(headRow.cells).filter((th) => th.dataset.key).map((th) => [th.dataset.key, th]));
+        const cells = columns.map((column, i) => {
+            const th = existing.get(column.key) || this._renderHeaderCell(column);
+            existing.delete(column.key);
+            this._setHeaderPin(th, column, i, columns);
+            return th;
+        });
+        const detailsTh = headRow.querySelector(".k-dt-details-col");
+        if (detailsTh) cells.push(detailsTh);
+        existing.forEach((th) => th.remove());
+
+        const active = deepActiveElement();
+        const anchor = cells.find((th) => th.contains(active));
+        const at = cells.indexOf(anchor);
+        cells.forEach((th, i) => {
+            if (i < at) headRow.insertBefore(th, anchor);
+            else if (i > at) headRow.appendChild(th);
+        });
+
+        table.tBodies[0].replaceWith(this._renderTbody(columns));
+        this._layoutPinned();
+        if (focusIsLost()) this._restoreFocus(focusKey);
+    }
+
+    // Brings a reused header cell's pinned state (sticky offset, unpin button) up to date.
+    _setHeaderPin(th, column, index, columns) {
+        th.classList.remove("k-dt-pinned", "k-dt-pinned-last");
+        th.style.removeProperty("--k-dt-pin-left");
+        this._pinCell(th, index, columns);
+        const button = th.querySelector(".k-dt-pin-btn");
+        if (this._isPinned(column)) {
+            if (!button) th.querySelector(".k-dt-th-inner").appendChild(this._unpinButton(column));
+        } else {
+            button?.remove();
+        }
+    }
+
+    // ---- Pinned columns & scroll shadows ----------------------------------
+
+    // Lays out pinned columns now and again whenever the body or table resizes.
+    _observeLayout() {
+        this._layoutPinned();
+        if (typeof ResizeObserver !== "function") return;
+        this._resizeObserver ??= new ResizeObserver(() => this._layoutPinned());
+        this._resizeObserver.disconnect();
+        const body = this.shadow.querySelector(".k-dt-body");
+        const table = this.shadow.querySelector(".k-dt-table");
+        if (body) this._resizeObserver.observe(body);
+        if (table) this._resizeObserver.observe(table);
+    }
+
+    // Pinned columns that don't fit are paused (see ui/pinnedLayout.js).
+    _layoutPinned() {
+        const viewport = this.shadow.querySelector(".k-dt-viewport");
+        this._pausedPins = viewport ? layoutPinned(viewport) : [];
+    }
+
+    // Marks the cell at `index` as pinned (sticky offset + last-pinned edge).
+    _pinCell(cell, index, columns) {
+        if (!this._isPinned(columns[index])) return cell;
+        cell.classList.add("k-dt-pinned");
+        cell.style.setProperty("--k-dt-pin-left", `var(--k-dt-pin-${index})`);
+        if (!this._isPinned(columns[index + 1])) cell.classList.add("k-dt-pinned-last");
+        return cell;
+    }
+
+    _togglePin(key, pinned) {
+        const pinnedColumns = this._state.pinnedColumns.filter((k) => k !== key);
+        if (pinned) pinnedColumns.push(key);
+        const labelOf = (k) => this._columns.find((c) => c.key === k)?.label ?? k;
+        const label = labelOf(key);
+        this._commit({ pinnedColumns }, {
+            update: "columns",
+            announce: () => {
+                // The chooser's toggle button announces its own state; everything else needs a message.
+                if (pinned && this._pausedPins.length) this._announce(this._t.pinsPaused(label, this._pausedPins.map(labelOf).join(", ")));
+                else if (!this._overlay.isOpen()) this._announce(pinned ? this._t.columnPinned(label) : this._t.columnUnpinned(label));
+            }
+        });
+    }
+
+    // ---- Sorting & paging -------------------------------------------------
 
     _applySort(key, options) {
         this._setSort(toggleSort(this._state.sort, key, options));
@@ -1000,7 +978,11 @@ class JwDataTable extends HTMLElement {
         this._commit({ sort, page: 1 }, { update: "sort", announce: () => this._announceSort() });
     }
 
-    // ---- Focus & keyboard ------------------------------------------------
+    _goToPage(page) {
+        this._commit({ page: clamp(page, 1, this._pageCount) }, { announce: () => this._announcePage() });
+    }
+
+    // ---- Focus & keyboard -------------------------------------------------
 
     // Interactive elements carry a stable `data-fk` key, so focus survives the
     // re-render that follows most interactions (sort, filter, page, …).
@@ -1099,7 +1081,7 @@ class JwDataTable extends HTMLElement {
         this._announce(parts.length ? this._t.sortedBy(parts.join(", ")) : this._t.sortCleared);
     }
 
-    // ---- Delegated events ------------------------------------------------
+    // ---- Delegated events -------------------------------------------------
 
     // Rows, cells, cards and headers get no listeners of their own (thousands
     // on a large page): handlers on the shadow root find the element and its
@@ -1193,7 +1175,7 @@ class JwDataTable extends HTMLElement {
         else node.removeAttribute("title");
     }
 
-    // ---- Context menu ----------------------------------------------------
+    // ---- Context menu -----------------------------------------------------
 
     // Right-click (desktop). The browser's own menu is suppressed anywhere in
     // the table so only ours shows; form fields keep it (paste, spell-check, …),
@@ -1347,7 +1329,7 @@ class JwDataTable extends HTMLElement {
         });
     }
 
-    // ---- Filter panel ----------------------------------------------------
+    // ---- Filter panel -----------------------------------------------------
 
     _openFilterPanel(column, anchor, returnKey) {
         closeContextMenu();
@@ -1372,7 +1354,7 @@ class JwDataTable extends HTMLElement {
         this._commit({ filters, page: 1 }, { announce: () => this._announceResults() });
     }
 
-    // ---- Column order ------------------------------------------------------
+    // ---- Column order -----------------------------------------------------
 
     // Moves column `key` to index `target` among the columns shown in the table
     // (`all`: among all columns incl. hidden ones, as listed in the column
@@ -1420,7 +1402,7 @@ class JwDataTable extends HTMLElement {
         });
     }
 
-    // ---- Record details ------------------------------------------------------
+    // ---- Record details ---------------------------------------------------
 
     _detailsEnabled() {
         return !!(this._features.rowDetails || this._features.compact);
@@ -1480,7 +1462,7 @@ class JwDataTable extends HTMLElement {
         this._rovingKey = retarget(this._rovingKey);
     }
 
-    // ---- Column visibility -----------------------------------------------
+    // ---- Column visibility ------------------------------------------------
 
     _openColumnChooser(anchor) {
         this._chooser = buildColumnChooser({
@@ -1554,7 +1536,7 @@ class JwDataTable extends HTMLElement {
         refresh();
     }
 
-    // ---- Export dialog -----------------------------------------------------
+    // ---- Export dialog ----------------------------------------------------
 
     _exportDefaults() {
         return { ...EXPORT_DEFAULTS, ...(this._config.exportDefaults || {}) };
@@ -1594,7 +1576,7 @@ class JwDataTable extends HTMLElement {
         this._showOverlay(panel, anchor, returnKey, { centered: true });
     }
 
-    // ---- Overlay (Panels) ------------------------------------------------
+    // ---- Overlay (Panels) -------------------------------------------------
 
     // Opens `panel` as a modal dialog (see ui/overlay.js); focus returns to
     // `returnKey` (default: the element focused now). `centered`: a dialog in
@@ -1607,7 +1589,7 @@ class JwDataTable extends HTMLElement {
         this._overlay.close(options);
     }
 
-    // ---- Copy ------------------------------------------------------------
+    // ---- Copy -------------------------------------------------------------
 
     // `button`: the copy button that was used, if any. `shownValue`: optional
     // value to include in the announcement; `message` replaces it altogether.
@@ -1642,7 +1624,7 @@ class JwDataTable extends HTMLElement {
         this._copyText(text);
     }
 
-    // ---- State serialization & events ------------------------------------
+    // ---- State serialization & events -------------------------------------
 
     // Returns false when a listener cancelled a `cancelable` event.
     _emit(name, detail, { cancelable = false } = {}) {
