@@ -1,111 +1,63 @@
 # CLAUDE.md
 
-`<jw-datatable>`: wiederverwendbare Data-Table als Web Component in Vanilla JS
-(ES-Module, Shadow DOM). Wird als einfacher Ordner in verschiedene Projekte
-kopiert und per `import` eingebunden.
+`<jw-datatable>`: reusable data table as a Web Component (Vanilla JS, ES modules,
+Shadow DOM). Projects use the release bundle `dist/jw-datatable.min.js` (one file).
+README.md is the only developer documentation (layout: "Files & layout",
+internals: "Architecture").
 
-## Grundregeln
+## Rules
 
-- **Kein npm, kein Build-Schritt, keine Abhängigkeiten.** Kein `package.json`,
-  kein `node_modules`, keine Bundler/Transpiler. Jede Datei ist ein natives
-  ES-Modul, das der Browser direkt lädt. Imports immer relativ mit `.js`-Endung.
-- **Ausnahme Build/Release:** `tools/build.js` (esbuild) und semantic-release
-  laufen per `npx` mit gepinnten Versionen, nur in CI. Kein `package.json`.
-- **Commit-Messages nach Conventional Commits** (`fix:`, `feat:`, `feat!:`,
-  `docs:`, `test:`, `refactor:`, `chore:`, `ci:`) – daraus berechnet
-  semantic-release die Version. Mehrere Themen → mehrere Commits.
-- **`dist/` nie von Hand ändern oder lokal gebaut committen**, das macht CI
-  beim Release (`.github/workflows/release.yml`, `.releaserc.json`).
-- Neue Top-Level-`*.js`-Dateien landen automatisch im Bundle (über die
-  Imports ab `datatable.js`). Öffentliche Exporte nur in `datatable.js`;
-  bei Änderungen den Test „public API is exported“ anpassen.
-- **README.md ist die einzige Entwickler-Doku.** Jede Änderung an öffentlicher
-  API, Config, Spalten-Optionen, Events, Features, CSS-Variablen/Parts, i18n
-  oder Accessibility-Verhalten wird im selben Zug in der README nachgezogen.
-  Keine zusätzlichen Doku-Dateien anlegen.
-- **WCAG 2.2 AA ist Pflicht.** Jede UI-Änderung muss per Tastatur bedienbar
-  sein, sichtbaren Fokus haben, korrekte Rollen/Namen/Zustände (ARIA) tragen,
-  Fokus sinnvoll verwalten (Overlays öffnen → Fokus hinein, schließen → Fokus
-  zurück zum Auslöser), ausreichende Kontraste (4.5:1 Text, 3:1 UI) einhalten
-  und Touch-Ziele ≥ 44px behalten. Rechtsklick/Long-Press-Funktionen brauchen
-  ein Tastatur-Äquivalent.
-- Barrierefreiheit im Code: interaktive Elemente bekommen einen stabilen
-  `data-fk`-Key (Fokus überlebt `_render()`), Tabellenkörper/Karten nutzen
-  roving tabindex (`_initRoving`), Panels laufen über `_showOverlay()`
-  (Dialog, Fokusfalle, Fokus-Rückgabe), Statusmeldungen über `_announce()` (gemeinsame Live-Region im Light DOM unter `<body>`, bei offenem Panel die Region im Panel; Live-Regionen im Shadow DOM sagt NVDA+Chrome nicht zuverlässig an).
-  `_render()` ersetzt nur Style + `.k-dt`-Root; Overlays und Menü bleiben
-  bestehen. Die README-Tabelle „Keyboard“ aktuell halten.
-- Sprache im Code, Kommentaren und README: Englisch. UI-Texte nie hart
-  codieren, sondern über `i18n.js` (alle Sprachen pflegen: `en`, `de`).
+- No npm, no build for the sources: no `package.json`, no dependencies; relative
+  imports with `.js`. Exception: `tools/build.js` (esbuild) and semantic-release
+  run via `npx` with pinned versions, in CI only.
+- Never edit or commit `dist/`; CI builds it on release.
+- Conventional Commits (`fix`, `perf`, `feat`, `feat!`, `docs`, `test`,
+  `refactor`, `chore`, `ci`); semantic-release derives the version. One topic per commit.
+- Public exports only in `datatable.js`; update the test "public API is exported".
+- Update README.md in the same change for any change to API, config, column
+  options, events, features, CSS variables/parts, i18n or accessibility
+  (keep the "Keyboard" table current). No other doc files.
+- English in code, comments and README. UI texts only via `src/core/i18n.js`
+  (maintain `en` and `de`).
+- WCAG 2.2 AA: keyboard operable, visible focus, correct roles/names/states,
+  focus into overlays and back to the opener, contrast 4.5:1 text / 3:1 UI,
+  touch targets ≥ 44px, keyboard equivalent for right-click/long-press.
 
-## Aufbau
+## Code
 
-| Datei | Rolle |
-|-------|-------|
-| `datatable.js` | Öffentlicher Einstieg: registriert `<jw-datatable>`, exportiert `createDataTable()` u. a. |
-| `jwDataTable.js` | Die Web Component (State, Rendering, Interaktion, Overlays, Responsive) |
-| `formatters.js` | Typabhängige Anzeige (`formatValue`, `toText`) |
-| `comparators.js` | Sortierung inkl. Multi-Sort |
-| `filtering.js` | Wert-/Musterfilter, Operatoren, Distinct-Werte |
-| `export.js` | CSV/XLSX/JSON bauen, Formel-Neutralisierung, Dateiname & Download |
-| `xlsx.js` | XLSX-Writer (ein Arbeitsblatt, unkomprimiertes ZIP) |
-| `templateStore.js` | Vorlagen-Speicher + `LocalStorageAdapter` |
-| `contextMenu.js` | Kontextmenü (Rollen `menu`/`menuitem`) |
-| `styles.js` | Shadow-DOM-CSS als String (Mobile First, Breakpoint 640px) |
-| `i18n.js` | UI-Texte pro Sprache, `getTranslations(locale)` |
-| `icons.js` | Lucide-Icons (siehe unten) |
-| `util.js` | Reine Hilfsfunktionen (`getCellValue`, `typeGroup`, …) |
-| `columns.js` | Spalten-Inferenz aus Daten |
-| `demo.html` | Spielwiese mit allen Features |
+- `src/core/`, `src/export/`: DOM-free, unit-tested in Node; keep them that way.
+  `src/panels/`, `src/render/`: get data + callbacks, never the component.
+- State changes go through `_commit()`; interactive elements get a stable `data-fk`;
+  panels open via `_showOverlay()`; status messages via `_announce()`; row/cell
+  events are delegated (records in `_items`). Details: README "Architecture".
+- DOM via `el()` from `src/ui/dom.js`. CSS prefix `k-dt-` (context menu `k-ctx-`),
+  tokens `--k-*` with fallbacks, events `jw-datatable:<name>` (bubbles, composed),
+  private members `_name`. JSDoc types in `src/types.js`.
 
-Konventionen: CSS-Klassen-Präfix `k-dt-` (Kontextmenü `k-ctx-`), Design-Tokens
-`--k-*` mit Fallbacks, Events `jw-datatable:<name>` (`bubbles` + `composed`),
-private Methoden mit `_`-Präfix, DOM-Aufbau über den `el()`-Helper in
-`jwDataTable.js`. Die Module außer `jwDataTable.js`/`contextMenu.js` sind
-DOM-frei bzw. DOM-arm und sollen es bleiben (testbar in Node).
+## Icons (Lucide)
 
-## Icon-Workflow (Lucide)
+Only real Lucide icons in `ICONS` (`src/ui/icons.js`), keyed by the canonical name
+(check `lucide-static@latest/tags.json`; no aliases, no own drawings, no `.svg`
+files, no inline SVG). Get one with
+`curl -sSL https://cdn.jsdelivr.net/npm/lucide-static@latest/icons/<name>.svg`
+and store the inner markup of `<svg>` on one line. Use `iconEl("name")`, or
+`icon: "name"` in context-menu items; icon-only buttons need an `aria-label`
+from i18n. Ask the user which icon to use; remove unused ones.
 
-Alle Icons in `icons.js` sind echte Lucide-Icons, der Key ist **exakt der
-kanonische Lucide-Name** (kebab-case, z. B. `"trash"`, `"list-filter"`). Keine
-selbst gezeichneten Icons, keine Aliase, kein Custom Element, keine
-`.svg`-Dateien, kein Inline-SVG im Code.
-
-1. SVG abrufen: `curl -sSL https://cdn.jsdelivr.net/npm/lucide-static@latest/icons/<icon-name>.svg`.
-   Bei 404 den Namen auf https://lucide.dev/icons prüfen, nicht raten. Ob ein
-   Name kanonisch ist, zeigt `lucide-static@latest/tags.json` (enthält nur
-   kanonische Namen; Aliase wie `trash-2` oder `filter` fehlen dort).
-2. Nur den Inhalt des `<svg>` übernehmen (path/circle/rect/…), ohne
-   `<svg>`-Rahmen und Lizenzkommentar, in einer Zeile.
-3. In `ICONS` in `icons.js` unter dem Lucide-Namen eintragen, falls nicht vorhanden.
-4. Verwenden über `createIcon("name")` (liefert ein `SVGSVGElement`, dekorativ
-   mit `aria-hidden`), in `jwDataTable.js` über `iconEl("name", className?)`,
-   im Kontextmenü über `icon: "name"`. Icon-only-Buttons brauchen immer ein
-   `aria-label` aus `i18n.js`.
-5. Wird ein neues Icon gebraucht, beim Nutzer nachfragen welches, nicht raten.
-6. Ungenutzte Icons aus `ICONS` entfernen.
-
-## Lokal ausführen & testen
+## Test
 
 ```bash
-node tests/run.js              # alle Tests (Unit + Browser), Exit-Code ≠ 0 bei Fehlern
-node tests/run.js --unit       # nur node:test-Unit-Tests
-node tests/run.js --browser    # nur Browser-Tests (headless Chromium via CDP)
+node tests/run.js                 # all tests; must pass after every change
+node tests/run.js --unit|--browser
 node tests/run.js --filter "context menu"
-node tools/build.js 0.0.0-dev && node tests/run.js --browser --dist   # Bundle prüfen
-python3 -m http.server 8000    # Demo: /demo.html, Tests manuell: /tests/browser/
+node tools/build.js 0.0.0-dev && node tests/run.js --browser --dist; rm -rf dist
+python3 -m http.server 8000       # /demo.html, /tests/browser/
 ```
 
-- Nach jeder Änderung `node tests/run.js` ausführen; muss grün sein.
-- Neue Logik in reinen Modulen → Test in `tests/unit/<modul>.test.js`.
-  Neues UI-Verhalten → Test in `tests/browser/datatable.test.js`, inklusive
-  Tastaturbedienung und ARIA (Rollen, Namen, Zustände, Fokus). Echte
-  Tastendrücke/Viewport nur über `input.press()` / `input.viewport()` mit
-  `{ cdp: true }`.
-- Chromium: `CHROME_BIN`, sonst `PATH`, sonst Playwright-Cache
-  (`~/.cache/ms-playwright/chromium_headless_shell-*`). Auf dieser Maschine ist
-  nur Letzteres vorhanden.
-- Der Runner meldet auch Konsolen-Fehler/-Warnungen der Seite als Fehlschlag.
-- Visuelle Kontrolle: `"$CHROME" --no-sandbox --window-size=1280,900
-  --virtual-time-budget=3000 --screenshot=<pfad>.png http://localhost:8000/demo.html`
-  (mit `--window-size=390,844` für Mobile).
+- New logic in `src/core`/`src/export` → `tests/unit/<module>.test.js`. New UI
+  behavior → `tests/browser/datatable.test.js` incl. keyboard and ARIA; real keys
+  and viewport only via `input.press()` / `input.viewport()` with `{ cdp: true }`.
+- Console errors/warnings of the page fail the run.
+- Chromium: `CHROME_BIN`, `PATH`, else the Playwright cache (the only one here).
+- Screenshot: `"$CHROME" --no-sandbox --window-size=1280,900 --virtual-time-budget=3000
+  --screenshot=<file>.png http://localhost:8000/demo.html` (mobile: `390,844`).
