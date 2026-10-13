@@ -118,14 +118,11 @@ class JwDataTable extends HTMLElement {
         // While a modal panel is open, everything outside it is hidden from
         // assistive tech, so the panel's own live region is used.
         this._announcer = new Announcer(() => this._overlay.liveRegion() || getAnnouncer());
-        this._debouncedSearch = debounce((value) => {
-            this._state.globalSearch = value;
-            this._state.page = 1;
-            // Rebuild body/footer only so the focused search field is preserved.
-            this._updateView();
-            this._debouncedSearchAnnounce();
-            this._emitChange();
-        }, 200);
+        // Rebuilds body/footer only, so the focused search field is preserved.
+        this._debouncedSearch = debounce((value) => this._commit({ globalSearch: value, page: 1 }, {
+            update: "body",
+            announce: () => this._debouncedSearchAnnounce()
+        }), 200);
         // Announce the result count only once typing pauses, not after every letter.
         this._debouncedSearchAnnounce = debounce(() => this._announceResults(), 1000);
     }
@@ -245,11 +242,7 @@ class JwDataTable extends HTMLElement {
         const mobileLayout = this._responsive.mobileLayout;
         if (!this._responsive.autoLayout || this._layoutUserSet || !this._availableLayouts().includes(mobileLayout)) return;
         const next = matches ? mobileLayout : "table";
-        if (next !== this._state.layout) {
-            this._state.layout = next;
-            this._render();
-            this._emitChange();
-        }
+        if (next !== this._state.layout) this._commit({ layout: next });
     }
 
     _isMobile() {
@@ -307,21 +300,12 @@ class JwDataTable extends HTMLElement {
     }
 
     setState(partial = {}) {
-        this._state = mergeState(this._state, partial, this._columns.map((c) => c.key));
         if (partial.layout) this._layoutUserSet = true;
-        this._deriveView();
-        this._render();
-        this._emitChange();
+        this._commit(mergeState(this._state, partial, this._columns.map((c) => c.key)));
     }
 
     clearFilters() {
-        this._state.filters = {};
-        this._state.globalSearch = "";
-        this._state.page = 1;
-        this._deriveView();
-        this._render();
-        this._announceResults();
-        this._emitChange();
+        this._commit({ filters: {}, globalSearch: "", page: 1 }, { announce: () => this._announceResults() });
     }
 
     // Builds the export and downloads it or copies it to the clipboard.
@@ -451,16 +435,28 @@ class JwDataTable extends HTMLElement {
         this._state.page = rows.page;
     }
 
-    // Full update after a state change: derive, render, notify.
-    _rerender() {
+    // ---- State changes ---------------------------------------------------
+
+    // Every change from the UI or the API goes through here: apply `patch`,
+    // re-derive the rows, update the DOM no more than `update` needs, emit
+    // `jw-datatable:change`, then call `announce` (rows are up to date by then).
+    //   "full"    – re-render the table
+    //   "body"    – rows and footer only; the toolbar (e.g. a focused search field) stays
+    //   "sort"    – header sort state in place, rows and footer
+    //   "columns" – header cells reused and reordered, rows; syncs an open column chooser
+    _commit(patch, { update = "full", announce = null } = {}) {
+        Object.assign(this._state, patch);
         this._deriveView();
-        this._render();
+        if (update === "body") this._refreshBody();
+        else if (update === "sort") this._refreshSort();
+        else if (update === "columns") this._refreshColumns();
+        else this._render();
         this._emitChange();
+        announce?.();
     }
 
     // Replaces table body and footer only (toolbar/search field unchanged).
-    _updateView() {
-        this._deriveView();
+    _refreshBody() {
         const root = this.shadow.querySelector(".k-dt");
         if (!root) { this._render(); return; }
         const focusKey = this._focusKey();
@@ -584,15 +580,18 @@ class JwDataTable extends HTMLElement {
     }
 
     _togglePin(key, pinned) {
-        this._state.pinnedColumns = this._state.pinnedColumns.filter((k) => k !== key);
-        if (pinned) this._state.pinnedColumns.push(key);
-        this._updateColumnsView();
-        this._emitChange();
+        const pinnedColumns = this._state.pinnedColumns.filter((k) => k !== key);
+        if (pinned) pinnedColumns.push(key);
         const labelOf = (k) => this._columns.find((c) => c.key === k)?.label ?? k;
         const label = labelOf(key);
-        // The chooser's toggle button announces its own state; everything else needs a message.
-        if (pinned && this._pausedPins.length) this._announce(this._t.pinsPaused(label, this._pausedPins.map(labelOf).join(", ")));
-        else if (!this._overlay.isOpen()) this._announce(pinned ? this._t.columnPinned(label) : this._t.columnUnpinned(label));
+        this._commit({ pinnedColumns }, {
+            update: "columns",
+            announce: () => {
+                // The chooser's toggle button announces its own state; everything else needs a message.
+                if (pinned && this._pausedPins.length) this._announce(this._t.pinsPaused(label, this._pausedPins.map(labelOf).join(", ")));
+                else if (!this._overlay.isOpen()) this._announce(pinned ? this._t.columnPinned(label) : this._t.columnUnpinned(label));
+            }
+        });
     }
 
     _renderToolbar() {
@@ -648,10 +647,8 @@ class JwDataTable extends HTMLElement {
                     "aria-pressed": String(layout === current),
                     onclick: () => {
                         if (layout === this._currentLayout()) return;
-                        this._state.layout = layout;
                         this._layoutUserSet = true;
-                        this._render();
-                        this._emitChange();
+                        this._commit({ layout });
                     }
                 }, [iconEl(meta[layout].icon)]))));
         }
@@ -758,8 +755,7 @@ class JwDataTable extends HTMLElement {
     // Sorting updates the existing table in place (header state + body + footer)
     // instead of a full re-render: the focused header button stays the same
     // element, so screen readers don't re-announce the whole table context.
-    _updateSortView() {
-        this._deriveView();
+    _refreshSort() {
         const table = this.shadow.querySelector(".k-dt-table");
         if (!table) { this._render(); return; }   // cards: no header to keep
         const focusKey = this._focusKey();
@@ -780,10 +776,10 @@ class JwDataTable extends HTMLElement {
     // header cells are reused and reordered around the focused one (moving a
     // focused element would drop focus), so the table and the focused control
     // stay the same elements and screen readers don't re-announce the table.
-    _updateColumnsView() {
+    _refreshColumns() {
+        this._syncColumnChooser();
         const table = this.shadow.querySelector(".k-dt-table");
         if (!table) { this._render(); return; }   // cards: rebuilt as a whole
-        this._deriveView();
         const focusKey = this._focusKey();
         const columns = this._tableColumns();
         const headRow = table.tHead.rows[0];
@@ -1135,12 +1131,9 @@ class JwDataTable extends HTMLElement {
                 class: "k-dt-select",
                 "data-fk": "pagesize",
                 "aria-label": this._t.rowsPerPage,
-                onchange: (e) => {
-                    this._state.pageSize = Number(e.target.value);
-                    this._state.page = 1;
-                    this._rerender();
-                    this._announcePage();
-                }
+                onchange: (e) => this._commit({ pageSize: Number(e.target.value), page: 1 }, {
+                    announce: () => this._announcePage()
+                })
             }, this._pageSizeOptions.map((size) =>
                 el("option", { value: String(size), text: String(size), selected: size === pageSize })
             ))
@@ -1189,28 +1182,22 @@ class JwDataTable extends HTMLElement {
     }
 
     _goToPage(page) {
-        this._state.page = clamp(page, 1, this._pageCount);
-        this._rerender();
-        this._announcePage();
+        this._commit({ page: clamp(page, 1, this._pageCount) }, { announce: () => this._announcePage() });
     }
 
     // ---- Sorting ---------------------------------------------------------
 
     _applySort(key, options) {
-        this._state.sort = toggleSort(this._state.sort, key, options);
-        this._state.page = 1;
-        this._updateSortView();
-        this._emitChange();
-        this._announceSort();
+        this._setSort(toggleSort(this._state.sort, key, options));
     }
 
     _setSortDirection(key, direction, additive = false) {
         const rest = additive ? this._state.sort.filter((s) => s.key !== key) : [];
-        this._state.sort = direction ? [...rest, { key, direction }] : rest;
-        this._state.page = 1;
-        this._updateSortView();
-        this._emitChange();
-        this._announceSort();
+        this._setSort(direction ? [...rest, { key, direction }] : rest);
+    }
+
+    _setSort(sort) {
+        this._commit({ sort, page: 1 }, { update: "sort", announce: () => this._announceSort() });
     }
 
     // ---- Focus & keyboard ------------------------------------------------
@@ -1524,15 +1511,12 @@ class JwDataTable extends HTMLElement {
         this._showOverlay(panel, anchor, returnKey);
     }
 
+    // `filter`: the column's new filter, or null to remove it.
     _setFilter(key, filter) {
-        if (!filter) {
-            delete this._state.filters[key];
-        } else {
-            this._state.filters[key] = filter;
-        }
-        this._state.page = 1;
-        this._rerender();
-        this._announceResults();
+        const filters = { ...this._state.filters };
+        if (filter) filters[key] = filter;
+        else delete filters[key];
+        this._commit({ filters, page: 1 }, { announce: () => this._announceResults() });
     }
 
     // ---- Column order ------------------------------------------------------
@@ -1546,19 +1530,18 @@ class JwDataTable extends HTMLElement {
         const scope = () => (all ? this._orderedColumns() : this._tableColumns());
         const moved = moveColumn(this._state, scope().map((c) => c.key), key, target, { pinning: this._features.columnPinning });
         if (!moved) return;
-        const { pinned, wasPinned } = moved;
-        this._state.pinnedColumns = moved.pinnedColumns;
-        this._state.columnOrder = moved.columnOrder;
+        const { pinned, wasPinned, pinnedColumns, columnOrder } = moved;
         const column = this._columns.find((c) => c.key === key);
-
-        this._updateColumnsView();
-        this._syncColumnChooser();
-        this._emitChange();
-        const list = scope();
-        const position = list.findIndex((c) => c.key === key) + 1;
-        const message = pinned === wasPinned ? this._t.columnMoved
-            : pinned ? this._t.columnMovedPinned : this._t.columnMovedUnpinned;
-        this._announce(message(column.label, position, list.length));
+        this._commit({ pinnedColumns, columnOrder }, {
+            update: "columns",
+            announce: () => {
+                const list = scope();
+                const position = list.findIndex((c) => c.key === key) + 1;
+                const message = pinned === wasPinned ? this._t.columnMoved
+                    : pinned ? this._t.columnMovedPinned : this._t.columnMovedUnpinned;
+                this._announce(message(column.label, position, list.length));
+            }
+        });
     }
 
     _moveMenuItems(column) {
@@ -1578,11 +1561,10 @@ class JwDataTable extends HTMLElement {
     }
 
     _resetColumnOrder() {
-        this._state.columnOrder = normalizeOrder(null, this._columns.map((c) => c.key));
-        this._updateColumnsView();
-        this._syncColumnChooser();
-        this._emitChange();
-        this._announce(this._t.columnOrderReset);
+        this._commit({ columnOrder: normalizeOrder(null, this._columns.map((c) => c.key)) }, {
+            update: "columns",
+            announce: () => this._announce(this._t.columnOrderReset)
+        });
     }
 
     // Header: Ctrl+Shift+←/→ moves the column (Ctrl+Alt+arrows belong to screen
@@ -1693,11 +1675,7 @@ class JwDataTable extends HTMLElement {
     _followDetails(record) {
         if (this._features.pagination) {
             const page = Math.floor(this._viewData.indexOf(record) / this._state.pageSize) + 1;
-            if (page !== this._state.page) {
-                this._state.page = page;
-                this._updateView();
-                this._emitChange();
-            }
+            if (page !== this._state.page) this._commit({ page }, { update: "body" });
         }
         const pageIndex = this._pageData.indexOf(record);
         const retarget = (key) => key?.replace(/^(cell|card|details):\d+/, (_, kind) => `${kind}:${pageIndex}`);
@@ -1716,10 +1694,7 @@ class JwDataTable extends HTMLElement {
             pinning: this._features.columnPinning,
             reorder: this._features.columnReorder,
             onToggle: (key, visible) => this._toggleColumn(key, visible),
-            onPin: (key, pinned) => {
-                this._togglePin(key, pinned);
-                this._syncColumnChooser();
-            },
+            onPin: (key, pinned) => this._togglePin(key, pinned),
             onMove: (key, step) => {
                 const index = this._orderedColumns().findIndex((c) => c.key === key);
                 this._moveColumn(key, index + step, { all: true });
@@ -1735,15 +1710,18 @@ class JwDataTable extends HTMLElement {
     }
 
     _toggleColumn(key, visible) {
-        if (visible) this._state.hiddenColumns.delete(key);
-        else this._state.hiddenColumns.add(key);
-        this._updateColumnsView();
-        this._emitChange();
-        // The chooser's checkbox announces itself; the context menu needs a message.
-        if (!visible && !this._overlay.isOpen()) {
-            const column = this._columns.find((c) => c.key === key);
-            this._announce(this._t.columnHidden(column?.label ?? key));
-        }
+        const hiddenColumns = new Set(this._state.hiddenColumns);
+        if (visible) hiddenColumns.delete(key);
+        else hiddenColumns.add(key);
+        this._commit({ hiddenColumns }, {
+            update: "columns",
+            announce: () => {
+                // The chooser's checkbox announces itself; the context menu needs a message.
+                if (visible || this._overlay.isOpen()) return;
+                const column = this._columns.find((c) => c.key === key);
+                this._announce(this._t.columnHidden(column?.label ?? key));
+            }
+        });
     }
 
     // ---- Saved views panel ------------------------------------------------
