@@ -146,6 +146,7 @@ class JwDataTable extends HTMLElement {
 
     // ---- Public API -------------------------------------------------------
 
+    /** @param {import("./types.js").DataTableConfig} config */
     configure(config = {}) {
         this._config = {
             locale: "en-US",
@@ -214,10 +215,12 @@ class JwDataTable extends HTMLElement {
         this._render();
     }
 
+    /** @returns {import("./types.js").SerializedState} */
     getState() {
         return serializeState(this._state);
     }
 
+    /** @param {Partial<import("./types.js").SerializedState>} partial */
     setState(partial = {}) {
         if (partial.layout) this._layoutUserSet = true;
         this._commit(mergeState(this._state, partial, this._columns.map((c) => c.key)));
@@ -230,6 +233,7 @@ class JwDataTable extends HTMLElement {
     // Builds the export and downloads it or copies it to the clipboard.
     // `options` override `config.exportDefaults`. Returns the event detail, or
     // null when a `jw-datatable:export` listener cancelled it.
+    /** @param {Partial<import("./types.js").ExportOptions>} options */
     exportData(options = {}) {
         const opts = { ...this._exportDefaults(), ...options };
         if (!EXPORT_FORMATS[opts.format]) opts.format = EXPORT_DEFAULTS.format;

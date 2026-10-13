@@ -8,12 +8,22 @@
 //     columnOrder: [key] }
 // `pinnedColumns` is in pin order; `columnOrder` lists every column key.
 
+/** @typedef {import("../types.js").TableState} TableState */
+/** @typedef {import("../types.js").SerializedState} SerializedState */
+/** @typedef {import("../types.js").Column} Column */
+
 import { applyFilters, isActiveFilter } from "./filtering.js";
 import { sortData } from "./comparators.js";
 import { paginate } from "./pagination.js";
 
 // The initial state from `config.initial` and the column definitions.
 // `defaults`: { pageSize, layout } used when `initial` has none.
+/**
+ * @param {Column[]} columns
+ * @param {Partial<SerializedState>} [initial]
+ * @param {{ pageSize?: number, layout?: string }} [defaults]
+ * @returns {TableState}
+ */
 export function createState(columns, initial = {}, defaults = {}) {
     const keys = columns.map((c) => c.key);
     initial = knownColumnsOnly(initial, keys);
@@ -32,6 +42,12 @@ export function createState(columns, initial = {}, defaults = {}) {
 
 // Applies a partial (serialized) state, e.g. from `setState()` or a saved view.
 // Returns a new state; references to unknown columns are dropped.
+/**
+ * @param {TableState} state
+ * @param {Partial<SerializedState>} partial
+ * @param {string[]} keys All column keys.
+ * @returns {TableState}
+ */
 export function mergeState(state, partial, keys) {
     partial = knownColumnsOnly(partial, keys);
     const next = { ...state };
@@ -49,6 +65,10 @@ export function mergeState(state, partial, keys) {
 
 // Plain, JSON-safe copy of the state (`getState()`, events, saved views).
 // Saved views omit `page` (a saved view opens on page 1).
+/**
+ * @param {TableState} state
+ * @returns {SerializedState}
+ */
 export function serializeState(state, { includePage = true } = {}) {
     const filters = {};
     for (const [key, filter] of Object.entries(state.filters)) {
@@ -174,6 +194,12 @@ export function moveColumn(state, keys, key, target, { pinning = false } = {}) {
 // Filtered and sorted rows (`viewData`) and the rows of the current page
 // (`pageData`, all rows without pagination). `page` is clamped to the pages
 // that exist.
+/**
+ * @param {object[]} source
+ * @param {TableState} state
+ * @param {Column[]} columns
+ * @returns {{ viewData: object[], pageData: object[], page: number, pageCount: number }}
+ */
 export function deriveRows(source, state, columns, { locale, globalSearch = true, pagination = true } = {}) {
     const filtered = applyFilters(source, state.filters, columns, {
         locale,

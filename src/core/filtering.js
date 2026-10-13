@@ -146,6 +146,12 @@ function patternSubject(value, column, locale, row) {
 }
 
 // Applies all active column filters (AND) and optional global search. Returns a new array.
+/**
+ * @param {object[]} data
+ * @param {Record<string, import("../types.js").Filter>} filters
+ * @param {import("../types.js").Column[]} columns
+ * @returns {object[]}
+ */
 export function applyFilters(data, filters, columns, { locale = "en-US", globalSearch = "" } = {}) {
     const columnByKey = new Map(columns.map((c) => [c.key, c]));
     const activeFilters = Object.entries(filters || {})

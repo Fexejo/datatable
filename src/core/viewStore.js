@@ -77,6 +77,7 @@ export class LocalStorageAdapter {
 // Thin facade over the adapter: checks the interface and turns every result
 // into a Promise. It does not shape the state itself; the component does.
 export class ViewStore {
+    /** @param {import("../types.js").ViewStorageAdapter} [adapter] */
     constructor(adapter) {
         this.adapter = adapter ?? new LocalStorageAdapter();
         const missing = ADAPTER_METHODS.filter((m) => typeof this.adapter[m] !== "function");

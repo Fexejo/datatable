@@ -44,6 +44,12 @@ export function compareValues(a, b, type, locale = "en-US") {
 // Sorts a copy of the data by multiple criteria.
 // sortSpec: [{ key, direction: "asc" | "desc" }, …] — order = priority.
 // Each row's sort keys are computed once, not on every comparison.
+/**
+ * @param {object[]} data
+ * @param {import("../types.js").SortSpec[]} sortSpec
+ * @param {import("../types.js").Column[]} columns
+ * @returns {object[]}
+ */
 export function sortData(data, sortSpec, columns, locale = "en-US") {
     if (!Array.isArray(sortSpec) || sortSpec.length === 0) return data.slice();
     const columnByKey = new Map(columns.map((c) => [c.key, c]));

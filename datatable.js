@@ -11,7 +11,7 @@ import { inferColumns, inferType } from "./src/core/columns.js";
  * Creates a configured data table and appends it to `container`.
  *
  * @param {HTMLElement|string} container Target element or CSS selector.
- * @param {object} config See README (columns, data, features, …).
+ * @param {import("./src/types.js").DataTableConfig} config See README.
  * @returns {JwDataTable} table instance (Web Component).
  */
 export function createDataTable(container, config = {}) {
