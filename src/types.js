@@ -11,7 +11,8 @@
  * @property {string} [title]                   Toolbar title; also names the table for assistive tech.
  * @property {string} [locale]                  BCP-47 locale: formatting, sorting and UI language (default "en-US").
  * @property {Features} [features]              Feature switches.
- * @property {{ pageSize?: number, pageSizeOptions?: number[] }} [pagination]
+ * @property {{ pageSize?: number, pageSizeOptions?: number[] }} [pagination] Sizes offered
+ *     (default 10–1000) only while a page stays within 5000 rendered cells.
  * @property {Partial<SerializedState>} [initial] Initial state.
  * @property {Layout} [defaultLayout]           Initial layout; turns off automatic switching.
  * @property {{ minWidth?: string, titleColumn?: string }} [grid] Card layout.
@@ -35,7 +36,7 @@
  * Opt-in features are off unless enabled; pagination, context menu, copy
  * buttons and multi-sort (with sorting) are on.
  * @typedef {object} Features
- * @property {boolean} [pagination]
+ * @property {boolean} [pagination]       Still on when all rows would exceed 5000 rendered cells.
  * @property {boolean} [sorting]
  * @property {boolean} [multiSort]
  * @property {boolean} [filtering]

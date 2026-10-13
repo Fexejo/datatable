@@ -16,7 +16,7 @@ import { formatValue, toText } from "./core/formatters.js";
 import { sortData, toggleSort } from "./core/comparators.js";
 import { distinctValues, isActiveFilter, describeFilter } from "./core/filtering.js";
 import { normalizeColumns } from "./core/columns.js";
-import { pageRange } from "./core/pagination.js";
+import { DEFAULT_PAGE_SIZES, MAX_PAGE_CELLS, exceedsCellLimit, pageRange, pageSizeChoices } from "./core/pagination.js";
 import {
     createState, mergeState, serializeState, viewSignature, activeFilterCount,
     normalizeOrder, orderedColumns, moveColumn, deriveRows
@@ -166,7 +166,8 @@ class JwDataTable extends HTMLElement {
         this._sourceData = Array.isArray(config.data) ? config.data.slice() : [];
 
         const pagination = config.pagination || {};
-        this._pageSizeOptions = pagination.pageSizeOptions || [10, 25, 50, 100];
+        this._pageSizeOptions = pagination.pageSizeOptions || DEFAULT_PAGE_SIZES;
+        this._paginationForced = false;
 
         const storage = config.storage || {};
         this._viewStore = null;
@@ -428,15 +429,38 @@ class JwDataTable extends HTMLElement {
     }
 
     _deriveView() {
+        this._checkPagination();
         const rows = deriveRows(this._sourceData, this._state, this._columns, {
             locale: this._config.locale,
             globalSearch: this._features.globalSearch,
-            pagination: this._features.pagination
+            pagination: this._paginated()
         });
         this._viewData = rows.viewData;
         this._pageData = rows.pageData;
         this._pageCount = rows.pageCount;
         this._state.page = rows.page;
+    }
+
+    // Cells rendered per row in the current layout (hidden columns render none).
+    _cellsPerRow() {
+        if (this._currentLayout() === "grid") return this._visibleColumns().length;
+        return this._tableColumns().length + (this._isCompact() ? 1 : 0);
+    }
+
+    // Pagination is on unless turned off — and then still on when rendering
+    // all rows would exceed MAX_PAGE_CELLS (see core/pagination.js).
+    _paginated() {
+        return this._features.pagination || this._paginationForced;
+    }
+
+    _checkPagination() {
+        const forced = !this._features.pagination
+            && exceedsCellLimit(this._sourceData.length, this._cellsPerRow());
+        if (forced && !this._paginationForced) {
+            console.warn(`jw-datatable: ${this._sourceData.length} rows × ${this._cellsPerRow()} columns exceed `
+                + `${MAX_PAGE_CELLS} cells; pagination is turned on (features.pagination: false is ignored).`);
+        }
+        this._paginationForced = forced;
     }
 
     // ---- State changes ----------------------------------------------------
@@ -473,7 +497,7 @@ class JwDataTable extends HTMLElement {
         // the horizontal scroll shadows.
         root.appendChild(el("div", { class: "k-dt-viewport" }, [this._renderBody()]));
 
-        if (this._features.pagination) root.appendChild(this._renderFooter());
+        if (this._paginated()) root.appendChild(this._renderFooter());
         if (previous) previous.replaceWith(root);
         else this.shadow.prepend(root);
         this._observeLayout();
@@ -849,7 +873,7 @@ class JwDataTable extends HTMLElement {
             page: this._state.page,
             pageCount: this._pageCount,
             pageSize: this._state.pageSize,
-            pageSizeOptions: this._pageSizeOptions,
+            pageSizeOptions: pageSizeChoices(this._pageSizeOptions, this._cellsPerRow(), this._state.pageSize),
             total: this._viewData.length,
             onPage: (page) => this._goToPage(page),
             onPageSize: (pageSize) => this._commit({ pageSize, page: 1 }, { announce: () => this._announcePage() })
@@ -867,13 +891,7 @@ class JwDataTable extends HTMLElement {
 
         root.querySelector(".k-dt-body").replaceWith(this._renderBody());
         this._refreshFilterButtons();
-
-        if (this._features.pagination) {
-            const newFooter = this._renderFooter();
-            const oldFooter = root.querySelector(".k-dt-footer");
-            if (oldFooter) oldFooter.replaceWith(newFooter);
-            else root.appendChild(newFooter);
-        }
+        this._refreshFooter();
         this._observeLayout();
         if (focusIsLost()) this._restoreFocus(focusKey);
     }
@@ -893,7 +911,7 @@ class JwDataTable extends HTMLElement {
             th.querySelector(".k-dt-sort-ind")?.replaceWith(this._sortIndicator(column));
         }
         table.tBodies[0].replaceWith(this._renderTbody(columns));
-        if (this._features.pagination) this.shadow.querySelector(".k-dt-footer")?.replaceWith(this._renderFooter());
+        this._refreshFooter();
         this._layoutPinned();
         if (focusIsLost()) this._restoreFocus(focusKey);
     }
@@ -929,8 +947,19 @@ class JwDataTable extends HTMLElement {
         });
 
         table.tBodies[0].replaceWith(this._renderTbody(columns));
+        // The column count decides the page sizes offered (and may force pagination).
+        this._refreshFooter();
         this._layoutPinned();
         if (focusIsLost()) this._restoreFocus(focusKey);
+    }
+
+    // Replaces, adds or removes the footer.
+    _refreshFooter() {
+        const root = this.shadow.querySelector(".k-dt");
+        const footer = root?.querySelector(".k-dt-footer");
+        if (!this._paginated()) footer?.remove();
+        else if (footer) footer.replaceWith(this._renderFooter());
+        else root?.appendChild(this._renderFooter());
     }
 
     // Brings a reused header cell's pinned state (sticky offset, unpin button) up to date.
@@ -1557,7 +1586,7 @@ class JwDataTable extends HTMLElement {
     // Shows the page that contains `record` and points the dialog's focus
     // return at that record's row/card.
     _followDetails(record) {
-        if (this._features.pagination) {
+        if (this._paginated()) {
             const page = Math.floor(this._viewData.indexOf(record) / this._state.pageSize) + 1;
             if (page !== this._state.page) this._commit({ page }, { update: "body" });
         }
@@ -1649,7 +1678,7 @@ class JwDataTable extends HTMLElement {
 
     // Rows in display order; "page" without pagination is the same as "filtered".
     _exportRows(scope) {
-        if (scope === "page" && this._features.pagination) return this._pageData;
+        if (scope === "page" && this._paginated()) return this._pageData;
         if (scope === "all") return sortData(this._sourceData, this._state.sort, this._columns, this._config.locale);
         return this._viewData;
     }
@@ -1661,7 +1690,7 @@ class JwDataTable extends HTMLElement {
     _openExportDialog(anchor, returnKey = this._focusKey()) {
         const t = this._t;
         const scopes = [
-            this._features.pagination && ["page", t.exportScopePage, this._pageData.length],
+            this._paginated() && ["page", t.exportScopePage, this._pageData.length],
             ["filtered", t.exportScopeFiltered, this._viewData.length],
             ["all", t.exportScopeAll, this._sourceData.length]
         ].filter(Boolean);

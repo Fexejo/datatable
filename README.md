@@ -36,6 +36,7 @@ written in Vanilla JS (ES modules, Shadow DOM). No external dependencies.
 6. [Data types & formatting](#data-types--formatting)
 7. [Links behind values](#links-behind-values)
 8. [Enabling / disabling features](#enabling--disabling-features)
+    - [Page size and the cell limit](#page-size-and-the-cell-limit)
 9. [Filters](#filters)
 10. [Column pinning](#column-pinning)
 11. [Column order](#column-order)
@@ -162,7 +163,7 @@ table.configure({ /* … */ });
 | `title` | `string` | — | Toolbar title |
 | `locale` | `string` | `"en-US"` | BCP-47 locale — drives number/date formatting, sort, **and UI language** (see [i18n](#i18n--localization)) |
 | `features` | `object` | see [Features](#enabling--disabling-features) | Feature switches; most are off by default |
-| `pagination` | `object` | — | `{ pageSize, pageSizeOptions }` |
+| `pagination` | `object` | — | `{ pageSize, pageSizeOptions }`; `pageSizeOptions` replaces the default sizes `[10, 25, 50, 100, 250, 500, 1000]`, `pageSize` defaults to the smallest one. See [Page size and the cell limit](#page-size-and-the-cell-limit) |
 | `initial` | `object` | — | `{ sort, filters, globalSearch, page, pageSize, layout, hiddenColumns, pinnedColumns, columnOrder }` |
 | `defaultLayout` | `"table" \| "grid" \| "compact"` | `"table"` | Initial layout (pins the layout — disables auto-switching) |
 | `grid` | `object` | — | `{ minWidth, titleColumn }` |
@@ -366,7 +367,7 @@ by default.
 
 | Feature | Default | Description |
 |---------|---------|-------------|
-| `pagination` | **on** | First/prev/next/last, page numbers, page size |
+| `pagination` | **on** | First/prev/next/last, page numbers, page size; turned on anyway above 5,000 cells |
 | `contextMenu` | **on** | Right-click / long-press menu |
 | `copyButtons` | **on** | Per-column copy button (needs column `copyable`) |
 | `sorting` | off | Sortable column headers + sort context menu |
@@ -401,10 +402,27 @@ features: {
 ```
 
 To turn an always-on feature off, set it to `false` (e.g. `pagination: false`).
-Without pagination, every row that matches the filters and search is rendered
-at once; there is no virtualization (deliberately: it would hurt screen readers,
-keyboard navigation, find-in-page, the card layout and wrapping rows). For large
-data sets, keep pagination on.
+
+### Page size and the cell limit
+
+Every rendered row is real DOM; there is no virtualization (deliberately: it
+would hurt screen readers, keyboard navigation, find-in-page, the card layout
+and wrapping rows). The cost of sorting, filtering, searching and moving focus
+grows with the number of rendered **cells** (rows × rendered columns). Up to
+about 5,000 cells the table stays responsive, so:
+
+- **Page sizes** are offered only while a page stays within 5,000 cells. With
+  12 visible columns that is up to 250 rows, with 5 columns up to 1,000.
+  Hidden columns render no cells and don't count; the compact layout counts
+  its columns plus the details column, cards one field per visible column.
+  The smallest size is always offered. The page size in use is never reduced
+  automatically: showing more columns keeps it (and the option), but once
+  another size is chosen, the oversized one is no longer offered.
+- **`pagination: false`** renders every row that matches the filters and
+  search on one page. When all rows of the data would exceed 5,000 cells,
+  pagination is turned on anyway and the console warns
+  (`jw-datatable: 2000 rows × 25 columns exceed 5000 cells; …`). It turns off
+  again when hiding columns or new data bring the table back under the limit.
 
 Column-level flags (`sortable`, `filterable`, …) apply only when the matching
 global feature is enabled.

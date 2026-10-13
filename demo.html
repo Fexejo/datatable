@@ -512,7 +512,7 @@
                 maxHeight: "",
                 defaultLayout: "",
                 pageSize: 25,
-                pageSizeOptions: "10, 25, 50, 100",
+                pageSizeOptions: "",
                 responsive: { enabled: true, autoLayout: true, mobileLayout: "grid", breakpoint: 640 },
                 grid: { titleColumn: "lastName", minWidth: "" },
                 exportFilename: "",
@@ -826,8 +826,8 @@
                 text("maxHeight", optionLabel("maxHeight"), { placeholder: "e.g. 60vh" })
             ),
             section("Pagination",
-                select("pageSize", optionLabel("pagination.pageSize"), [10, 25, 50, 100, 250].map((n) => [String(n), String(n)]), { drop: ["pageSize", "page"] }),
-                text("pageSizeOptions", optionLabel("pagination.pageSizeOptions"), { placeholder: "10, 25, 50, 100" })
+                select("pageSize", optionLabel("pagination.pageSize"), [10, 25, 50, 100, 250, 500, 1000].map((n) => [String(n), String(n)]), { drop: ["pageSize", "page"] }),
+                text("pageSizeOptions", optionLabel("pagination.pageSizeOptions"), { placeholder: "10, 25, 50, 100, 250, 500, 1000" })
             ),
             section("Responsive",
                 checkbox("responsive.enabled", h("code", { textContent: "enabled" }), { drop: ["layout"] }),

@@ -33,3 +33,25 @@ export function pageItems(current, total) {
     items.push(total);
     return items;
 }
+
+// Rendering cost grows with the number of cells (rows × rendered columns); up
+// to this many the table stays responsive (sort, filter, search, focus).
+export const MAX_PAGE_CELLS = 5000;
+
+export const DEFAULT_PAGE_SIZES = [10, 25, 50, 100, 250, 500, 1000];
+
+// The page sizes to offer for `columnCount` rendered columns: those whose
+// pages stay within `maxCells`, at least the smallest one, plus `current`
+// (a page size in use is kept, never reduced automatically).
+export function pageSizeChoices(options, columnCount, current, maxCells = MAX_PAGE_CELLS) {
+    const sizes = [...new Set(options)].sort((a, b) => a - b);
+    const fitting = sizes.filter((size) => size * columnCount <= maxCells);
+    const choices = fitting.length ? fitting : sizes.slice(0, 1);
+    if (current && !choices.includes(current)) choices.push(current);
+    return choices.sort((a, b) => a - b);
+}
+
+// True when all `rowCount` rows on one page would exceed `maxCells`.
+export function exceedsCellLimit(rowCount, columnCount, maxCells = MAX_PAGE_CELLS) {
+    return rowCount * columnCount > maxCells;
+}

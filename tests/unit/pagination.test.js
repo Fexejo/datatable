@@ -1,6 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { pageCount, pageItems, pageRange, paginate } from "../../src/core/pagination.js";
+import {
+    DEFAULT_PAGE_SIZES, exceedsCellLimit, pageCount, pageItems, pageRange, pageSizeChoices, paginate
+} from "../../src/core/pagination.js";
 
 test("pageCount has at least one page", () => {
     assert.equal(pageCount(0, 10), 1);
@@ -23,4 +25,22 @@ test("pageItems shows neighbours and gaps", () => {
     assert.deepEqual(pageItems(1, 20), [1, 2, "…", 20]);
     assert.deepEqual(pageItems(10, 20), [1, "…", 9, 10, 11, "…", 20]);
     assert.deepEqual(pageItems(20, 20), [1, "…", 19, 20]);
+});
+
+test("page sizes are offered while a page stays within 5000 cells", () => {
+    assert.deepEqual(pageSizeChoices(DEFAULT_PAGE_SIZES, 5, 10), [10, 25, 50, 100, 250, 500, 1000]);
+    assert.deepEqual(pageSizeChoices(DEFAULT_PAGE_SIZES, 10, 10), [10, 25, 50, 100, 250, 500]);
+    assert.deepEqual(pageSizeChoices(DEFAULT_PAGE_SIZES, 25, 10), [10, 25, 50, 100]);
+});
+
+test("the page size in use stays offered; at least the smallest one is", () => {
+    assert.deepEqual(pageSizeChoices(DEFAULT_PAGE_SIZES, 25, 1000), [10, 25, 50, 100, 1000]);
+    assert.deepEqual(pageSizeChoices([50, 20], 1000, 50), [20, 50]);
+    assert.deepEqual(pageSizeChoices([50, 20], 1000, null), [20]);
+});
+
+test("exceedsCellLimit counts rows × columns", () => {
+    assert.equal(exceedsCellLimit(500, 10), false);
+    assert.equal(exceedsCellLimit(501, 10), true);
+    assert.equal(exceedsCellLimit(10, 0), false);
 });

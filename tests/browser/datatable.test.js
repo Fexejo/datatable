@@ -142,6 +142,65 @@ test("pagination moves pages and marks the current page", () => {
     assert.equal(changed?.page, 2, "change event carries the page");
 });
 
+// 12 columns: a page of 500 rows would be 6000 cells.
+const WIDE = Array.from({ length: 12 }, (_, i) => ({ key: `c${i}`, label: `C${i}`, type: "integer" }));
+const wideRows = (count) => Array.from({ length: count }, (_, r) =>
+    Object.fromEntries(WIDE.map((c, i) => [c.key, r * 100 + i])));
+const pageSizes = (table) => $$(table, '[data-fk="pagesize"] option').map((o) => Number(o.value));
+
+test("page sizes are offered while a page stays within 5000 rendered cells", () => {
+    const table = mount({ columns: WIDE, data: wideRows(30), features: { grid: true } });
+    assert.deepEqual(pageSizes(table), [10, 25, 50, 100, 250], "12 columns");
+    table.setState({ hiddenColumns: ["c0", "c1"] });
+    assert.deepEqual(pageSizes(table), [10, 25, 50, 100, 250, 500], "hidden columns don't count");
+    table.setState({ layout: "grid" });
+    assert.ok($(table, ".k-dt-card"), "cards");
+    assert.deepEqual(pageSizes(table), [10, 25, 50, 100, 250, 500], "cards: one field per visible column");
+});
+
+test("showing more columns keeps the page size in use; only the choice goes", () => {
+    const table = mount({
+        columns: WIDE,
+        data: wideRows(600),
+        features: { columnVisibility: true },
+        pagination: { pageSize: 500 },
+        initial: { hiddenColumns: ["c0", "c1"] }
+    });
+    $(table, '[data-fk="tb:columns"]').click();
+    $$(table, '.k-dt-overlay input[type="checkbox"]')[0].click();
+    assert.equal($$(table, "tbody tr").length, 500, "not reduced");
+    assert.deepEqual(pageSizes(table), [10, 25, 50, 100, 250, 500]);
+    assert.equal($(table, '[data-fk="pagesize"]').value, "500");
+
+    const select = $(table, '[data-fk="pagesize"]');
+    select.value = "100";
+    select.dispatchEvent(new Event("change"));
+    assert.deepEqual(pageSizes(table), [10, 25, 50, 100, 250], "500 is no longer offered");
+});
+
+test("pagination turned off comes back on above 5000 cells, with a console warning", () => {
+    const warn = console.warn;
+    const warnings = [];
+    console.warn = (...args) => warnings.push(args.join(" "));
+    try {
+        const table = mount({ columns: WIDE, data: wideRows(500), features: { pagination: false } });
+        assert.ok($(table, ".k-dt-footer"), "pager shown");
+        assert.equal($$(table, "tbody tr").length, 10);
+        assert.equal(warnings.length, 1);
+        assert.ok(warnings[0].includes("500 rows × 12 columns"), warnings[0]);
+
+        table.setState({ hiddenColumns: ["c0", "c1"] });   // 500 × 10 = 5000 cells
+        assert.ok(!$(table, ".k-dt-footer"), "off again");
+        assert.equal($$(table, "tbody tr").length, 500);
+
+        table.setState({ hiddenColumns: [] });
+        assert.equal($$(table, "tbody tr").length, 10);
+        assert.equal(warnings.length, 2, "warns each time it turns on");
+    } finally {
+        console.warn = warn;
+    }
+});
+
 test("state referring to unknown columns is dropped", () => {
     const table = mount({
         features: { sorting: true, filtering: true },
