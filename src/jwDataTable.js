@@ -18,7 +18,7 @@ import {
 import { formatValue, toText } from "./core/formatters.js";
 import { sortData, toggleSort } from "./core/comparators.js";
 import { normalizeColumns } from "./core/columns.js";
-import { pageItems, pageRange } from "./core/pagination.js";
+import { pageRange } from "./core/pagination.js";
 import {
     createState,
     mergeState,
@@ -51,6 +51,9 @@ import { Announcer, getAnnouncer } from "./ui/announcer.js";
 import { Overlay } from "./ui/overlay.js";
 import { writeClipboard, confirmOnButton, flashCopied } from "./ui/clipboard.js";
 import { waitForLongPress } from "./ui/longPress.js";
+import { initRoving, tableCellTarget, listItemTarget } from "./ui/keyboard.js";
+import { bindColumnMove } from "./ui/columnDrag.js";
+import { layoutPinned, updateScrollShadows } from "./ui/pinnedLayout.js";
 import { ViewStore, LocalStorageAdapter } from "./core/viewStore.js";
 import { buildFilterPanel } from "./panels/filterPanel.js";
 import { buildExportDialog } from "./panels/exportDialog.js";
@@ -58,6 +61,8 @@ import { buildColumnChooser } from "./panels/columnChooser.js";
 import { buildDetailsDialog } from "./panels/detailsDialog.js";
 import { buildViewsPanel } from "./panels/viewsPanel.js";
 import { applyStyles } from "./ui/stylesheet.js";
+import { buildToolbar } from "./render/toolbar.js";
+import { buildFooter } from "./render/footer.js";
 
 // Saved view names are trimmed and must not be empty.
 function viewName(name) {
@@ -100,10 +105,6 @@ const DEFAULT_FEATURES = {
     copyButtons: true
 };
 
-// Pinned columns may cover at most this share of the visible width (the rest
-// of the table must stay usable); beyond it, the oldest pins scroll along.
-const MAX_PINNED_SHARE = 0.6;
-
 class JwDataTable extends HTMLElement {
     constructor() {
         super();
@@ -124,6 +125,7 @@ class JwDataTable extends HTMLElement {
         this._mobileMatches = false;
         this._layoutUserSet = false;
         this._longPress = null;   // cancels a pending long-press
+        this._drag = { key: null };   // column being dragged by its header
         this._suppressClickUntil = 0;
         this._suppressContextUntil = 0;
         this._resizeObserver = null;
@@ -512,7 +514,7 @@ class JwDataTable extends HTMLElement {
     }
 
     _renderBody() {
-        const body = el("div", { class: "k-dt-body", part: "body", onscroll: () => this._updateScrollShadows() });
+        const body = el("div", { class: "k-dt-body", part: "body", onscroll: (e) => updateScrollShadows(e.currentTarget.parentElement) });
         if (this._config.maxHeight) body.style.maxHeight = this._config.maxHeight;
         body.appendChild(this._currentLayout() === "grid" ? this._renderGrid() : this._renderTable());
         return body;
@@ -532,48 +534,10 @@ class JwDataTable extends HTMLElement {
         if (table) this._resizeObserver.observe(table);
     }
 
-    // Pinned cells are `position: sticky`; each one's `left` is the summed
-    // width of the sticky columns before it (`--k-dt-pin-<index>` on the table).
-    // When they don't all fit, the most recently pinned ones (the last ones)
-    // stay sticky and older ones are paused (`left: auto`, they scroll along).
+    // Pinned columns that don't fit are paused (see ui/pinnedLayout.js).
     _layoutPinned() {
         const viewport = this.shadow.querySelector(".k-dt-viewport");
-        if (!viewport) return;
-        const body = viewport.querySelector(".k-dt-body");
-        const table = viewport.querySelector(".k-dt-table");
-        let sticky = 0;
-        this._pausedPins = [];
-        if (table) {
-            const pinned = Array.from(table.tHead.rows[0].cells).filter((th) => th.classList.contains("k-dt-pinned"));
-            const widths = pinned.map((th) => th.getBoundingClientRect().width);
-            const limit = body.clientWidth * MAX_PINNED_SHARE;
-            let first = pinned.length;
-            let used = 0;
-            while (first > 0 && used + widths[first - 1] <= limit) used += widths[--first];
-            let offset = 0;
-            pinned.forEach((th, i) => {
-                if (i < first) {
-                    table.style.setProperty(`--k-dt-pin-${i}`, "auto");
-                    this._pausedPins.push(th.dataset.key);
-                } else {
-                    table.style.setProperty(`--k-dt-pin-${i}`, `${offset}px`);
-                    offset += widths[i];
-                }
-            });
-            sticky = pinned.length - first;
-        }
-        viewport.classList.toggle("has-pins", sticky > 0);
-        this._updateScrollShadows();
-    }
-
-    // Shadows on the edges that have more content to scroll to.
-    _updateScrollShadows() {
-        const viewport = this.shadow.querySelector(".k-dt-viewport");
-        const body = viewport?.querySelector(".k-dt-body");
-        if (!body) return;
-        const max = body.scrollWidth - body.clientWidth;
-        viewport.classList.toggle("is-overflow-left", body.scrollLeft > 1);
-        viewport.classList.toggle("is-overflow-right", body.scrollLeft < max - 1);
+        this._pausedPins = viewport ? layoutPinned(viewport) : [];
     }
 
     // Marks the cell at `index` as pinned (sticky offset + last-pinned edge).
@@ -601,106 +565,38 @@ class JwDataTable extends HTMLElement {
     }
 
     _renderToolbar() {
-        const bar = el("div", { class: "k-dt-toolbar", part: "toolbar" });
-        const left = el("div", { class: "k-dt-toolbar-left" });
-        const right = el("div", { class: "k-dt-toolbar-right" });
-
-        if (this._config.title) left.appendChild(el("div", { class: "k-dt-title", id: this._hintId("title"), text: this._config.title }));
-
-        if (this._features.globalSearch) {
-            const search = el("div", { class: "k-dt-search" }, [
-                iconEl("search", "k-dt-search-ic"),
-                el("input", {
-                    type: "search",
-                    class: "k-dt-search-input",
-                    "data-fk": "search",
-                    placeholder: this._config.searchPlaceholder || this._t.searchPlaceholder,
-                    value: this._state.globalSearch,
-                    "aria-label": this._t.searchAriaLabel,
-                    oninput: (e) => this._debouncedSearch(e.target.value)
-                })
-            ]);
-            left.appendChild(search);
-        }
-
-        const activeFilters = activeFilterCount(this._state, { globalSearch: this._features.globalSearch });
-        if (this._features.filtering && activeFilters > 0) {
-            right.appendChild(el("button", {
-                type: "button",
-                class: "k-dt-btn",
-                "data-fk": "tb:clear",
-                title: this._t.clearFilters,
-                onclick: () => this.clearFilters()
-            }, [iconEl("x"), el("span", { text: this._t.filterCount(activeFilters) })]));
-        }
-
-        const layouts = this._availableLayouts();
-        if (layouts.length > 1) {
-            // One toggle button per layout; the current one is pressed.
-            const current = this._currentLayout();
-            const meta = {
-                table: { icon: "table", label: this._t.layoutTable },
-                grid: { icon: "layout-grid", label: this._t.layoutGrid },
-                compact: { icon: "rows-3", label: this._t.layoutCompact }
-            };
-            right.appendChild(el("div", { class: "k-dt-layout-switch", role: "group", "aria-label": this._t.layoutSwitch },
-                layouts.map((layout) => el("button", {
-                    type: "button",
-                    class: "k-dt-btn",
-                    "data-fk": `tb:layout:${layout}`,
-                    title: meta[layout].label,
-                    "aria-label": meta[layout].label,
-                    "aria-pressed": String(layout === current),
-                    onclick: () => {
-                        if (layout === this._currentLayout()) return;
-                        this._layoutUserSet = true;
-                        this._commit({ layout });
-                    }
-                }, [iconEl(meta[layout].icon)]))));
-        }
-
-        if (this._features.columnVisibility) {
-            right.appendChild(el("button", {
-                type: "button",
-                class: "k-dt-btn",
-                "data-fk": "tb:columns",
-                "aria-haspopup": "dialog",
-                "aria-expanded": String(this._overlay.openerKey === "tb:columns"),
-                title: this._t.showHideColumns,
-                "aria-label": this._t.showHideColumns,
-                onclick: (e) => this._openColumnChooser(e.currentTarget)
-            }, [iconEl("columns-3")]));
-        }
-
-        if (this._viewStore) {
-            right.appendChild(el("button", {
-                type: "button",
-                class: "k-dt-btn",
-                "data-fk": "tb:saved-views",
-                "aria-haspopup": "dialog",
-                "aria-expanded": String(this._overlay.openerKey === "tb:saved-views"),
-                title: this._t.savedViews,
-                "aria-label": this._t.savedViews,
-                onclick: (e) => this._openViewsPanel(e.currentTarget)
-            }, [iconEl("bookmark")]));
-        }
-
-        if (this._features.export) {
-            right.appendChild(el("button", {
-                type: "button",
-                class: "k-dt-btn",
-                "data-fk": "tb:export",
-                "aria-haspopup": "dialog",
-                "aria-expanded": String(this._overlay.openerKey === "tb:export"),
-                title: this._t.exportData,
-                "aria-label": this._t.exportData,
-                onclick: (e) => this._openExportDialog(e.currentTarget)
-            }, [iconEl("download")]));
-        }
-
-        bar.appendChild(left);
-        bar.appendChild(right);
-        return bar;
+        const t = this._t;
+        const features = this._features;
+        const layoutMeta = {
+            table: { icon: "table", label: t.layoutTable },
+            grid: { icon: "layout-grid", label: t.layoutGrid },
+            compact: { icon: "rows-3", label: t.layoutCompact }
+        };
+        const panels = [
+            features.columnVisibility && { fk: "tb:columns", icon: "columns-3", label: t.showHideColumns, open: (a) => this._openColumnChooser(a) },
+            this._viewStore && { fk: "tb:saved-views", icon: "bookmark", label: t.savedViews, open: (a) => this._openViewsPanel(a) },
+            features.export && { fk: "tb:export", icon: "download", label: t.exportData, open: (a) => this._openExportDialog(a) }
+        ].filter(Boolean);
+        return buildToolbar({
+            t,
+            title: this._config.title,
+            titleId: this._hintId("title"),
+            search: features.globalSearch ? {
+                value: this._state.globalSearch,
+                placeholder: this._config.searchPlaceholder || t.searchPlaceholder,
+                onInput: (value) => this._debouncedSearch(value)
+            } : null,
+            filterCount: features.filtering ? activeFilterCount(this._state, { globalSearch: features.globalSearch }) : 0,
+            onClearFilters: () => this.clearFilters(),
+            layouts: this._availableLayouts().map((layout) => ({ layout, ...layoutMeta[layout] })),
+            currentLayout: this._currentLayout(),
+            onLayout: (layout) => {
+                this._layoutUserSet = true;
+                this._commit({ layout });
+            },
+            panels,
+            openerKey: this._overlay.openerKey
+        });
     }
 
     _renderTable() {
@@ -753,7 +649,7 @@ class JwDataTable extends HTMLElement {
             ]));
         } else {
             this._pageData.forEach((row, index) => tbody.appendChild(this._renderRow(row, index, columns)));
-            this._initRoving(tbody, ".k-dt-td", (event, cell) => this._onCellKey(event, cell, tbody));
+            this._initRoving(tbody, ".k-dt-td", (event, cell) => this._onCellKey(event, cell));
         }
         return tbody;
     }
@@ -889,7 +785,20 @@ class JwDataTable extends HTMLElement {
         th.appendChild(inner);
 
         this._items.set(th, { column, row: null, value: null });
-        if (this._features.columnReorder) this._bindColumnMove(th, column);
+        if (this._features.columnReorder) {
+            bindColumnMove(th, {
+                key: column.key,
+                label: column.label,
+                drag: this._drag,
+                canDrag: () => !this._isMobile() && !window.matchMedia?.("(pointer: coarse)").matches,
+                onStep: (step) => this._moveColumn(column.key, this._tableColumns().findIndex((c) => c.key === column.key) + step),
+                onDrop: (key, after) => {
+                    const keys = this._tableColumns().map((c) => c.key);
+                    const point = keys.indexOf(column.key) + (after ? 1 : 0);
+                    this._moveColumn(key, point > keys.indexOf(key) ? point - 1 : point);
+                }
+            });
+        }
         return th;
     }
 
@@ -1033,7 +942,7 @@ class JwDataTable extends HTMLElement {
             this._items.set(card, { column: columns[0], row, value: getCellValue(row, columns[0]), index });
             grid.appendChild(card);
         });
-        this._initRoving(grid, ".k-dt-card", (event, card) => this._onCardKey(event, card, grid));
+        this._initRoving(grid, ".k-dt-card", (event, card) => this._onCardKey(event, card));
         grid.setAttribute("aria-describedby", this._hintId("grid"));
         // The hint sits next to the list (a list may only contain list items).
         const fragment = document.createDocumentFragment();
@@ -1059,74 +968,17 @@ class JwDataTable extends HTMLElement {
         return list;
     }
 
-    _pageRange() {
-        return pageRange(this._state.page, this._state.pageSize, this._viewData.length);
-    }
-
     _renderFooter() {
-        const { start, end, total } = this._pageRange();
-        const pageSize = this._state.pageSize;
-
-        const footer = el("div", { class: "k-dt-footer", part: "footer" });
-
-        const info = el("div", { class: "k-dt-info" }, [
-            el("span", { text: this._t.pageInfo(start, end, total) })
-        ]);
-
-        const sizer = el("label", { class: "k-dt-pagesize" }, [
-            el("span", { text: this._t.perPage }),
-            el("select", {
-                class: "k-dt-select",
-                "data-fk": "pagesize",
-                "aria-label": this._t.rowsPerPage,
-                onchange: (e) => this._commit({ pageSize: Number(e.target.value), page: 1 }, {
-                    announce: () => this._announcePage()
-                })
-            }, this._pageSizeOptions.map((size) =>
-                el("option", { value: String(size), text: String(size), selected: size === pageSize })
-            ))
-        ]);
-        info.appendChild(sizer);
-
-        const nav = el("div", { class: "k-dt-pager", role: "navigation", "aria-label": this._t.paginationAriaLabel });
-        const page = this._state.page;
-        const pageCount = this._pageCount;
-
-        const navBtn = (icon, label, target, disabled) => el("button", {
-            type: "button",
-            class: "k-dt-page-btn",
-            "data-fk": `page:${icon}`,
-            title: label,
-            "aria-label": label,
-            disabled,
-            onclick: () => this._goToPage(target)
-        }, [iconEl(icon)]);
-
-        nav.appendChild(navBtn("chevrons-left", this._t.firstPage, 1, page <= 1));
-        nav.appendChild(navBtn("chevron-left", this._t.prevPage, page - 1, page <= 1));
-
-        pageItems(page, pageCount).forEach((item) => {
-            if (item === "…") {
-                nav.appendChild(el("span", { class: "k-dt-page-gap", text: "…" }));
-            } else {
-                nav.appendChild(el("button", {
-                    type: "button",
-                    class: "k-dt-page-btn k-dt-page-num" + (item === page ? " is-active" : ""),
-                    "data-fk": `page:n:${item}`,
-                    "aria-label": this._t.pageN(item),
-                    "aria-current": item === page ? "page" : null,
-                    text: String(item),
-                    onclick: () => this._goToPage(item)
-                }));
-            }
+        return buildFooter({
+            t: this._t,
+            page: this._state.page,
+            pageCount: this._pageCount,
+            pageSize: this._state.pageSize,
+            pageSizeOptions: this._pageSizeOptions,
+            total: this._viewData.length,
+            onPage: (page) => this._goToPage(page),
+            onPageSize: (pageSize) => this._commit({ pageSize, page: 1 }, { announce: () => this._announcePage() })
         });
-
-        nav.appendChild(navBtn("chevron-right", this._t.nextPage, page + 1, page >= pageCount));
-        nav.appendChild(navBtn("chevrons-right", this._t.lastPage, pageCount, page >= pageCount));
-
-        footer.appendChild(info);
-        footer.appendChild(nav);
-        return footer;
     }
 
     _goToPage(page) {
@@ -1185,74 +1037,43 @@ class JwDataTable extends HTMLElement {
         return `${this._instanceId}-${kind}-hint`;
     }
 
-    // Roving tabindex: the container is a single tab stop; arrow keys move
-    // between items. The last focused item is remembered across re-renders.
+    // Roving tabindex (see ui/keyboard.js); the last focused item is
+    // remembered across re-renders.
     _initRoving(container, selector, onKey) {
-        const items = Array.from(container.querySelectorAll(selector));
-        if (!items.length) return;
-        const remembered = this._rovingKey && items.find((i) => i.dataset.fk === this._rovingKey);
-        (remembered || items[0]).tabIndex = 0;
-
-        container.addEventListener("focusin", (event) => {
-            const item = event.target.closest(selector);
-            if (!item || !container.contains(item)) return;
-            items.forEach((i) => { i.tabIndex = i === item ? 0 : -1; });
-            this._rovingKey = item.dataset.fk;
-        });
-        container.addEventListener("keydown", (event) => {
-            const item = event.target.closest(selector);
-            // Only when the item itself has focus — links/buttons inside keep their keys.
-            if (item && event.target === item) onKey(event, item);
+        initRoving(container, selector, {
+            rememberedKey: this._rovingKey,
+            onFocus: (key) => { this._rovingKey = key; },
+            onKey
         });
     }
 
-    _onCellKey(event, cell, tbody) {
-        const rows = Array.from(tbody.rows);
-        const rowIndex = rows.indexOf(cell.parentElement);
-        const colCount = cell.parentElement.cells.length;
-        let r = rowIndex;
-        let c = cell.cellIndex;
-        switch (event.key) {
-            case "ArrowRight": c += 1; break;
-            case "ArrowLeft": c -= 1; break;
-            case "ArrowDown": r += 1; break;
-            case "ArrowUp": r -= 1; break;
-            case "Home": c = 0; if (event.ctrlKey) r = 0; break;
-            case "End": c = colCount - 1; if (event.ctrlKey) r = rows.length - 1; break;
-            case "Enter": {
-                // Activate the cell's link/action/details button, else the row's click.
-                const inner = cell.querySelector(".k-dt-link, .k-dt-cell-action, .k-dt-details-btn");
-                if (inner) inner.click();
-                else if (this._isCompact() || this._config.onCellClick || this._config.onRowClick) cell.click();
-                else return;
-                event.preventDefault();
-                return;
-            }
-            default: return;
+    _onCellKey(event, cell) {
+        if (event.key === "Enter") {
+            // Activate the cell's link/action/details button, else the row's click.
+            const inner = cell.querySelector(".k-dt-link, .k-dt-cell-action, .k-dt-details-btn");
+            if (inner) inner.click();
+            else if (this._isCompact() || this._config.onCellClick || this._config.onRowClick) cell.click();
+            else return;
+            event.preventDefault();
+            return;
         }
+        const target = tableCellTarget(event, cell);
+        if (!target) return;
         event.preventDefault();
-        r = clamp(r, 0, rows.length - 1);
-        c = clamp(c, 0, colCount - 1);
-        rows[r].cells[c].focus();
+        target.focus();
     }
 
-    _onCardKey(event, card, grid) {
-        const cards = Array.from(grid.querySelectorAll(".k-dt-card"));
-        let i = cards.indexOf(card);
-        switch (event.key) {
-            case "ArrowRight": case "ArrowDown": i += 1; break;
-            case "ArrowLeft": case "ArrowUp": i -= 1; break;
-            case "Home": i = 0; break;
-            case "End": i = cards.length - 1; break;
-            case "Enter":
-                if (!this._config.onRowClick) return;
-                event.preventDefault();
-                card.click();
-                return;
-            default: return;
+    _onCardKey(event, card) {
+        if (event.key === "Enter") {
+            if (!this._config.onRowClick) return;
+            event.preventDefault();
+            card.click();
+            return;
         }
+        const target = listItemTarget(event, card, Array.from(card.parentElement.querySelectorAll(".k-dt-card")));
+        if (!target) return;
         event.preventDefault();
-        cards[clamp(i, 0, cards.length - 1)].focus();
+        target.focus();
     }
 
     // Polite screen-reader announcement (status messages, WCAG 4.1.3).
@@ -1266,7 +1087,7 @@ class JwDataTable extends HTMLElement {
     }
 
     _announcePage() {
-        const { start, end, total } = this._pageRange();
+        const { start, end, total } = pageRange(this._state.page, this._state.pageSize, this._viewData.length);
         this._announce(this._t.pageInfo(start, end, total));
     }
 
@@ -1596,62 +1417,6 @@ class JwDataTable extends HTMLElement {
         this._commit({ columnOrder: normalizeOrder(null, this._columns.map((c) => c.key)) }, {
             update: "columns",
             announce: () => this._announce(this._t.columnOrderReset)
-        });
-    }
-
-    // Header: Ctrl+Shift+←/→ moves the column (Ctrl+Alt+arrows belong to screen
-    // reader table navigation and the Windows Magnifier, Alt+Shift switches the
-    // Windows keyboard layout); drag and drop on the desktop layout.
-    _bindColumnMove(th, column) {
-        th.addEventListener("keydown", (event) => {
-            if (!event.ctrlKey || !event.shiftKey || event.altKey || event.metaKey) return;
-            if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
-            event.preventDefault();
-            const keys = this._tableColumns().map((c) => c.key);
-            this._moveColumn(column.key, keys.indexOf(column.key) + (event.key === "ArrowLeft" ? -1 : 1));
-        });
-
-        // Not on touch: a long-press there opens the context menu.
-        const canDrag = () => !this._isMobile() && !window.matchMedia?.("(pointer: coarse)").matches;
-        th.draggable = canDrag();
-        const clearMarks = () => this.shadow.querySelectorAll(".is-drop-before, .is-drop-after")
-            .forEach((n) => n.classList.remove("is-drop-before", "is-drop-after"));
-        // Drop before or after `th`, depending on the half the pointer is over.
-        const dropAfter = (event) => {
-            const rect = th.getBoundingClientRect();
-            return event.clientX > rect.left + rect.width / 2;
-        };
-        th.addEventListener("dragstart", (event) => {
-            if (!canDrag()) { event.preventDefault(); return; }
-            this._dragKey = column.key;
-            event.dataTransfer.effectAllowed = "move";
-            event.dataTransfer.setData("text/plain", column.label);
-            th.classList.add("is-dragging");
-        });
-        th.addEventListener("dragover", (event) => {
-            if (!this._dragKey) return;
-            event.preventDefault();
-            event.dataTransfer.dropEffect = "move";
-            clearMarks();
-            if (this._dragKey !== column.key) th.classList.add(dropAfter(event) ? "is-drop-after" : "is-drop-before");
-        });
-        th.addEventListener("dragleave", (event) => {
-            if (!th.contains(event.relatedTarget)) th.classList.remove("is-drop-before", "is-drop-after");
-        });
-        th.addEventListener("drop", (event) => {
-            if (!this._dragKey) return;
-            event.preventDefault();
-            const key = this._dragKey;
-            const keys = this._tableColumns().map((c) => c.key);
-            const from = keys.indexOf(key);
-            const point = keys.indexOf(column.key) + (dropAfter(event) ? 1 : 0);
-            clearMarks();
-            this._moveColumn(key, point > from ? point - 1 : point);
-        });
-        th.addEventListener("dragend", () => {
-            this._dragKey = null;
-            clearMarks();
-            this.shadow.querySelectorAll(".is-dragging").forEach((n) => n.classList.remove("is-dragging"));
         });
     }
 
