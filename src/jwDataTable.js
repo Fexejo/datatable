@@ -7,7 +7,6 @@
 //
 // The convenient public API lives in `datatable.js`. This file is the Web Component itself.
 
-import { createIcon } from "./ui/icons.js";
 import { getTranslations } from "./core/i18n.js";
 import {
     getCellValue,
@@ -48,107 +47,19 @@ import {
     downloadFile,
     neutralizeFormula
 } from "./export/export.js";
-import { openContextMenu, closeContextMenu, deepActiveElement } from "./ui/contextMenu.js";
+import { openContextMenu, closeContextMenu } from "./ui/contextMenu.js";
+import { el, iconEl, segmentedEl, switchEl, deepActiveElement, focusIsLost, truncate } from "./ui/dom.js";
+import { Announcer, getAnnouncer } from "./ui/announcer.js";
+import { Overlay } from "./ui/overlay.js";
+import { writeClipboard, confirmOnButton, flashCopied } from "./ui/clipboard.js";
 import { ViewStore, LocalStorageAdapter } from "./core/viewStore.js";
-import { datatableStyles } from "./ui/styles.js";
-
-// Small DOM helper.
-function el(tag, props = {}, children = []) {
-    const node = document.createElement(tag);
-    for (const [key, value] of Object.entries(props)) {
-        if (value == null || value === false) continue;
-        if (key === "class") node.className = value;
-        else if (key === "html") node.innerHTML = value;
-        else if (key === "text") node.textContent = value;
-        else if (key === "dataset") Object.assign(node.dataset, value);
-        else if (key.startsWith("on") && typeof value === "function") {
-            node.addEventListener(key.slice(2).toLowerCase(), value);
-        } else if (key === "for" || key.includes("-") || key === "role") {
-            node.setAttribute(key, value);
-        } else {
-            try { node[key] = value; } catch { node.setAttribute(key, value); }
-        }
-    }
-    const list = Array.isArray(children) ? children : [children];
-    for (const child of list) {
-        if (child == null || child === false) continue;
-        node.appendChild(typeof child === "string" ? document.createTextNode(child) : child);
-    }
-    return node;
-}
-
-// Visually hidden but exposed to assistive tech (inline styles: used outside the shadow root).
-const SR_ONLY_STYLE = "position:absolute;width:1px;height:1px;margin:-1px;padding:0;border:0;"
-    + "overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap;";
-
-// One shared live region in the light DOM (document.body) for all tables.
-// Live regions inside shadow roots are not reliably announced by screen
-// readers (observed with NVDA + Chrome). It must exist before the first
-// message, so tables create it when they connect.
-function getAnnouncer() {
-    let node = document.querySelector("body > [data-jw-datatable-announcer]");
-    if (!node) {
-        node = document.createElement("div");
-        node.setAttribute("data-jw-datatable-announcer", "");
-        node.setAttribute("aria-live", "polite");
-        node.setAttribute("aria-atomic", "true");
-        node.style.cssText = SR_ONLY_STYLE;
-        document.body.appendChild(node);
-    }
-    return node;
-}
-
-function supportsAdoptedStyles() {
-    return typeof CSSStyleSheet === "function" && "adoptedStyleSheets" in ShadowRoot.prototype;
-}
-
-let componentSheet = null;
-function sharedSheet() {
-    if (!componentSheet) {
-        componentSheet = new CSSStyleSheet();
-        componentSheet.replaceSync(datatableStyles);
-    }
-    return componentSheet;
-}
-
-function iconEl(name, className = "k-dt-ic") {
-    return el("span", { class: className }, [createIcon(name)]);
-}
+import { applyStyles } from "./ui/stylesheet.js";
 
 // Saved view names are trimmed and must not be empty.
 function viewName(name) {
     const result = String(name ?? "").trim();
     if (!result) throw new TypeError("A saved view needs a name");
     return result;
-}
-
-// Segmented control: native radios (one tab stop, arrow keys, "selected,
-// 1 of 3" for screen readers) drawn as adjacent options in one track.
-// `options`: [value, text, detail?]; `detail` is a second, smaller line.
-function segmentedEl(name, legend, options, value) {
-    return el("fieldset", { class: "k-dt-fieldset" }, [
-        el("legend", { class: "k-dt-field-label", text: legend }),
-        el("div", { class: "k-dt-segmented" }, options.map(([optionValue, text, detail]) =>
-            el("label", { class: "k-dt-segment", "data-value": optionValue }, [
-                el("input", { type: "radio", name, value: optionValue, checked: optionValue === value }),
-                el("span", { class: "k-dt-segment-text" }, [
-                    text,
-                    // The space keeps the accessible name readable ("Current page 10 rows").
-                    detail && " ",
-                    detail && el("span", { class: "k-dt-segment-detail", text: detail })
-                ])
-            ])))
-    ]);
-}
-
-// On/off switch: a native checkbox with role="switch" (announced as
-// "switch, on/off", Space toggles); the whole row is the click target.
-// `props` go to the input (e.g. `onchange`).
-function switchEl(text, checked, props = {}) {
-    return el("label", { class: "k-dt-switch" }, [
-        el("span", { class: "k-dt-switch-label", text }),
-        el("input", { type: "checkbox", role: "switch", checked, ...props })
-    ]);
 }
 
 // Opt-in features default to `false` and must be enabled explicitly via
@@ -200,6 +111,10 @@ class JwDataTable extends HTMLElement {
         this._suppressClickUntil = 0;
         this._suppressContextUntil = 0;
         this._resizeObserver = null;
+        this._overlay = new Overlay(this.shadow, { restoreFocus: (key) => this._restoreFocus(key) });
+        // While a modal panel is open, everything outside it is hidden from
+        // assistive tech, so the panel's own live region is used.
+        this._announcer = new Announcer(() => this._overlay.liveRegion() || getAnnouncer());
         this._debouncedSearch = debounce((value) => {
             this._state.globalSearch = value;
             this._state.page = 1;
@@ -222,7 +137,7 @@ class JwDataTable extends HTMLElement {
     disconnectedCallback() {
         this._debouncedSearch.cancel();
         this._debouncedSearchAnnounce.cancel();
-        clearTimeout(this._announceTimer);
+        this._announcer.cancel();
         closeContextMenu();
         this._closeOverlay();
         this._cancelLongPress();
@@ -238,7 +153,7 @@ class JwDataTable extends HTMLElement {
             ...config
         };
         this._t = getTranslations(this._config.locale);
-        this._applyStyles();
+        applyStyles(this.shadow, this._config.styles || "");
         // Derive text defaults from translation bundle; allow explicit config override.
         this._config.emptyText ??= this._t.emptyData;
         this._config.noResultsText ??= this._t.noResults;
@@ -276,25 +191,6 @@ class JwDataTable extends HTMLElement {
         this._deriveView();
         this._render();
         return this;
-    }
-
-    // The component CSS is parsed once and shared by all tables; `config.styles`
-    // is a second, per-table sheet.
-    _applyStyles() {
-        const extra = this._config.styles || "";
-        if (!supportsAdoptedStyles()) {
-            let style = this.shadow.querySelector("style");
-            if (!style) style = this.shadow.appendChild(document.createElement("style"));
-            style.textContent = datatableStyles + extra;
-            return;
-        }
-        const sheets = [sharedSheet()];
-        if (extra) {
-            const sheet = new CSSStyleSheet();
-            sheet.replaceSync(extra);
-            sheets.push(sheet);
-        }
-        this.shadow.adoptedStyleSheets = sheets;
     }
 
     // ---- Responsive (Mobile First) --------------------------------------
@@ -575,7 +471,7 @@ class JwDataTable extends HTMLElement {
             else root.appendChild(newFooter);
         }
         this._observeLayout();
-        if (this._focusIsLost()) this._restoreFocus(focusKey);
+        if (focusIsLost()) this._restoreFocus(focusKey);
     }
 
     // ---- Rendering -------------------------------------------------------
@@ -693,7 +589,7 @@ class JwDataTable extends HTMLElement {
         const label = labelOf(key);
         // The chooser's toggle button announces its own state; everything else needs a message.
         if (pinned && this._pausedPins.length) this._announce(this._t.pinsPaused(label, this._pausedPins.map(labelOf).join(", ")));
-        else if (!this._overlay) this._announce(pinned ? this._t.columnPinned(label) : this._t.columnUnpinned(label));
+        else if (!this._overlay.isOpen()) this._announce(pinned ? this._t.columnPinned(label) : this._t.columnUnpinned(label));
     }
 
     _renderToolbar() {
@@ -763,7 +659,7 @@ class JwDataTable extends HTMLElement {
                 class: "k-dt-btn",
                 "data-fk": "tb:columns",
                 "aria-haspopup": "dialog",
-                "aria-expanded": String(this._overlayFk === "tb:columns"),
+                "aria-expanded": String(this._overlay.openerKey === "tb:columns"),
                 title: this._t.showHideColumns,
                 "aria-label": this._t.showHideColumns,
                 onclick: (e) => this._openColumnChooser(e.currentTarget)
@@ -776,7 +672,7 @@ class JwDataTable extends HTMLElement {
                 class: "k-dt-btn",
                 "data-fk": "tb:saved-views",
                 "aria-haspopup": "dialog",
-                "aria-expanded": String(this._overlayFk === "tb:saved-views"),
+                "aria-expanded": String(this._overlay.openerKey === "tb:saved-views"),
                 title: this._t.savedViews,
                 "aria-label": this._t.savedViews,
                 onclick: (e) => this._openViewsPanel(e.currentTarget)
@@ -789,7 +685,7 @@ class JwDataTable extends HTMLElement {
                 class: "k-dt-btn",
                 "data-fk": "tb:export",
                 "aria-haspopup": "dialog",
-                "aria-expanded": String(this._overlayFk === "tb:export"),
+                "aria-expanded": String(this._overlay.openerKey === "tb:export"),
                 title: this._t.exportData,
                 "aria-label": this._t.exportData,
                 onclick: (e) => this._openExportDialog(e.currentTarget)
@@ -874,7 +770,7 @@ class JwDataTable extends HTMLElement {
         table.tBodies[0].replaceWith(this._renderTbody(columns));
         if (this._features.pagination) this.shadow.querySelector(".k-dt-footer")?.replaceWith(this._renderFooter());
         this._layoutPinned();
-        if (this._focusIsLost()) this._restoreFocus(focusKey);
+        if (focusIsLost()) this._restoreFocus(focusKey);
     }
 
     // Column changes (pin, show/hide) also update the existing table in place:
@@ -909,7 +805,7 @@ class JwDataTable extends HTMLElement {
 
         table.tBodies[0].replaceWith(this._renderTbody(columns));
         this._layoutPinned();
-        if (this._focusIsLost()) this._restoreFocus(focusKey);
+        if (focusIsLost()) this._restoreFocus(focusKey);
     }
 
     // Brings a reused header cell's pinned state (sticky offset, unpin button) up to date.
@@ -976,7 +872,7 @@ class JwDataTable extends HTMLElement {
                 class: "k-dt-filter-btn" + (active ? " is-active" : ""),
                 "data-fk": `filter:${column.key}`,
                 "aria-haspopup": "dialog",
-                "aria-expanded": String(this._overlayFk === `filter:${column.key}`),
+                "aria-expanded": String(this._overlay.openerKey === `filter:${column.key}`),
                 title: active ? this._t.filterActive : this._t.filter,
                 "aria-label": this._t.filterPanelTitle(column.label),
                 onclick: (e) => this._openFilterPanel(column, e.currentTarget)
@@ -1324,11 +1220,6 @@ class JwDataTable extends HTMLElement {
         return active.closest("[data-fk]")?.dataset.fk ?? null;
     }
 
-    _focusIsLost() {
-        const active = deepActiveElement();
-        return !active || active === document.body || !active.isConnected;
-    }
-
     // Focuses the element with `key`. Fallbacks: the enclosing item
     // ("cell:3:name:link" → "cell:3:name"), the current page for pager keys,
     // any element of the same kind (a removed header → first header), and
@@ -1427,20 +1318,8 @@ class JwDataTable extends HTMLElement {
     }
 
     // Polite screen-reader announcement (status messages, WCAG 4.1.3).
-    // While a modal panel is open, everything outside it is hidden from assistive
-    // tech, so the panel's own live region is used. The target is chosen when the
-    // text is written (an action may close the panel right after announcing).
     _announce(message) {
-        if (!message) return;
-        const target = () => this._overlay?.querySelector("[data-live]") || getAnnouncer();
-        clearTimeout(this._announceTimer);
-        target().textContent = "";
-        // Browsers may merge "clear + set" into one update and then see no
-        // change for a repeated message. An alternating invisible suffix makes
-        // every announcement a real text change.
-        this._announceToggle = !this._announceToggle;
-        const text = message + (this._announceToggle ? "\u00a0" : "");
-        this._announceTimer = setTimeout(() => { target().textContent = text; }, 100);
+        this._announcer.announce(message);
     }
 
     _announceResults() {
@@ -1568,13 +1447,13 @@ class JwDataTable extends HTMLElement {
             if (row) {
                 const label = toText(value, column, this._config.locale, row);
                 items.push({
-                    label: this._t.filterByValue(this._truncate(label)),
+                    label: this._t.filterByValue(truncate(label)),
                     icon: "list-filter",
                     onSelect: () => this._setFilter(column.key, { kind: "value", values: [value] })
                 });
                 if (group === "text" || group === "number") {
                     items.push({
-                        label: this._t.excludeValue(this._truncate(label)),
+                        label: this._t.excludeValue(truncate(label)),
                         icon: "x",
                         // Numbers compare the raw value; text compares the displayed text.
                         onSelect: () => this._setFilter(column.key, {
@@ -2084,7 +1963,7 @@ class JwDataTable extends HTMLElement {
         }
         const pageIndex = this._pageData.indexOf(record);
         const retarget = (key) => key?.replace(/^(cell|card|details):\d+/, (_, kind) => `${kind}:${pageIndex}`);
-        this._overlayReturnKey = retarget(this._overlayReturnKey);
+        this._overlay.returnKey = retarget(this._overlay.returnKey);
         this._rovingKey = retarget(this._rovingKey);
     }
 
@@ -2177,7 +2056,7 @@ class JwDataTable extends HTMLElement {
         this._updateColumnsView();
         this._emitChange();
         // The chooser's checkbox announces itself; the context menu needs a message.
-        if (!visible && !this._overlay) {
+        if (!visible && !this._overlay.isOpen()) {
             const column = this._columns.find((c) => c.key === key);
             this._announce(this._t.columnHidden(column?.label ?? key));
         }
@@ -2232,7 +2111,7 @@ class JwDataTable extends HTMLElement {
             listSection
         ]);
 
-        const isOpen = () => this._overlay === panel;
+        const isOpen = () => this._overlay.isOpen(panel);
         const errorEl = (at) => (ui.error?.at === at
             ? el("p", { class: "k-dt-views-error", id: errorId, text: ui.error.text })
             : null);
@@ -2640,189 +2519,34 @@ class JwDataTable extends HTMLElement {
 
     // ---- Overlay (Panels) ------------------------------------------------
 
-    // Panels are modal dialogs: focus moves in (to `[data-autofocus]` or the
-    // first control), Tab cycles inside, Escape closes, and focus returns to
-    // the opener (`returnKey`, default: the element focused at open time).
-    // `centered`: a dialog in the middle of the screen (desktop) instead of a
-    // popover at the anchor; on mobile every panel is a bottom sheet.
+    // Opens `panel` as a modal dialog (see ui/overlay.js); focus returns to
+    // `returnKey` (default: the element focused now). `centered`: a dialog in
+    // the middle of the screen instead of a popover at `anchor`.
     _showOverlay(panel, anchor, returnKey = this._focusKey(), { centered = false } = {}) {
-        this._closeOverlay();
-        closeContextMenu();
-        panel.classList.add("k-dt-overlay");
-        panel.appendChild(el("div", { "data-live": "", "aria-live": "polite", "aria-atomic": "true", class: "k-dt-sr-only" }));
-        panel.setAttribute("role", "dialog");
-        panel.setAttribute("aria-modal", "true");
-        const head = panel.querySelector(".k-dt-panel-head");
-        if (head) {
-            head.id = uid("kdt-dlg");
-            panel.setAttribute("aria-labelledby", head.id);
-        }
-
-        if (this._isMobile()) {
-            // Bottom sheet: CSS handles positioning, no anchoring needed.
-            panel.classList.add("k-dt-overlay--sheet");
-            this.shadow.appendChild(panel);
-        } else if (centered) {
-            panel.classList.add("k-dt-overlay--dialog");
-            this.shadow.appendChild(panel);
-        } else {
-            // Position synchronously so the panel can take focus right away.
-            this.shadow.appendChild(panel);
-            const rect = panel.getBoundingClientRect();
-            const aRect = anchor && anchor.isConnected ? anchor.getBoundingClientRect() : { left: 0, top: 0, bottom: 0 };
-            let left = aRect.left;
-            let top = aRect.bottom + 4;
-            if (left + rect.width > window.innerWidth) left = Math.max(4, window.innerWidth - rect.width - 4);
-            if (top + rect.height > window.innerHeight) top = Math.max(4, aRect.top - rect.height - 4);
-            panel.style.left = `${Math.max(4, left)}px`;
-            panel.style.top = `${Math.max(4, top)}px`;
-        }
-
-        this._overlay = panel;
-        this._overlayReturnKey = returnKey;
-        this._overlayFk = anchor?.dataset?.fk ?? null;
-        if (this._overlayFk) anchor.setAttribute("aria-expanded", "true");
-
-        panel.addEventListener("keydown", (event) => {
-            if (event.key === "Escape") {
-                event.preventDefault();
-                event.stopPropagation();
-                this._closeOverlay();
-            } else if (event.key === "Tab") {
-                const focusables = this._focusables(panel);
-                if (!focusables.length) return;
-                const first = focusables[0];
-                const last = focusables[focusables.length - 1];
-                const active = deepActiveElement();
-                if (event.shiftKey && active === first) { event.preventDefault(); last.focus(); }
-                else if (!event.shiftKey && active === last) { event.preventDefault(); first.focus(); }
-            }
-        });
-        const initial = panel.querySelector("[data-autofocus]") || this._focusables(panel)[0];
-        if (initial) initial.focus();
-        else { panel.tabIndex = -1; panel.focus(); }
-
-        this._overlayOutside = (event) => {
-            const path = event.composedPath ? event.composedPath() : [event.target];
-            if (!path.includes(panel) && !path.includes(anchor)) this._closeOverlay({ restoreFocus: false });
-        };
-        // Escape inside the panel is the panel's own (a step inside may handle it).
-        this._overlayKey = (event) => {
-            if (event.key === "Escape" && !event.composedPath().includes(panel)) this._closeOverlay();
-        };
-        setTimeout(() => {
-            if (this._overlay !== panel) return;
-            document.addEventListener("pointerdown", this._overlayOutside, true);
-            document.addEventListener("keydown", this._overlayKey, true);
-        }, 0);
+        this._overlay.show(panel, { anchor, returnKey, centered, sheet: this._isMobile() });
     }
 
-    _focusables(container) {
-        return Array.from(container.querySelectorAll(
-            'button, input, select, textarea, a[href], [tabindex]:not([tabindex="-1"])'
-        )).filter((n) => !n.disabled && n.getClientRects().length > 0);
-    }
-
-    // restoreFocus: return focus to the opener if it was inside the panel or got
-    // lost (not when the user clicked elsewhere).
-    _closeOverlay({ restoreFocus = true } = {}) {
-        if (!this._overlay) return;
-        const panel = this._overlay;
-        const hadFocus = panel.contains(deepActiveElement());
-        this._overlay = null;
-        panel.remove();
-        document.removeEventListener("pointerdown", this._overlayOutside, true);
-        document.removeEventListener("keydown", this._overlayKey, true);
-        if (this._overlayFk) {
-            this.shadow.querySelector(`[data-fk="${CSS.escape(this._overlayFk)}"]`)?.setAttribute("aria-expanded", "false");
-        }
-        this._overlayFk = null;
-        if (restoreFocus && (hadFocus || this._focusIsLost())) this._restoreFocus(this._overlayReturnKey);
+    _closeOverlay(options) {
+        this._overlay.close(options);
     }
 
     // ---- Copy ------------------------------------------------------------
 
-    // `shownValue`: optional value to include in the announcement;
-    // `message`: replaces the announcement altogether.
+    // `button`: the copy button that was used, if any. `shownValue`: optional
+    // value to include in the announcement; `message` replaces it altogether.
     _copyText(text, button, shownValue, message) {
         // Decided at click time: a keyboard user has focus on the button.
         const buttonFocused = !!button && deepActiveElement() === button;
-        const done = () => {
-            message ??= shownValue ? this._t.copiedValue(this._truncate(shownValue, 60)) : this._t.copied;
+        writeClipboard(text).then(() => {
+            message ??= shownValue ? this._t.copiedValue(truncate(shownValue, 60)) : this._t.copied;
+            // Name + check icon stay until the button loses focus.
             if (buttonFocused && button.isConnected) {
-                // Name + check icon stay until the button loses focus.
-                this._confirmOnButton(button, message);
-                this._setCopied(button, true);
-            } else {
-                this._announce(message);
-                if (!button) return;
-                this._setCopied(button, true);
-                clearTimeout(button._copiedTimer);
-                button._copiedTimer = setTimeout(() => {
-                    if (button.dataset.label == null) this._setCopied(button, false);
-                }, 1200);
+                confirmOnButton(button, message);
+                return;
             }
-        };
-        if (navigator.clipboard && navigator.clipboard.writeText) {
-            navigator.clipboard.writeText(text).then(done).catch(() => this._fallbackCopy(text, done));
-        } else {
-            this._fallbackCopy(text, done);
-        }
-    }
-
-    // Confirms on the focused button itself by renaming it until it loses focus.
-    // Screen readers announce name changes of the focused element; unlike live
-    // regions this does not depend on settings (NVDA "report dynamic content
-    // changes"). Used instead of — not in addition to — the live region.
-    _confirmOnButton(button, message) {
-        if (button.dataset.label == null) {
-            button.dataset.label = button.getAttribute("aria-label") || "";
-            const onBlur = () => {
-                if (this._inFallbackCopy) return;   // helper textarea took focus briefly
-                button.removeEventListener("blur", onBlur);
-                button.setAttribute("aria-label", button.dataset.label);
-                delete button.dataset.label;
-                this._setCopied(button, false);
-            };
-            button.addEventListener("blur", onBlur);
-        }
-        // A repeated copy must still change the name; a trailing period is
-        // not spoken at default punctuation levels.
-        const current = button.getAttribute("aria-label");
-        button.setAttribute("aria-label", current === message ? `${message}.` : message);
-    }
-
-    // Visual copy confirmation: check icon + accent color.
-    _setCopied(button, copied) {
-        button.classList.toggle("is-copied", copied);
-        button.replaceChildren(iconEl(copied ? "check" : "copy"));
-    }
-
-    // Fallback for contexts without the async Clipboard API (e.g. plain HTTP).
-    // The helper textarea needs focus for execCommand; focus is put back
-    // afterwards so keyboard and screen-reader users stay where they were.
-    _fallbackCopy(text, done) {
-        const previous = deepActiveElement();
-        const ta = document.createElement("textarea");
-        ta.value = text;
-        ta.readOnly = true;
-        ta.setAttribute("aria-hidden", "true");
-        ta.tabIndex = -1;
-        ta.style.position = "fixed";
-        ta.style.top = "0";
-        ta.style.opacity = "0";
-        document.body.appendChild(ta);
-        this._inFallbackCopy = true;
-        try {
-            ta.focus({ preventScroll: true });
-            ta.select();
-            try { document.execCommand("copy"); } catch { /* ignore */ }
-            ta.remove();
-            if (previous && previous.isConnected && previous !== document.body) previous.focus({ preventScroll: true });
-        } finally {
-            this._inFallbackCopy = false;
-        }
-        done?.();
+            this._announce(message);
+            if (button) flashCopied(button);
+        });
     }
 
     // Copied text may be pasted into a spreadsheet, which would run cells
@@ -2850,11 +2574,6 @@ class JwDataTable extends HTMLElement {
 
     _emitChange() {
         this._emit("change", { state: serializeState(this._state) });
-    }
-
-    _truncate(text, max = 30) {
-        const str = String(text);
-        return str.length > max ? str.slice(0, max - 1) + "…" : str;
     }
 }
 

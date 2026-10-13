@@ -8,6 +8,7 @@
 // opener (see `restoreFocus`).
 
 import { createIcon } from "./icons.js";
+import { deepActiveElement, focusIsLost, placePopup } from "./dom.js";
 
 let activeMenu = null;
 
@@ -34,16 +35,8 @@ export function openContextMenu(root, { x, y, items, label, onClose, restoreFocu
     menu.addEventListener("keydown", (event) => handleMenuKey(event, menu));
     root.appendChild(menu);
 
-    if (!sheet) {
-        // Position synchronously (so the menu can take focus right away) and keep it within the viewport.
-        const rect = menu.getBoundingClientRect();
-        let left = x;
-        let top = y;
-        if (left + rect.width > window.innerWidth) left = Math.max(4, window.innerWidth - rect.width - 4);
-        if (top + rect.height > window.innerHeight) top = Math.max(4, window.innerHeight - rect.height - 4);
-        menu.style.left = `${left}px`;
-        menu.style.top = `${top}px`;
-    }
+    // Position synchronously (so the menu can take focus right away).
+    if (!sheet) placePopup(menu, x, y);
     focusItem(menuItems(menu)[0]);
 
     const handleOutside = (event) => {
@@ -93,10 +86,6 @@ export function closeContextMenu({ restoreFocus = false } = {}) {
     current.el.remove();
     current.cleanup();
     if (restoreFocus && current.restoreFocus && (hadFocus || focusIsLost())) current.restoreFocus();
-}
-
-export function isContextMenuOpen() {
-    return activeMenu !== null;
 }
 
 // ---- Keyboard -------------------------------------------------------------
@@ -252,18 +241,3 @@ function buildMenu(items, requestClose, isSubmenu = false) {
 
     return menu;
 }
-
-// ---- Focus helpers --------------------------------------------------------
-
-function deepActiveElement() {
-    let active = document.activeElement;
-    while (active?.shadowRoot?.activeElement) active = active.shadowRoot.activeElement;
-    return active;
-}
-
-function focusIsLost() {
-    const active = deepActiveElement();
-    return !active || active === document.body || !active.isConnected;
-}
-
-export { deepActiveElement };
