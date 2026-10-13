@@ -50,6 +50,7 @@ import { el, iconEl, deepActiveElement, focusIsLost, truncate } from "./ui/dom.j
 import { Announcer, getAnnouncer } from "./ui/announcer.js";
 import { Overlay } from "./ui/overlay.js";
 import { writeClipboard, confirmOnButton, flashCopied } from "./ui/clipboard.js";
+import { waitForLongPress } from "./ui/longPress.js";
 import { ViewStore, LocalStorageAdapter } from "./core/viewStore.js";
 import { buildFilterPanel } from "./panels/filterPanel.js";
 import { buildExportDialog } from "./panels/exportDialog.js";
@@ -63,6 +64,19 @@ function viewName(name) {
     const result = String(name ?? "").trim();
     if (!result) throw new TypeError("A saved view needs a name");
     return result;
+}
+
+// Elements that open the context menu; each has a record in `_items`.
+const MENU_HOSTS = "th.k-dt-th, td.k-dt-td, .k-dt-card";
+// Elements holding one value (with its link, action or copy button).
+const VALUE_HOSTS = "td.k-dt-td, dd.k-dt-pair-value, .k-dt-card-title";
+// Controls inside a value host, handled by `_onClick`.
+const VALUE_CONTROLS = ".k-dt-copy, .k-dt-cell-action, .k-dt-link, .k-dt-details-btn";
+
+// Target of a column link: `link.url` as a string or (row, value) => string.
+function linkHref(link, row, value) {
+    if (typeof link.url === "function") return link.url(row, value);
+    return typeof link.url === "string" ? link.url : null;
 }
 
 // Opt-in features default to `false` and must be enabled explicitly via
@@ -109,11 +123,14 @@ class JwDataTable extends HTMLElement {
         this._mqlHandler = null;
         this._mobileMatches = false;
         this._layoutUserSet = false;
-        this._lpTimer = null;
-        this._lpCleanup = null;
+        this._longPress = null;   // cancels a pending long-press
         this._suppressClickUntil = 0;
         this._suppressContextUntil = 0;
         this._resizeObserver = null;
+        // Rendered row, cell, card, header and field elements → their record
+        // { row, index, column, value }, read by the delegated event handlers.
+        this._items = new WeakMap();
+        this._listen();
         this._overlay = new Overlay(this.shadow, { restoreFocus: (key) => this._restoreFocus(key) });
         // While a modal panel is open, everything outside it is hidden from
         // assistive tech, so the panel's own live region is used.
@@ -482,17 +499,6 @@ class JwDataTable extends HTMLElement {
         const previous = this.shadow.querySelector(".k-dt");
 
         const root = el("div", { class: "k-dt", part: "root" });
-        // Suppress the browser's native context menu anywhere in the table (incl.
-        // long-press on touch) so only our custom menu shows. Form fields keep
-        // their native menu (paste, spell-check, …).
-        if (this._features.contextMenu) {
-            root.addEventListener("contextmenu", (e) => {
-                const target = e.composedPath ? e.composedPath()[0] : e.target;
-                const tag = target && target.tagName ? target.tagName.toLowerCase() : "";
-                if (tag === "input" || tag === "textarea" || tag === "select") return;
-                e.preventDefault();
-            });
-        }
         root.appendChild(this._renderToolbar());
         // The viewport stays put while the body inside is replaced; it draws
         // the horizontal scroll shadows.
@@ -882,7 +888,7 @@ class JwDataTable extends HTMLElement {
 
         th.appendChild(inner);
 
-        this._bindContextTrigger(th, () => ({ column, row: null, value: null }));
+        this._items.set(th, { column, row: null, value: null });
         if (this._features.columnReorder) this._bindColumnMove(th, column);
         return th;
     }
@@ -912,21 +918,9 @@ class JwDataTable extends HTMLElement {
             if (cls) tr.classList.add(...String(cls).split(/\s+/));
         }
         const compact = this._isCompact();
-        if (compact) {
-            // Compact layout: the whole row opens the details (links and buttons
-            // inside keep their own action); onRowClick moves into the dialog.
-            tr.classList.add("k-dt-clickable");
-            tr.addEventListener("click", (event) => {
-                if (this._shouldSuppressClick() || event.target.closest("a, button")) return;
-                this._openDetails(row);
-            });
-        } else if (typeof this._config.onRowClick === "function") {
-            tr.classList.add("k-dt-clickable");
-            tr.addEventListener("click", () => {
-                if (this._shouldSuppressClick()) return;
-                this._config.onRowClick(row, index);
-            });
-        }
+        // Compact layout: the whole row opens the details (see `_onClick`).
+        if (compact || typeof this._config.onRowClick === "function") tr.classList.add("k-dt-clickable");
+        this._items.set(tr, { row, index });
         columns.forEach((column, i) => tr.appendChild(this._pinCell(this._renderCell(column, row, index), i, columns)));
         if (compact) tr.appendChild(this._renderDetailsCell(row, index));
         return tr;
@@ -942,14 +936,12 @@ class JwDataTable extends HTMLElement {
             "aria-haspopup": "dialog",
             "aria-expanded": "false",
             title: this._t.showDetails,
-            "aria-label": this._t.showDetailsFor(this._recordTitle(row)),
-            onclick: (event) => this._openDetails(row, { anchor: event.currentTarget })
+            "aria-label": this._t.showDetailsFor(this._recordTitle(row))
         }, [iconEl("maximize-2")]);
         td.appendChild(button);
-        this._bindContextTrigger(td, () => {
-            const column = this._tableColumns()[0];
-            return { column, row, value: getCellValue(row, column) };
-        });
+        // Its context menu is the one of the row's first column.
+        const column = this._tableColumns()[0];
+        this._items.set(td, { column, row, value: getCellValue(row, column), index });
         return td;
     }
 
@@ -964,32 +956,16 @@ class JwDataTable extends HTMLElement {
         }
 
         const content = el("div", { class: "k-dt-cell" }, [this._valueNode(column, row, value, fk)]);
-        if (column.copyable) content.appendChild(this._copyButton(column, row, value, fk));
+        if (column.copyable) content.appendChild(this._copyButton(column, fk));
         td.appendChild(content);
-        if ((column.overflow || this._config.cellOverflow) === "ellipsis") this._truncateCell(td, column, row, value);
-
-        this._bindContextTrigger(td, () => ({ column, row, value }));
-        if (typeof this._config.onCellClick === "function" && !this._isCompact()) {
-            td.addEventListener("click", () => {
-                if (this._shouldSuppressClick()) return;
-                this._config.onCellClick(value, row, column);
-            });
+        // Single-line cell with an ellipsis; the full text shows as a tooltip
+        // (`_onPointerOver`) and while the cell has focus (CSS `:focus-within`).
+        if ((column.overflow || this._config.cellOverflow) === "ellipsis") {
+            td.classList.add("k-dt-truncate");
+            if (column.maxWidth) td.style.setProperty("--k-dt-cell-max-width", column.maxWidth);
         }
+        this._items.set(td, { column, row, value, index });
         return td;
-    }
-
-    // Single-line cell with an ellipsis. Mouse users get the full text as a
-    // tooltip (only when it is actually cut off); keyboard and touch users see
-    // it in full while the cell has focus (CSS `:focus-within`).
-    _truncateCell(td, column, row, value) {
-        td.classList.add("k-dt-truncate");
-        if (column.maxWidth) td.style.setProperty("--k-dt-cell-max-width", column.maxWidth);
-        td.addEventListener("pointerenter", () => {
-            const node = td.querySelector(".k-dt-cell > :first-child");
-            if (!node) return;
-            if (node.scrollWidth > node.clientWidth) node.title = toText(value, column, this._config.locale, row);
-            else node.removeAttribute("title");
-        });
     }
 
     // Builds the display node including link logic (href / SPA / custom handler).
@@ -1000,52 +976,25 @@ class JwDataTable extends HTMLElement {
         // An empty value gets no link or button: it would be a focus stop without a name.
         if (typeof display === "string" && !display.trim()) return el("span", { class: "k-dt-value" }, [content]);
 
+        // Clicks are handled in `_onClick`.
         const link = column.link;
         if (link && (link.url || link.spa || typeof link.handler === "function")) {
-            const href = typeof link.url === "function" ? link.url(row, value) : (typeof link.url === "string" ? link.url : null);
-            const anchor = el("a", { class: "k-dt-link", href: href || "#", "data-fk": fk ? `${fk}:link` : null });
-            anchor.appendChild(content);
-            anchor.addEventListener("click", (e) => {
-                if (this._shouldSuppressClick()) { e.preventDefault(); return; }
-                if (typeof link.handler === "function") {
-                    e.preventDefault();
-                    link.handler(row, value, e);
-                } else if (link.spa) {
-                    e.preventDefault();
-                    this._emit("navigate", { href, row, column, value });
-                }
-            });
-            return anchor;
+            return el("a", { class: "k-dt-link", href: linkHref(link, row, value) || "#", "data-fk": fk ? `${fk}:link` : null }, [content]);
         }
-
         if (typeof column.action === "function") {
-            const btn = el("button", { type: "button", class: "k-dt-cell-action", "data-fk": fk ? `${fk}:action` : null });
-            btn.appendChild(content);
-            btn.addEventListener("click", (e) => {
-                e.stopPropagation();
-                if (this._shouldSuppressClick()) { e.preventDefault(); return; }
-                column.action(row, value, e);
-            });
-            return btn;
+            return el("button", { type: "button", class: "k-dt-cell-action", "data-fk": fk ? `${fk}:action` : null }, [content]);
         }
         return el("span", { class: "k-dt-value" }, [content]);
     }
 
-    _copyButton(column, row, value, fk) {
+    // Copies the value of its cell or field (see `_onClick`).
+    _copyButton(column, fk) {
         return el("button", {
             type: "button",
             class: "k-dt-copy",
             "data-fk": fk ? `${fk}:copy` : null,
             title: this._t.copyValue,
-            "aria-label": `${this._t.copyValue}: ${column.label}`,
-            // Clicking must not move focus into the cell: screen readers would
-            // read the whole table context instead of just the copy message.
-            onmousedown: (e) => e.preventDefault(),
-            onclick: (e) => {
-                e.stopPropagation();
-                const text = toText(value, column, this._config.locale, row);
-                this._copyText(neutralizeFormula(text), e.currentTarget, text);
-            }
+            "aria-label": `${this._t.copyValue}: ${column.label}`
         }, [iconEl("copy")]);
     }
 
@@ -1069,21 +1018,19 @@ class JwDataTable extends HTMLElement {
         this._pageData.forEach((row, index) => {
             const fk = `card:${index}`;
             const card = el("div", { class: "k-dt-card", part: "card", role: "listitem", tabIndex: -1, "data-fk": fk });
-            if (typeof this._config.onRowClick === "function") {
-                card.classList.add("k-dt-clickable");
-                card.addEventListener("click", () => {
-                    if (this._shouldSuppressClick()) return;
-                    this._config.onRowClick(row, index);
-                });
-            }
+            if (typeof this._config.onRowClick === "function") card.classList.add("k-dt-clickable");
             const titleColumn = titleKey ? columns.find((c) => c.key === titleKey) : null;
             if (titleColumn) {
-                card.appendChild(el("div", { class: "k-dt-card-title" }, [
-                    this._valueNode(titleColumn, row, getCellValue(row, titleColumn), `${fk}:${titleColumn.key}`)
-                ]));
+                const value = getCellValue(row, titleColumn);
+                const title = el("div", { class: "k-dt-card-title" }, [
+                    this._valueNode(titleColumn, row, value, `${fk}:${titleColumn.key}`)
+                ]);
+                this._items.set(title, { column: titleColumn, row, value });
+                card.appendChild(title);
             }
             card.appendChild(this._renderFields(columns.filter((c) => c !== titleColumn), row, fk));
-            this._bindContextTrigger(card, () => ({ column: columns[0], row, value: getCellValue(row, columns[0]) }));
+            // Its context menu is the one of the first column.
+            this._items.set(card, { column: columns[0], row, value: getCellValue(row, columns[0]), index });
             grid.appendChild(card);
         });
         this._initRoving(grid, ".k-dt-card", (event, card) => this._onCardKey(event, card, grid));
@@ -1102,7 +1049,8 @@ class JwDataTable extends HTMLElement {
             const value = getCellValue(row, column);
             const key = fk ? `${fk}:${column.key}` : null;
             const val = el("dd", { class: "k-dt-pair-value k-dt-card-val" }, [this._valueNode(column, row, value, key)]);
-            if (column.copyable) val.appendChild(this._copyButton(column, row, value, key));
+            if (column.copyable) val.appendChild(this._copyButton(column, key));
+            this._items.set(val, { column, row, value });
             list.appendChild(el("div", { class: "k-dt-pair k-dt-card-row" }, [
                 el("dt", { class: "k-dt-pair-label k-dt-card-label", text: column.label }),
                 val
@@ -1330,77 +1278,161 @@ class JwDataTable extends HTMLElement {
         this._announce(parts.length ? this._t.sortedBy(parts.join(", ")) : this._t.sortCleared);
     }
 
+    // ---- Delegated events ------------------------------------------------
+
+    // Rows, cells, cards and headers get no listeners of their own (thousands
+    // on a large page): handlers on the shadow root find the element and its
+    // record in `_items`. Panels live in the same shadow root, so their
+    // fields (record details) are handled here too.
+    _listen() {
+        const root = this.shadow;
+        root.addEventListener("click", (event) => this._onClick(event));
+        root.addEventListener("contextmenu", (event) => this._onContextMenu(event));
+        root.addEventListener("keydown", (event) => this._onContextKey(event));
+        root.addEventListener("pointerdown", (event) => this._onPointerDown(event));
+        root.addEventListener("pointerover", (event) => this._onPointerOver(event));
+        // Clicking a copy button must not move focus into the cell: screen
+        // readers would read the whole table context instead of the message.
+        root.addEventListener("mousedown", (event) => {
+            if (event.target.closest?.(".k-dt-copy")) event.preventDefault();
+        });
+    }
+
+    // The closest element matching `selector` that has a record, or null.
+    _host(node, selector) {
+        const host = node?.closest?.(selector);
+        return host && this._items.has(host) ? host : null;
+    }
+
+    // Controls inside a value first (copy and action stop there; a link goes
+    // on to the cell and row), then the cell, then the row or card.
+    _onClick(event) {
+        const target = event.target;
+        if (!(target instanceof Element)) return;
+        const suppressed = this._shouldSuppressClick();
+        const control = target.closest(VALUE_CONTROLS);
+        const valueHost = control && this._host(control, VALUE_HOSTS);
+        if (valueHost) {
+            const { column, row, value } = this._items.get(valueHost);
+            if (control.matches(".k-dt-copy")) {
+                const text = toText(value, column, this._config.locale, row);
+                this._copyText(neutralizeFormula(text), control, text);
+                return;
+            }
+            if (control.matches(".k-dt-details-btn")) {
+                this._openDetails(row, { anchor: control });
+                return;
+            }
+            if (suppressed) { event.preventDefault(); return; }
+            if (control.matches(".k-dt-cell-action")) {
+                column.action(row, value, event);
+                return;
+            }
+            this._followLink(event, column, row, value);
+        }
+        if (suppressed) return;
+
+        const cell = this._host(target, "td.k-dt-td");
+        if (cell && typeof this._config.onCellClick === "function" && !this._isCompact()) {
+            const { column, row, value } = this._items.get(cell);
+            this._config.onCellClick(value, row, column);
+        }
+        const record = this._host(target, "tr.k-dt-tr, .k-dt-card");
+        if (!record) return;
+        const { row, index } = this._items.get(record);
+        if (record.matches("tr") && this._isCompact()) {
+            // Compact layout: the whole row opens the details (links and buttons
+            // inside keep their own action); onRowClick moves into the dialog.
+            if (!target.closest("a, button")) this._openDetails(row);
+        } else if (typeof this._config.onRowClick === "function") {
+            this._config.onRowClick(row, index);
+        }
+    }
+
+    // Links: a custom handler or SPA routing replace the browser navigation.
+    _followLink(event, column, row, value) {
+        const link = column.link;
+        if (typeof link.handler === "function") {
+            event.preventDefault();
+            link.handler(row, value, event);
+        } else if (link.spa) {
+            event.preventDefault();
+            this._emit("navigate", { href: linkHref(link, row, value), row, column, value });
+        }
+    }
+
+    // Truncated cells show the full text as a tooltip, only when it is cut off.
+    _onPointerOver(event) {
+        const td = event.target.closest?.("td.k-dt-truncate");
+        if (!td || td.contains(event.relatedTarget) || !this._items.has(td)) return;
+        const node = td.querySelector(".k-dt-cell > :first-child");
+        if (!node) return;
+        const { column, row, value } = this._items.get(td);
+        if (node.scrollWidth > node.clientWidth) node.title = toText(value, column, this._config.locale, row);
+        else node.removeAttribute("title");
+    }
+
     // ---- Context menu ----------------------------------------------------
 
-    // Opens the context menu via right-click (desktop) or long-press (touch).
-    // `getArgs` returns { column, row, value } lazily so cells share one binder.
-    _bindContextTrigger(node, getArgs) {
+    // Right-click (desktop). The browser's own menu is suppressed anywhere in
+    // the table so only ours shows; form fields keep it (paste, spell-check, …),
+    // and so do panels.
+    _onContextMenu(event) {
+        if (!this._features.contextMenu || !event.target.closest?.(".k-dt")) return;
+        if (event.composedPath()[0]?.matches?.("input, textarea, select")) return;
+        event.preventDefault();
+        const host = this._host(event.target, MENU_HOSTS);
+        if (!host) return;
+        this._cancelLongPress();
+        // A long-press already opened the menu; don't reopen on the native
+        // contextmenu event that follows the same gesture.
+        if (Date.now() < this._suppressContextUntil) return;
+        this._openContextMenuAt(host, event);
+    }
+
+    // Keyboard: Shift+F10 or the context-menu key on a focused cell, card or
+    // header control. Browsers may follow up with a native `contextmenu`
+    // event, which is suppressed.
+    _onContextKey(event) {
         if (!this._features.contextMenu) return;
+        if (!(event.key === "ContextMenu" || (event.key === "F10" && event.shiftKey))) return;
+        const target = event.composedPath()[0];
+        if (target?.matches?.("input, textarea, select")) return;
+        const host = this._host(event.target, MENU_HOSTS);
+        if (!host) return;
+        event.preventDefault();
+        event.stopPropagation();
+        this._suppressContextUntil = Date.now() + 500;
+        const rect = (target instanceof Element ? target : host).getBoundingClientRect();
+        this._openContextMenuAt(host, { clientX: rect.left + 4, clientY: rect.bottom, target: host });
+    }
 
-        // Keyboard: Shift+F10 or the context-menu key on a focused cell, card,
-        // or header control. Browsers may follow up with a native `contextmenu`
-        // event, which is suppressed below.
-        node.addEventListener("keydown", (event) => {
-            if (!(event.key === "ContextMenu" || (event.key === "F10" && event.shiftKey))) return;
-            const target = event.composedPath()[0];
-            if (target?.matches?.("input, textarea, select")) return;
-            event.preventDefault();
-            event.stopPropagation();
-            this._suppressContextUntil = Date.now() + 500;
-            const rect = (target instanceof Element ? target : node).getBoundingClientRect();
-            const args = getArgs();
-            this._openContextMenu({ clientX: rect.left + 4, clientY: rect.bottom, target: node }, args.column, args.row, args.value);
-        });
-
-        node.addEventListener("contextmenu", (event) => {
-            event.preventDefault();
-            this._cancelLongPress();
-            // A long-press already opened the menu; don't reopen on the native
-            // contextmenu event that follows the same gesture.
-            if (this._suppressContextUntil && Date.now() < this._suppressContextUntil) return;
-            const args = getArgs();
-            this._openContextMenu(event, args.column, args.row, args.value);
-        });
-
-        node.addEventListener("pointerdown", (event) => {
-            if (event.pointerType !== "touch") return;
-            this._cancelLongPress();
-            const startX = event.clientX;
-            const startY = event.clientY;
-
-            const onMove = (ev) => {
-                if (Math.abs(ev.clientX - startX) > 10 || Math.abs(ev.clientY - startY) > 10) {
-                    this._cancelLongPress();
-                }
-            };
-            const onEnd = () => this._cancelLongPress();
-            this._lpCleanup = () => {
-                node.removeEventListener("pointermove", onMove);
-                node.removeEventListener("pointerup", onEnd);
-                node.removeEventListener("pointercancel", onEnd);
-                node.removeEventListener("pointerleave", onEnd);
-            };
-            node.addEventListener("pointermove", onMove);
-            node.addEventListener("pointerup", onEnd);
-            node.addEventListener("pointercancel", onEnd);
-            node.addEventListener("pointerleave", onEnd);
-
-            this._lpTimer = setTimeout(() => {
-                this._lpTimer = null;
-                if (this._lpCleanup) { this._lpCleanup(); this._lpCleanup = null; }
-                // Swallow the click and the native contextmenu that follow the
-                // long-press release.
-                this._suppressClickUntil = Date.now() + 700;
-                this._suppressContextUntil = Date.now() + 700;
-                const args = getArgs();
-                this._openContextMenu({ clientX: startX, clientY: startY, target: node }, args.column, args.row, args.value);
-            }, 500);
+    // Touch: a long-press opens the context menu.
+    _onPointerDown(event) {
+        if (!this._features.contextMenu || event.pointerType !== "touch") return;
+        const host = this._host(event.target, MENU_HOSTS);
+        if (!host) return;
+        this._cancelLongPress();
+        this._longPress = waitForLongPress(host, event, (clientX, clientY) => {
+            this._longPress = null;
+            // Swallow the click and the native contextmenu that follow the
+            // long-press release.
+            this._suppressClickUntil = Date.now() + 700;
+            this._suppressContextUntil = Date.now() + 700;
+            this._openContextMenuAt(host, { clientX, clientY, target: host });
         });
     }
 
     _cancelLongPress() {
-        if (this._lpTimer) { clearTimeout(this._lpTimer); this._lpTimer = null; }
-        if (this._lpCleanup) { this._lpCleanup(); this._lpCleanup = null; }
+        this._longPress?.();
+        this._longPress = null;
+    }
+
+    // `point`: { clientX, clientY, target } — where to open, and the anchor
+    // for a filter panel opened from the menu.
+    _openContextMenuAt(host, point) {
+        const { column, row, value } = this._items.get(host);
+        this._openContextMenu(point, column, row, value);
     }
 
     // True briefly after a long-press so the synthetic click does not also

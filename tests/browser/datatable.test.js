@@ -364,6 +364,38 @@ test("Enter on a cell activates its link or the row handler", async () => {
     assert.equal(rowClicked, 5);
 }, { cdp: true });
 
+test("clicks: action stops at its button, links reach cell and row, SPA links emit navigate", () => {
+    const calls = [];
+    const columns = COLUMNS.map((c) =>
+        c.key === "name" ? { ...c, link: { url: (row) => `/m/${row.id}`, spa: true } } :
+        c.key === "fee" ? { ...c, action: (row) => calls.push(`action:${row.id}`) } : c);
+    const table = mount({
+        columns,
+        onCellClick: (value, row, column) => calls.push(`cell:${row.id}:${column.key}`),
+        onRowClick: (row, index) => calls.push(`row:${row.id}:${index}`)
+    });
+    table.addEventListener("jw-datatable:navigate", (e) => calls.push(`navigate:${e.detail.href}`));
+    $(table, '[data-fk="cell:1:fee:action"]').click();
+    assert.deepEqual(calls.splice(0), ["action:2"]);
+    $(table, '[data-fk="cell:1:name:link"]').click();
+    assert.deepEqual(calls.splice(0), ["navigate:/m/2", "cell:2:name", "row:2:1"]);
+    $(table, '[data-fk="cell:3:active"]').click();
+    assert.deepEqual(calls.splice(0), ["cell:4:active", "row:4:3"]);
+});
+
+test("record details: copy buttons and links in the dialog act on the shown record", async () => {
+    const linked = [];
+    const columns = COLUMNS.map((c) => c.key === "name" ? { ...c, link: { handler: (row) => linked.push(row.id) } } : c);
+    const table = mount({ columns, features: { rowDetails: true } });
+    rightClick($$(table, "tbody td")[0]);
+    Array.from($$(table, '[role="menuitem"]')).find((i) => i.textContent.includes("details")).click();
+    const dialog = $(table, '[role="dialog"]');
+    dialog.querySelector(".k-dt-link").click();
+    assert.deepEqual(linked, [1]);
+    dialog.querySelector(".k-dt-copy").click();
+    await waitFor(() => dialog.querySelector(".k-dt-copy.is-copied"), "copy feedback");
+});
+
 test("empty values get no link or action button", () => {
     const columns = COLUMNS.map((c) =>
         c.key === "name" ? { ...c, link: (row) => `/m/${row.id}` } :
@@ -1152,9 +1184,9 @@ test("cellOverflow ellipsis: single line, tooltip only when cut off, full text o
     assert.equal(style.textOverflow, "ellipsis");
     assert.ok($(table, '[data-fk="cell:0:name"] .k-dt-cell').getBoundingClientRect().width <= 80.5, "maxWidth caps the content");
 
-    $(table, '[data-fk="cell:0:name"]').dispatchEvent(new PointerEvent("pointerenter"));
+    $(table, '[data-fk="cell:0:name"]').dispatchEvent(new PointerEvent("pointerover", { bubbles: true }));
     assert.equal(value(0).title, LONG, "tooltip with the full text");
-    $(table, '[data-fk="cell:1:name"]').dispatchEvent(new PointerEvent("pointerenter"));
+    $(table, '[data-fk="cell:1:name"]').dispatchEvent(new PointerEvent("pointerover", { bubbles: true }));
     assert.ok(!value(1).hasAttribute("title"), "no tooltip when the text fits");
 
     $(table, '[data-fk="cell:0:name"]').focus();
