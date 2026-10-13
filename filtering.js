@@ -3,6 +3,7 @@
 
 import { getCellValue, isEmptyValue, toBoolean, toDate, toNumber, typeGroup } from "./util.js";
 import { toText } from "./formatters.js";
+import { textCollator } from "./comparators.js";
 
 // Pattern operators per type family. `arity` = number of operands.
 export const OPERATORS = {
@@ -201,7 +202,6 @@ export function distinctValues(data, column, locale = "en-US") {
             map.set(key, { value: raw, label: toText(raw, column, locale, row), count: 1 });
         }
     }
-    return Array.from(map.values()).sort((a, b) =>
-        String(a.label).localeCompare(String(b.label), locale, { numeric: true, sensitivity: "base" })
-    );
+    const collator = textCollator(locale);
+    return Array.from(map.values()).sort((a, b) => collator.compare(String(a.label), String(b.label)));
 }
