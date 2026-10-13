@@ -1,7 +1,7 @@
 // Filter logic: value filters (pick concrete values) and pattern filters
 // (operator + operand, type-dependent). Plus global full-text search.
 
-import { getCellValue, isEmptyValue, toDate, toNumber, typeGroup } from "./util.js";
+import { getCellValue, isEmptyValue, toBoolean, toDate, toNumber, typeGroup } from "./util.js";
 import { toText } from "./formatters.js";
 
 // Pattern operators per type family. `arity` = number of operands.
@@ -121,10 +121,10 @@ function matchesDate(value, operator, operand, operand2) {
     }
 }
 
+// Same reading of truthy values as the display ("yes" shows as Yes).
 function matchesBoolean(value, operator) {
-    const truthy = value === true || value === 1 || value === "1" || value === "true";
-    if (operator === "isTrue") return truthy;
-    if (operator === "isFalse") return !truthy;
+    if (operator === "isTrue") return toBoolean(value);
+    if (operator === "isFalse") return !toBoolean(value);
     return true;
 }
 
@@ -135,6 +135,13 @@ export function matchesPattern(value, filter, type) {
     if (group === "date") return matchesDate(value, filter.operator, filter.operand, filter.operand2);
     if (group === "boolean") return matchesBoolean(value, filter.operator);
     return matchesText(value, filter.operator, filter.operand);
+}
+
+// Text conditions test the displayed text (enum labels, custom formatters),
+// like the global search; numbers and dates test the raw value.
+function patternSubject(value, column, locale, row) {
+    if (typeGroup(column.type) !== "text" || isEmptyValue(value)) return value;
+    return toText(value, column, locale, row);
 }
 
 // Applies all active column filters (AND) and optional global search. Returns a new array.
@@ -154,7 +161,7 @@ export function applyFilters(data, filters, columns, { locale = "en-US", globalS
             if (filter.kind === "value") {
                 const set = filter._set || (filter._set = new Set(filter.values.map((v) => String(v))));
                 if (!set.has(String(value))) return false;
-            } else if (!matchesPattern(value, filter, column.type)) {
+            } else if (!matchesPattern(patternSubject(value, column, locale, row), filter, column.type)) {
                 return false;
             }
         }

@@ -433,6 +433,9 @@ Per column (filter icon in header or context menu):
 | Date | on, before, after, between, is (not) empty |
 | Boolean | is true, is false |
 
+Text conditions test the displayed text (e.g. the label of an `enum` value or
+the output of a `formatter`), number and date conditions the raw value.
+
 **Quick filter:** right-click a cell → “Filter by value” or “Exclude value”.
 
 Filters combine with global search and each other with **AND**. API:

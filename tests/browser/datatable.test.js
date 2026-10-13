@@ -249,6 +249,16 @@ test("context menu quick filter narrows rows", () => {
     assert.equal($$(table, "tbody tr").length, 5);
 });
 
+test("context menu exclude works on formatted number columns", () => {
+    const table = mount({ locale: "de-DE", features: { filtering: true }, pagination: { pageSize: 100 } });
+    const fee = DATA[0].fee;
+    const count = DATA.filter((r) => r.fee === fee).length;
+    rightClick($$(table, "tbody td")[2]);
+    const item = Array.from($$(table, '[role="menuitem"]')).find((i) => i.textContent.includes("ausschließen"));
+    item.click();
+    assert.equal($$(table, "tbody tr").length, DATA.length - count);
+});
+
 // ---- Keyboard (trusted input via CDP) -------------------------------------
 
 test("sort header is operable with Enter and Space", async () => {

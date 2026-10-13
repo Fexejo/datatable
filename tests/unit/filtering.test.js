@@ -72,3 +72,26 @@ test("distinctValues counts and sorts by label", () => {
     const values = distinctValues(data, columns[3]);
     assert.deepEqual(values.map((v) => [v.label, v.count]), [["No", 1], ["Yes", 2]]);
 });
+
+test("text conditions test the displayed text (enum labels)", () => {
+    const status = { key: "status", type: "enum", options: [{ value: "a", label: "Active" }, { value: "b", label: "Blocked" }] };
+    const rows = [{ status: "a" }, { status: "b" }, { status: null }];
+    const keep = (filter) => applyFilters(rows, { status: { kind: "pattern", arity: 1, ...filter } }, [status]).map((r) => r.status);
+    assert.deepEqual(keep({ operator: "notEquals", operand: "Active" }), ["b", null]);
+    assert.deepEqual(keep({ operator: "contains", operand: "lock" }), ["b"]);
+    assert.deepEqual(keep({ operator: "empty", arity: 0 }), [null]);
+});
+
+test("number conditions compare raw values of formatted columns", () => {
+    const fee = { key: "fee", type: "currency", format: { currency: "EUR" } };
+    const rows = [{ fee: 1234.5 }, { fee: 10 }];
+    const result = applyFilters(rows, { fee: { kind: "pattern", operator: "notEquals", operand: 1234.5, arity: 1 } }, [fee], { locale: "de-DE" });
+    assert.deepEqual(result.map((r) => r.fee), [10]);
+});
+
+test("boolean conditions read truthy values like the display", () => {
+    const ok = { key: "ok", type: "boolean" };
+    const rows = [{ ok: "yes" }, { ok: "ja" }, { ok: 1 }, { ok: false }, { ok: "no" }];
+    const isTrue = applyFilters(rows, { ok: { kind: "pattern", operator: "isTrue", arity: 0 } }, [ok]);
+    assert.deepEqual(isTrue.map((r) => r.ok), ["yes", "ja", 1]);
+});

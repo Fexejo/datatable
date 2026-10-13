@@ -1620,7 +1620,10 @@ class JwDataTable extends HTMLElement {
                     items.push({
                         label: this._t.excludeValue(this._truncate(label)),
                         icon: "x",
-                        onSelect: () => this._setFilter(column.key, { kind: "pattern", operator: "notEquals", operand: label, arity: 1 })
+                        // Numbers compare the raw value; text compares the displayed text.
+                        onSelect: () => this._setFilter(column.key, {
+                            kind: "pattern", operator: "notEquals", operand: group === "number" ? value : label, arity: 1
+                        })
                     });
                 }
             }
