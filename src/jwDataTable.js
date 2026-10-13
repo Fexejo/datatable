@@ -32,8 +32,6 @@ import {
 } from "./core/state.js";
 import {
     distinctValues,
-    operatorsForType,
-    operatorMeta,
     isActiveFilter
 } from "./core/filtering.js";
 import {
@@ -48,11 +46,16 @@ import {
     neutralizeFormula
 } from "./export/export.js";
 import { openContextMenu, closeContextMenu } from "./ui/contextMenu.js";
-import { el, iconEl, segmentedEl, switchEl, deepActiveElement, focusIsLost, truncate } from "./ui/dom.js";
+import { el, iconEl, deepActiveElement, focusIsLost, truncate } from "./ui/dom.js";
 import { Announcer, getAnnouncer } from "./ui/announcer.js";
 import { Overlay } from "./ui/overlay.js";
 import { writeClipboard, confirmOnButton, flashCopied } from "./ui/clipboard.js";
 import { ViewStore, LocalStorageAdapter } from "./core/viewStore.js";
+import { buildFilterPanel } from "./panels/filterPanel.js";
+import { buildExportDialog } from "./panels/exportDialog.js";
+import { buildColumnChooser } from "./panels/columnChooser.js";
+import { buildDetailsDialog } from "./panels/detailsDialog.js";
+import { buildViewsPanel } from "./panels/viewsPanel.js";
 import { applyStyles } from "./ui/stylesheet.js";
 
 // Saved view names are trimmed and must not be empty.
@@ -1508,240 +1511,17 @@ class JwDataTable extends HTMLElement {
 
     _openFilterPanel(column, anchor, returnKey) {
         closeContextMenu();
-        const panel = this._buildFilterPanel(column);
-        this._showOverlay(panel, anchor, returnKey);
-    }
-
-    _buildFilterPanel(column) {
-        const existing = this._state.filters[column.key] || null;
-        const group = typeGroup(column.type);
-        let mode = existing ? existing.kind : (group === "text" ? "value" : "pattern");
-
-        const panel = el("div", { class: "k-dt-panel" });
-        panel.appendChild(el("div", { class: "k-dt-panel-head", text: this._t.filterPanelTitle(column.label) }));
-
-        // Tabs (WAI-ARIA tabs pattern): Left/Right/Home/End switch, one tab stop.
-        const id = uid("kdt-flt");
-        const tabs = el("div", { class: "k-dt-tabs", role: "tablist", "aria-label": this._t.filterMode });
-        const makeTab = (name, text) => el("button", {
-            type: "button", class: "k-dt-tab", role: "tab", id: `${id}-${name}-tab`,
-            "aria-controls": `${id}-${name}`, text
-        });
-        const valueTab = makeTab("value", this._t.valuesTab);
-        const patternTab = makeTab("pattern", this._t.patternTab);
-        tabs.appendChild(valueTab);
-        tabs.appendChild(patternTab);
-        panel.appendChild(tabs);
-
-        const bodyValue = this._buildValueFilter(column, existing);
-        const bodyPattern = this._buildPatternFilter(column, existing);
-        for (const [name, body] of [["value", bodyValue], ["pattern", bodyPattern]]) {
-            body.el.id = `${id}-${name}`;
-            body.el.setAttribute("role", "tabpanel");
-            body.el.setAttribute("aria-labelledby", `${id}-${name}-tab`);
-            panel.appendChild(body.el);
-        }
-
-        const setMode = (next, focusTab = false) => {
-            mode = next;
-            for (const [tab, body, name] of [[valueTab, bodyValue, "value"], [patternTab, bodyPattern, "pattern"]]) {
-                const selected = next === name;
-                tab.classList.toggle("is-active", selected);
-                tab.setAttribute("aria-selected", String(selected));
-                tab.tabIndex = selected ? 0 : -1;
-                body.el.hidden = !selected;
-                body.focusTarget.toggleAttribute("data-autofocus", selected);
-                if (selected && focusTab) tab.focus();
-            }
-        };
-        valueTab.addEventListener("click", () => setMode("value"));
-        patternTab.addEventListener("click", () => setMode("pattern"));
-        tabs.addEventListener("keydown", (event) => {
-            if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
-            event.preventDefault();
-            const next = event.key === "Home" ? "value"
-                : event.key === "End" ? "pattern"
-                : mode === "value" ? "pattern" : "value";
-            setMode(next, true);
-        });
-        setMode(mode);
-
-        const applyButton = el("button", {
-            type: "button",
-            class: "k-dt-btn k-dt-btn-primary",
-            text: this._t.apply,
-            onclick: () => {
-                const filter = mode === "value" ? bodyValue.collect() : bodyPattern.collect();
+        const panel = buildFilterPanel({
+            t: this._t,
+            column,
+            filter: this._state.filters[column.key] || null,
+            values: distinctValues(this._sourceData, column, this._config.locale),
+            onApply: (filter) => {
                 this._setFilter(column.key, filter);
                 this._closeOverlay();
             }
         });
-        const actions = el("div", { class: "k-dt-panel-actions" }, [
-            el("button", {
-                type: "button",
-                class: "k-dt-btn",
-                text: this._t.reset,
-                onclick: () => { this._setFilter(column.key, null); this._closeOverlay(); }
-            }),
-            applyButton
-        ]);
-        panel.appendChild(actions);
-
-        // Enter in the value search or on a search-result option applies, like a click on "Apply".
-        bodyValue.el.addEventListener("keydown", (e) => {
-            if (e.key !== "Enter" || e.isComposing) return;
-            if (e.target !== bodyValue.focusTarget && e.target.type !== "radio") return;
-            e.preventDefault();
-            applyButton.click();
-        });
-        return panel;
-    }
-
-    _buildValueFilter(column, existing) {
-        const container = el("div", { class: "k-dt-filter-body" });
-        const values = distinctValues(this._sourceData, column, this._config.locale);
-        const selected = new Set(
-            existing && existing.kind === "value" ? existing.values.map((v) => String(v)) : values.map((v) => String(v.value))
-        );
-
-        // Searching works like Excel: the matches start out checked, and the
-        // filter becomes either only the checked matches or (with "add") the
-        // checked matches plus the selection from before the search. Clearing
-        // the search restores that earlier selection.
-        let baseline = null;   // Map<label element, checked> captured when a search starts
-        const checkboxes = () => Array.from(list.querySelectorAll(".k-dt-check"));
-        const isVisible = (label) => label.style.display !== "none";
-        const boxOf = (label) => label.querySelector('input[type="checkbox"]');
-        const syncToggleAll = () => {
-            const visible = checkboxes().filter(isVisible);
-            toggleAllBox.checked = visible.length > 0 && visible.every((label) => boxOf(label).checked);
-        };
-
-        const search = el("input", {
-            type: "search",
-            class: "k-dt-input",
-            placeholder: this._t.searchValues,
-            "aria-label": this._t.searchValues,
-            oninput: (e) => {
-                const q = e.target.value.trim().toLowerCase();
-                if (q && !baseline) baseline = new Map(checkboxes().map((label) => [label, boxOf(label).checked]));
-                checkboxes().forEach((label) => {
-                    const match = !q || label.dataset.label.includes(q);
-                    label.style.display = match ? "" : "none";
-                    // Matches start checked; everything else keeps the earlier selection.
-                    if (baseline) boxOf(label).checked = (q && match) || baseline.get(label);
-                });
-                if (!q) baseline = null;
-                toggleAllText.textContent = q ? this._t.selectAllResults : this._t.selectAll;
-                searchMode.hidden = !q;
-                syncToggleAll();
-            }
-        });
-        container.appendChild(search);
-
-        const toggleAllBox = el("input", {
-            type: "checkbox",
-            checked: selected.size === values.length,
-            onchange: (e) => {
-                checkboxes().forEach((label) => {
-                    if (isVisible(label)) boxOf(label).checked = e.target.checked;
-                });
-            }
-        });
-        const toggleAllText = el("span", { text: this._t.selectAll });
-        container.appendChild(el("label", { class: "k-dt-check k-dt-check-all" }, [toggleAllBox, toggleAllText]));
-
-        const list = el("div", { class: "k-dt-check-list", onchange: () => syncToggleAll() });
-        values.forEach((entry) => {
-            const labelText = String(entry.label || this._t.emptyValue);
-            const label = el("label", { class: "k-dt-check", dataset: { label: labelText.toLowerCase(), value: String(entry.value) } }, [
-                el("input", { type: "checkbox", checked: selected.has(String(entry.value)) }),
-                el("span", { class: "k-dt-check-label", text: labelText }),
-                el("span", { class: "k-dt-check-count", text: String(entry.count) })
-            ]);
-            list.appendChild(label);
-        });
-        container.appendChild(list);
-
-        // Only shown while searching.
-        const searchMode = segmentedEl(uid("kdt-smode"), this._t.searchResultsMode, [
-            ["replace", this._t.searchResultsOnly],
-            ["add", this._t.searchResultsAdd]
-        ], "replace");
-        searchMode.classList.add("k-dt-search-mode");
-        searchMode.hidden = true;
-        container.appendChild(searchMode);
-
-        return {
-            el: container,
-            focusTarget: search,
-            collect: () => {
-                const add = !searchMode.hidden && searchMode.querySelector('input[value="add"]').checked;
-                const chosen = [];
-                checkboxes().forEach((label) => {
-                    const take = searchMode.hidden
-                        ? boxOf(label).checked
-                        : isVisible(label)
-                            ? boxOf(label).checked || (add && baseline.get(label))
-                            : add && boxOf(label).checked;
-                    if (take) {
-                        const original = values.find((v) => String(v.value) === label.dataset.value);
-                        chosen.push(original ? original.value : label.dataset.value);
-                    }
-                });
-                // All selected = no filter.
-                if (chosen.length === values.length || chosen.length === 0) return null;
-                return { kind: "value", values: chosen };
-            }
-        };
-    }
-
-    _buildPatternFilter(column, existing) {
-        const container = el("div", { class: "k-dt-filter-body" });
-        const operators = operatorsForType(column.type);
-        const current = existing && existing.kind === "pattern" ? existing : null;
-        const inputType = typeGroup(column.type) === "number" ? "number"
-            : typeGroup(column.type) === "date" ? (column.type === "datetime" ? "datetime-local" : column.type === "time" ? "time" : "date")
-            : "text";
-
-        const operandWrap = el("div", { class: "k-dt-operands" });
-        const operand1 = el("input", { type: inputType, class: "k-dt-input", value: current ? (current.operand ?? "") : "" });
-        const operand2 = el("input", { type: inputType, class: "k-dt-input", value: current ? (current.operand2 ?? "") : "" });
-        const selectId = uid("kdt-op");
-
-        const select = el("select", {
-            class: "k-dt-select",
-            id: selectId,
-            onchange: () => renderOperands()
-        }, operators.map((op) => el("option", { value: op.id, text: this._t.operators[op.id] ?? op.label, selected: current && current.operator === op.id })));
-
-        const renderOperands = () => {
-            const meta = operatorMeta(column.type, select.value);
-            const arity = meta ? meta.arity : 1;
-            operandWrap.innerHTML = "";
-            operand1.setAttribute("aria-label", arity >= 2 ? this._t.operandFrom : this._t.operandValue);
-            operand2.setAttribute("aria-label", this._t.operandTo);
-            if (arity >= 1) operandWrap.appendChild(operand1);
-            if (arity >= 2) operandWrap.appendChild(operand2);
-        };
-        renderOperands();
-
-        container.appendChild(el("label", { class: "k-dt-field-label", for: selectId, text: this._t.condition }));
-        container.appendChild(select);
-        container.appendChild(operandWrap);
-
-        return {
-            el: container,
-            focusTarget: select,
-            collect: () => {
-                const meta = operatorMeta(column.type, select.value);
-                const arity = meta ? meta.arity : 1;
-                const filter = { kind: "pattern", operator: select.value, arity };
-                if (arity >= 1) filter.operand = operand1.value;
-                if (arity >= 2) filter.operand2 = operand2.value;
-                return isActiveFilter(filter) ? filter : null;
-            }
-        };
+        this._showOverlay(panel, anchor, returnKey);
     }
 
     _setFilter(key, filter) {
@@ -1880,73 +1660,31 @@ class JwDataTable extends HTMLElement {
         return column ? toText(getCellValue(row, column), column, this._config.locale, row) : "";
     }
 
-    // Modal dialog with every field of `row`. Previous/next walk through all
-    // filtered and sorted rows (across pages; the table follows along so focus
-    // returns to the right row when the dialog closes).
+    // Modal dialog with every field of `row` (see panels/detailsDialog.js).
+    // The table follows previous/next along, so focus returns to the right
+    // row when the dialog closes.
     _openDetails(row, { returnKey = this._focusKey(), anchor = null } = {}) {
         closeContextMenu();
-        let current = this._viewData.indexOf(row);
-        if (current < 0) return;
-
-        const head = el("h2", { class: "k-dt-panel-head", tabIndex: -1, "data-autofocus": "" });
-        const position = el("p", { class: "k-dt-details-pos" });
-        const body = el("div", { class: "k-dt-details-body" });
-        const navButton = (icon, text, label, step) => el("button", {
-            type: "button",
-            class: "k-dt-btn",
-            "aria-label": label,
-            onclick: () => show(current + step, true)
-        }, icon === "chevron-left" ? [iconEl(icon), el("span", { text })] : [el("span", { text }), iconEl(icon)]);
-        const prev = navButton("chevron-left", this._t.previous, this._t.prevRecord, -1);
-        const next = navButton("chevron-right", this._t.next, this._t.nextRecord, 1);
-        const actions = el("div", { class: "k-dt-panel-actions k-dt-details-actions" }, [prev, next]);
-        if (typeof this._config.onRowClick === "function") {
-            actions.prepend(el("button", {
-                type: "button",
-                class: "k-dt-btn k-dt-btn-primary k-dt-details-open",
-                text: this._t.openRecord,
-                onclick: () => {
-                    const record = this._viewData[current];
-                    const pageIndex = this._pageData.indexOf(record);
-                    this._closeOverlay();
-                    this._config.onRowClick(record, pageIndex);
-                }
-            }));
-        }
-
-        const show = (index, navigated) => {
-            const total = this._viewData.length;
-            current = clamp(index, 0, total - 1);
-            const record = this._viewData[current];
-            const title = this._recordTitle(record);
-            head.textContent = title ? this._t.detailsTitle(title) : this._t.details;
-            position.textContent = this._t.recordPosition(current + 1, total);
-            body.replaceChildren(this._renderFields(this._detailColumns(), record, null));
-            prev.disabled = current <= 0;
-            next.disabled = current >= total - 1;
-            if (!navigated) return;
-            // Focus stays on the pressed button, or moves to the other one at an end.
-            if (deepActiveElement()?.disabled || !deepActiveElement()) (prev.disabled ? next : prev).focus();
-            this._followDetails(record);
-            this._announce(title ? `${position.textContent}: ${title}` : position.textContent);
-        };
-
-        const panel = el("div", { class: "k-dt-panel k-dt-details" }, [
-            el("div", { class: "k-dt-details-head" }, [
-                head,
-                el("button", {
-                    type: "button",
-                    class: "k-dt-icon-btn",
-                    title: this._t.close,
-                    "aria-label": this._t.close,
-                    onclick: () => this._closeOverlay()
-                }, [iconEl("x")])
-            ]),
-            position,
-            body,
-            actions
-        ]);
-        show(current, false);
+        const index = this._viewData.indexOf(row);
+        if (index < 0) return;
+        const onRowClick = this._config.onRowClick;
+        const panel = buildDetailsDialog({
+            t: this._t,
+            rows: () => this._viewData,
+            index,
+            title: (record) => this._recordTitle(record),
+            fields: (record) => this._renderFields(this._detailColumns(), record, null),
+            onNavigate: (record, message) => {
+                this._followDetails(record);
+                this._announce(message);
+            },
+            onOpen: typeof onRowClick === "function" ? (record) => {
+                const pageIndex = this._pageData.indexOf(record);
+                this._closeOverlay();
+                onRowClick(record, pageIndex);
+            } : null,
+            onClose: () => this._closeOverlay()
+        });
         this._showOverlay(panel, anchor, returnKey, { centered: true });
     }
 
@@ -1970,84 +1708,30 @@ class JwDataTable extends HTMLElement {
     // ---- Column visibility -----------------------------------------------
 
     _openColumnChooser(anchor) {
-        const panel = el("div", { class: "k-dt-panel" });
-        panel.appendChild(el("div", { class: "k-dt-panel-head", text: this._t.columnsPanel }));
-        const list = el("div", { class: "k-dt-check-list" });
-        this._orderedColumns().forEach((column) => {
-            const visible = !this._state.hiddenColumns.has(column.key);
-            const check = switchEl(column.label, visible, {
-                onchange: (e) => this._toggleColumn(column.key, e.target.checked)
-            });
-            if (!this._features.columnPinning && !this._features.columnReorder) { list.appendChild(check); return; }
-            const row = el("div", { class: "k-dt-col-row", "data-key": column.key }, [check]);
-            if (this._features.columnPinning) {
-                // Toggle button: constant name, state in aria-pressed.
-                row.appendChild(el("button", {
-                    type: "button",
-                    class: "k-dt-pin-toggle",
-                    title: this._t.pinColumn,
-                    "aria-label": this._t.pinColumnNamed(column.label),
-                    "aria-pressed": String(this._isPinned(column)),
-                    onclick: () => {
-                        this._togglePin(column.key, !this._isPinned(column));
-                        this._syncColumnChooser();
-                    }
-                }, [iconEl("pin")]));
+        this._chooser = buildColumnChooser({
+            t: this._t,
+            columns: () => this._orderedColumns(),
+            isHidden: (column) => this._state.hiddenColumns.has(column.key),
+            isPinned: (column) => this._isPinned(column),
+            pinning: this._features.columnPinning,
+            reorder: this._features.columnReorder,
+            onToggle: (key, visible) => this._toggleColumn(key, visible),
+            onPin: (key, pinned) => {
+                this._togglePin(key, pinned);
+                this._syncColumnChooser();
+            },
+            onMove: (key, step) => {
+                const index = this._orderedColumns().findIndex((c) => c.key === key);
+                this._moveColumn(key, index + step, { all: true });
             }
-            if (this._features.columnReorder) {
-                // Top of the list = left in the table.
-                const move = (step) => {
-                    const index = this._orderedColumns().findIndex((c) => c.key === column.key);
-                    this._moveColumn(column.key, index + step, { all: true });
-                };
-                row.appendChild(el("button", {
-                    type: "button",
-                    class: "k-dt-icon-btn k-dt-move-btn",
-                    "data-fk": `colmove:up:${column.key}`,
-                    title: this._t.moveUp,
-                    "aria-label": this._t.moveUpNamed(column.label),
-                    onclick: () => move(-1)
-                }, [iconEl("arrow-up")]));
-                row.appendChild(el("button", {
-                    type: "button",
-                    class: "k-dt-icon-btn k-dt-move-btn",
-                    "data-fk": `colmove:down:${column.key}`,
-                    title: this._t.moveDown,
-                    "aria-label": this._t.moveDownNamed(column.label),
-                    onclick: () => move(1)
-                }, [iconEl("arrow-down")]));
-            }
-            list.appendChild(row);
         });
-        panel.appendChild(list);
-        this._chooserList = list;
-        this._showOverlay(panel, anchor);
+        this._showOverlay(this._chooser.panel, anchor);
         this._syncColumnChooser();
     }
 
-    // Brings the open column chooser in line with the current order and pins.
-    // Rows are moved around the focused one (moving it would drop focus).
+    // Brings an open column chooser in line with the current order and pins.
     _syncColumnChooser() {
-        const list = this._chooserList;
-        if (!list?.isConnected) { this._chooserList = null; return; }
-        const rows = new Map(Array.from(list.children).map((row) => [row.dataset.key, row]));
-        const ordered = this._orderedColumns().map((c) => rows.get(c.key)).filter(Boolean);
-        const active = deepActiveElement();
-        const anchor = ordered.find((row) => row.contains(active));
-        const at = ordered.indexOf(anchor);
-        ordered.forEach((row, i) => {
-            if (i < at) list.insertBefore(row, anchor);
-            else if (i > at) list.appendChild(row);
-        });
-        ordered.forEach((row, i) => {
-            const column = this._columns.find((c) => c.key === row.dataset.key);
-            row.querySelector(".k-dt-pin-toggle")?.setAttribute("aria-pressed", String(this._isPinned(column)));
-            const [up, down] = row.querySelectorAll(".k-dt-move-btn");
-            if (up) up.disabled = i === 0;
-            if (down) down.disabled = i === ordered.length - 1;
-        });
-        // A move button that just got disabled hands focus to its neighbour.
-        if (active?.disabled && anchor) anchor.querySelector(".k-dt-move-btn:not(:disabled)")?.focus();
+        this._chooser?.sync();
     }
 
     _toggleColumn(key, visible) {
@@ -2077,282 +1761,22 @@ class JwDataTable extends HTMLElement {
         return viewSignature(this._viewState());
     }
 
-    // One panel to save, load, rename and delete views. Questions (overwrite?
-    // delete?), the rename field and errors appear inside the panel; the parts
-    // are rebuilt in place and focus moves to the element with that `data-vk`.
-    // The name field is never rebuilt, so typing survives the list loading.
     _openViewsPanel(anchor) {
-        const t = this._t;
-        // names: null while loading; step: { kind: "overwrite"|"rename"|"delete", name };
-        // error: { text, at: "name"|"rename"|"list" }.
-        const ui = { names: null, step: null, error: null, busy: false, renameDraft: "" };
-        const errorId = uid("kdt-verr");
-
-        const nameInput = el("input", {
-            type: "text",
-            class: "k-dt-input",
-            placeholder: t.viewNamePlaceholder,
-            "aria-label": t.viewNamePlaceholder,
-            "data-vk": "name",
-            "data-autofocus": "",
-            onkeydown: (e) => { if (e.key === "Enter") { e.preventDefault(); save(); } }
+        const { panel, refresh } = buildViewsPanel({
+            t: this._t,
+            views: {
+                list: () => this.listViews(),
+                save: (name) => this.saveView(name),
+                load: (name) => this.loadView(name),
+                rename: (oldName, newName) => this.renameView(oldName, newName),
+                remove: (name) => this.deleteView(name),
+                active: () => this.getActiveView()
+            },
+            announce: (message) => this._announce(message),
+            close: () => this._closeOverlay()
         });
-        const activeSection = el("div", { class: "k-dt-views-active-wrap" });
-        const saveExtra = el("div", { class: "k-dt-views-extra" });
-        const listSection = el("div", { class: "k-dt-views-list" });
-        const panel = el("div", { class: "k-dt-panel k-dt-views-panel" }, [
-            el("h2", { class: "k-dt-panel-head", text: t.savedViews }),
-            activeSection,
-            el("div", { class: "k-dt-views-save" }, [
-                nameInput,
-                el("button", { type: "button", class: "k-dt-btn k-dt-btn-primary", text: t.save, "data-vk": "save", onclick: () => save() })
-            ]),
-            saveExtra,
-            listSection
-        ]);
-
-        const isOpen = () => this._overlay.isOpen(panel);
-        const errorEl = (at) => (ui.error?.at === at
-            ? el("p", { class: "k-dt-views-error", id: errorId, text: ui.error.text })
-            : null);
-        // Escape inside a question or the rename field steps back, not out of the panel.
-        const onEscape = (focusKey) => (e) => {
-            if (e.key !== "Escape") return;
-            e.preventDefault();
-            e.stopPropagation();
-            ui.step = null;
-            ui.error = null;
-            render(focusKey);
-        };
-        // A question with its answers; focus goes to Cancel (the safe answer).
-        const question = (text, okText, onOk, cancelKey) => {
-            const id = uid("kdt-vq");
-            return el("div", { class: "k-dt-views-confirm", role: "group", "aria-labelledby": id, onkeydown: onEscape(cancelKey) }, [
-                el("p", { class: "k-dt-views-question", id, text }),
-                el("div", { class: "k-dt-panel-actions" }, [
-                    el("button", { type: "button", class: "k-dt-btn k-dt-btn-primary", text: okText, "aria-describedby": id, onclick: onOk }),
-                    el("button", {
-                        type: "button", class: "k-dt-btn", text: t.cancel, "data-vk": "step-cancel", "aria-describedby": id,
-                        onclick: () => { ui.step = null; render(cancelKey); }
-                    })
-                ])
-            ]);
-        };
-
-        const renderActive = () => {
-            const active = this.getActiveView();
-            if (!active) { activeSection.replaceChildren(); return; }
-            const id = uid("kdt-vact");
-            activeSection.replaceChildren(el("div", { class: "k-dt-views-active" }, [
-                el("p", { id }, [
-                    `${t.activeView}: `,
-                    el("strong", { text: active.name }),
-                    active.modified && el("span", { class: "k-dt-views-badge", text: ` (${t.viewModified})` })
-                ]),
-                active.modified && el("button", {
-                    type: "button", class: "k-dt-btn", text: t.updateView, "data-vk": "update", "aria-describedby": id,
-                    onclick: () => run(() => this.saveView(active.name), {
-                        message: t.viewUpdated(active.name), focus: `load:${active.name}`, errorAt: "list", errorFocus: "update"
-                    })
-                })
-            ]));
-        };
-
-        const renderItem = (name) => {
-            const step = ui.step?.name === name ? ui.step.kind : null;
-            if (step === "delete") {
-                return el("li", { class: "k-dt-views-item is-step" }, [question(t.confirmDelete(name), t.deleteView, () => remove(name), `delete:${name}`)]);
-            }
-            if (step === "rename") {
-                const input = el("input", {
-                    type: "text",
-                    class: "k-dt-input",
-                    value: ui.renameDraft,
-                    "aria-label": t.newViewName(name),
-                    "data-vk": "rename-input",
-                    "aria-invalid": ui.error?.at === "rename" ? "true" : null,
-                    "aria-describedby": ui.error?.at === "rename" ? errorId : null,
-                    oninput: (e) => { ui.renameDraft = e.target.value; },
-                    onkeydown: (e) => { if (e.key === "Enter") { e.preventDefault(); rename(name); } }
-                });
-                return el("li", { class: "k-dt-views-item is-step", onkeydown: onEscape(`rename:${name}`) }, [
-                    input,
-                    errorEl("rename"),
-                    el("div", { class: "k-dt-panel-actions" }, [
-                        el("button", { type: "button", class: "k-dt-btn k-dt-btn-primary", text: t.renameView, onclick: () => rename(name) }),
-                        el("button", {
-                            type: "button", class: "k-dt-btn", text: t.cancel,
-                            onclick: () => { ui.step = null; ui.error = null; render(`rename:${name}`); }
-                        })
-                    ])
-                ]);
-            }
-            const isActive = this._activeView?.name === name;
-            return el("li", { class: "k-dt-views-item" }, [
-                el("button", {
-                    type: "button",
-                    class: "k-dt-views-load",
-                    title: t.loadView,
-                    "data-vk": `load:${name}`,
-                    "aria-current": isActive ? "true" : null,
-                    onclick: () => load(name)
-                }, [isActive ? iconEl("check") : el("span", { class: "k-dt-ic" }), el("span", { class: "k-dt-views-name", text: name })]),
-                el("button", {
-                    type: "button", class: "k-dt-icon-btn", title: t.renameView,
-                    "aria-label": t.renameViewNamed(name), "data-vk": `rename:${name}`,
-                    onclick: () => { ui.step = { kind: "rename", name }; ui.error = null; ui.renameDraft = name; render("rename-input"); }
-                }, [iconEl("pencil")]),
-                el("button", {
-                    type: "button", class: "k-dt-icon-btn", title: t.deleteView,
-                    "aria-label": t.deleteViewNamed(name), "data-vk": `delete:${name}`,
-                    onclick: () => { ui.step = { kind: "delete", name }; ui.error = null; render("step-cancel"); }
-                }, [iconEl("trash")])
-            ]);
-        };
-
-        const renderList = () => {
-            const nodes = [errorEl("list")];
-            if (ui.names === null && ui.error?.at === "list") {
-                nodes.push(el("button", { type: "button", class: "k-dt-btn", text: t.retry, "data-vk": "retry", onclick: () => loadList("retry") }));
-            } else if (ui.names === null) {
-                nodes.push(el("p", { class: "k-dt-views-empty", text: t.viewsLoading }));
-            } else if (ui.names.length === 0) {
-                nodes.push(el("p", { class: "k-dt-views-empty", text: t.noSavedViews }));
-            } else {
-                nodes.push(el("ul", { class: "k-dt-views-items", "aria-label": t.savedViews }, ui.names.map(renderItem)));
-            }
-            listSection.replaceChildren(...nodes.filter(Boolean));
-        };
-
-        const render = (focusKey) => {
-            if (!isOpen()) return;
-            const focused = deepActiveElement();
-            renderActive();
-            const nameError = ui.error?.at === "name";
-            if (nameError) {
-                nameInput.setAttribute("aria-invalid", "true");
-                nameInput.setAttribute("aria-describedby", errorId);
-            } else {
-                nameInput.removeAttribute("aria-invalid");
-                nameInput.removeAttribute("aria-describedby");
-            }
-            saveExtra.replaceChildren(...[
-                errorEl("name"),
-                ui.step?.kind === "overwrite" && question(t.confirmOverwrite(ui.step.name), t.overwrite, () => doSave(ui.step.name), "name")
-            ].filter(Boolean));
-            renderList();
-            const target = focusKey && panel.querySelector(`[data-vk="${CSS.escape(focusKey)}"]`);
-            if (target) target.focus();
-            else if (!focused?.isConnected || !panel.contains(focused)) nameInput.focus();
-        };
-
-        // Runs an adapter action; failures stay in the panel as a message.
-        const run = async (action, { message, focus, errorAt, errorFocus }) => {
-            if (ui.busy) return;
-            ui.busy = true;
-            panel.setAttribute("aria-busy", "true");
-            try {
-                await action();
-                ui.names = await this.listViews();
-                ui.step = null;
-                ui.error = null;
-                render(typeof focus === "function" ? focus() : focus);
-                if (isOpen()) this._announce(message);
-            } catch {
-                ui.error = { text: t.viewActionFailed, at: errorAt };
-                render(errorFocus);
-                if (isOpen()) this._announce(ui.error.text);
-            } finally {
-                ui.busy = false;
-                panel.removeAttribute("aria-busy");
-            }
-        };
-        const fail = (text, at, focusKey) => {
-            ui.error = { text, at };
-            render(focusKey);
-            this._announce(text);
-        };
-
-        const save = () => {
-            const name = nameInput.value.trim();
-            if (!name) return fail(t.viewNameRequired, "name", "name");
-            if (ui.names?.includes(name)) {
-                ui.error = null;
-                ui.step = { kind: "overwrite", name };
-                render("step-cancel");
-                return;
-            }
-            doSave(name);
-        };
-        const doSave = (name) => run(async () => {
-            await this.saveView(name);
-            nameInput.value = "";
-        }, { message: t.viewSaved(name), focus: "name", errorAt: "name", errorFocus: "name" });
-
-        const rename = (oldName) => {
-            const newName = ui.renameDraft.trim();
-            if (!newName) return fail(t.viewNameRequired, "rename", "rename-input");
-            if (newName === oldName) { ui.step = null; ui.error = null; render(`rename:${oldName}`); return; }
-            if (ui.names?.includes(newName)) return fail(t.viewNameTaken(newName), "rename", "rename-input");
-            run(() => this.renameView(oldName, newName), {
-                message: t.viewRenamed(oldName, newName), focus: `load:${newName}`, errorAt: "rename", errorFocus: "rename-input"
-            });
-        };
-
-        const remove = (name) => {
-            const index = ui.names?.indexOf(name) ?? -1;
-            run(() => this.deleteView(name), {
-                message: t.viewDeleted(name),
-                // Focus the next view, else the previous one, else the name field.
-                focus: () => {
-                    const next = ui.names[index] ?? ui.names[index - 1];
-                    return next != null ? `load:${next}` : "name";
-                },
-                errorAt: "list",
-                errorFocus: "step-cancel"
-            });
-        };
-
-        const load = async (name) => {
-            if (ui.busy) return;
-            ui.busy = true;
-            panel.setAttribute("aria-busy", "true");
-            try {
-                if (await this.loadView(name)) {
-                    this._closeOverlay();
-                    this._announce(t.viewLoaded(name));
-                    return;
-                }
-                ui.names = await this.listViews();
-                ui.error = { text: t.viewNotFound(name), at: "list" };
-            } catch {
-                ui.error = { text: t.viewActionFailed, at: "list" };
-            } finally {
-                ui.busy = false;
-                panel.removeAttribute("aria-busy");
-            }
-            render(`load:${name}`);
-            this._announce(ui.error.text);
-        };
-
-        const loadList = async (focusKey) => {
-            ui.names = null;
-            ui.error = null;
-            render(focusKey === "retry" ? null : focusKey);
-            panel.setAttribute("aria-busy", "true");
-            try {
-                ui.names = await this.listViews();
-            } catch {
-                ui.error = { text: t.viewsLoadFailed, at: "list" };
-                if (isOpen()) this._announce(ui.error.text);
-            } finally {
-                panel.removeAttribute("aria-busy");
-            }
-            render(ui.error ? "retry" : (focusKey === "retry" ? "name" : null));
-        };
-
         this._showOverlay(panel, anchor);
-        loadList();
+        refresh();
     }
 
     // ---- Export dialog -----------------------------------------------------
@@ -2372,148 +1796,26 @@ class JwDataTable extends HTMLElement {
         return this._config.exportFilename || this._config.title || "export";
     }
 
-    // Format, destination and file name are always shown; everything else
-    // waits behind "More options" so a quick export is just Enter.
     _openExportDialog(anchor, returnKey = this._focusKey()) {
         const t = this._t;
-        const defaults = this._exportDefaults();
-        const id = uid("kdt-exp");
-        const inputOf = (label) => label.querySelector("input");
-        const field = (text, control) => el("div", { class: "k-dt-field" }, [
-            el("label", { class: "k-dt-field-label", for: control.id, text }),
-            control
-        ]);
-        const radios = (name, legend, options, value) => segmentedEl(`${id}-${name}`, legend, options, value);
-        const radioValue = (group) => group.querySelector("input:checked")?.value;
-        const setRadio = (group, value) => { group.querySelector(`input[value="${CSS.escape(value)}"]`).checked = true; };
-
-        let format = EXPORT_FORMATS[defaults.format] ? defaults.format : EXPORT_DEFAULTS.format;
-        const formatGroup = radios("format", t.exportFormat,
-            Object.keys(EXPORT_FORMATS).map((key) => [key, t.exportFormats[key]]), format);
-        formatGroup.querySelector("input:checked").setAttribute("data-autofocus", "");
-        const destinationGroup = radios("destination", t.exportDestination,
-            [["download", t.exportDownload], ["clipboard", t.exportClipboard]],
-            defaults.destination === "clipboard" && EXPORT_FORMATS[format].text ? "clipboard" : "download");
-        const filename = el("input", {
-            type: "text",
-            class: "k-dt-input",
-            id: `${id}-name`,
-            autocomplete: "off",
-            value: defaultFilename(this._exportBaseName(), format)
-        });
-        const filenameField = field(t.exportFilename, filename);
-
-        // ---- More options
         const scopes = [
             this._features.pagination && ["page", t.exportScopePage, this._pageData.length],
             ["filtered", t.exportScopeFiltered, this._viewData.length],
             ["all", t.exportScopeAll, this._sourceData.length]
-        ].filter(Boolean).map(([value, text, count]) => [value, text, t.resultsCount(count)]);
-        const scopeGroup = radios("scope", t.exportRows, scopes,
-            scopes.some(([value]) => value === defaults.scope) ? defaults.scope : "filtered");
-        // Only offered when some exportable column is hidden.
-        const hasHidden = exportColumns(this._orderedColumns()).length > exportColumns(this._visibleColumns()).length;
-        const allColumns = hasHidden ? switchEl(t.exportAllColumns, defaults.allColumns) : null;
-        const localized = switchEl(t.exportLocalized, defaults.localized);
-        const headers = switchEl(t.exportHeaders, defaults.headers);
-        const metadata = switchEl(t.exportMetadata, defaults.metadata);
-        const namesGroup = radios("names", t.exportNames,
-            [["label", t.exportNamesLabel], ["key", t.exportNamesKey]], defaults.names ?? defaultNames(format));
-        const delimiterNames = { ";": "semicolon", ",": "comma", "\t": "tab", "|": "pipe" };
-        const delimiterOptions = Object.entries(delimiterNames).map(([value, key]) => [value, t.delimiters[key]]);
-        if (!delimiterNames[defaults.delimiter]) delimiterOptions.push([defaults.delimiter, defaults.delimiter]);
-        const delimiter = el("select", { class: "k-dt-select", id: `${id}-delimiter` },
-            delimiterOptions.map(([value, text]) => el("option", { value, text, selected: value === defaults.delimiter })));
-        const delimiterField = field(t.exportDelimiter, delimiter);
-        const more = el("div", { class: "k-dt-export-more", id: `${id}-more`, hidden: true },
-            [scopeGroup, allColumns, localized, headers, namesGroup, metadata, delimiterField]);
-
-        // Column names and the delimiter follow format and destination until
-        // the user picks one: keys for JSON, tabs for pasting into a spreadsheet.
-        let namesSet = defaults.names != null;
-        let delimiterSet = false;
-        namesGroup.addEventListener("change", () => { namesSet = true; });
-        delimiter.addEventListener("change", () => { delimiterSet = true; });
-
-        const submit = el("button", { type: "submit", class: "k-dt-btn k-dt-btn-primary" });
-        const sync = () => {
-            const clipboard = radioValue(destinationGroup) === "clipboard";
-            // XLSX cannot go to the clipboard.
-            formatGroup.querySelector('[data-value="xlsx"]').hidden = clipboard;
-            filenameField.hidden = clipboard;
-            headers.hidden = format === "json";
-            metadata.hidden = format !== "json";
-            delimiterField.hidden = format !== "csv";
-            namesGroup.hidden = format !== "json" && !inputOf(headers).checked;
-            if (!namesSet) setRadio(namesGroup, defaultNames(format));
-            if (!delimiterSet) delimiter.value = clipboard ? "\t" : defaults.delimiter;
-            submit.textContent = clipboard ? t.exportCopySubmit : t.exportSubmit;
-        };
-        const setFormat = (next) => {
-            // A new format swaps the extension, unless the user typed another one.
-            const oldExt = "." + EXPORT_FORMATS[format].extension;
-            if (filename.value.toLowerCase().endsWith(oldExt)) {
-                filename.value = filename.value.slice(0, -oldExt.length) + "." + EXPORT_FORMATS[next].extension;
-            }
-            format = next;
-            setRadio(formatGroup, next);
-            sync();
-        };
-        formatGroup.addEventListener("change", () => setFormat(radioValue(formatGroup)));
-        destinationGroup.addEventListener("change", () => {
-            if (radioValue(destinationGroup) === "clipboard" && !EXPORT_FORMATS[format].text) setFormat("csv");
-            else sync();
-        });
-        headers.addEventListener("change", sync);
-        sync();
-
-        const toggle = el("button", {
-            type: "button",
-            class: "k-dt-btn k-dt-disclosure",
-            "aria-expanded": "false",
-            "aria-controls": more.id,
-            onclick: () => {
-                more.hidden = !more.hidden;
-                toggle.setAttribute("aria-expanded", String(!more.hidden));
-            }
-        }, [iconEl("chevron-right"), el("span", { text: t.exportMoreOptions })]);
-
-        // Enter in the file name or on an option submits the form.
-        const form = el("form", {
-            class: "k-dt-export-form",
-            onsubmit: (event) => {
-                event.preventDefault();
-                const options = {
-                    format,
-                    destination: radioValue(destinationGroup),
-                    filename: filename.value,
-                    scope: radioValue(scopeGroup),
-                    allColumns: allColumns ? inputOf(allColumns).checked : false,
-                    localized: inputOf(localized).checked,
-                    headers: inputOf(headers).checked,
-                    names: radioValue(namesGroup),
-                    metadata: inputOf(metadata).checked,
-                    delimiter: delimiter.value
-                };
+        ].filter(Boolean);
+        const panel = buildExportDialog({
+            t,
+            defaults: this._exportDefaults(),
+            baseName: this._exportBaseName(),
+            scopes,
+            // "All columns" is only offered when some exportable column is hidden.
+            hasHiddenColumns: exportColumns(this._orderedColumns()).length > exportColumns(this._visibleColumns()).length,
+            onSubmit: (options) => {
                 this._closeOverlay();
                 this.exportData(options);
-            }
-        }, [
-            formatGroup,
-            destinationGroup,
-            filenameField,
-            toggle,
-            more,
-            el("div", { class: "k-dt-panel-actions" }, [
-                el("button", { type: "button", class: "k-dt-btn", text: t.cancel, onclick: () => this._closeOverlay() }),
-                submit
-            ])
-        ]);
-
-        const panel = el("div", { class: "k-dt-panel k-dt-export" }, [
-            el("h2", { class: "k-dt-panel-head", text: t.exportTitle }),
-            form
-        ]);
+            },
+            onCancel: () => this._closeOverlay()
+        });
         this._showOverlay(panel, anchor, returnKey, { centered: true });
     }
 

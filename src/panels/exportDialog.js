@@ -1,0 +1,142 @@
+// Export dialog. Format, destination and file name are always shown;
+// everything else waits behind "More options" so a quick export is just Enter.
+
+import { el, iconEl, segmentedEl, switchEl } from "../ui/dom.js";
+import { EXPORT_DEFAULTS, EXPORT_FORMATS, defaultFilename, defaultNames } from "../export/export.js";
+import { uid } from "../core/util.js";
+
+// `defaults`: export options (see EXPORT_DEFAULTS). `baseName`: start of the
+// suggested file name. `scopes`: [[value, text, rowCount]] offered as "Rows".
+// `hasHiddenColumns`: offer "All columns". `onSubmit(options)`: export with
+// the chosen options; `onCancel()`.
+export function buildExportDialog({ t, defaults, baseName, scopes, hasHiddenColumns, onSubmit, onCancel }) {
+    const id = uid("kdt-exp");
+    const inputOf = (label) => label.querySelector("input");
+    const field = (text, control) => el("div", { class: "k-dt-field" }, [
+        el("label", { class: "k-dt-field-label", for: control.id, text }),
+        control
+    ]);
+    const radios = (name, legend, options, value) => segmentedEl(`${id}-${name}`, legend, options, value);
+    const radioValue = (group) => group.querySelector("input:checked")?.value;
+    const setRadio = (group, value) => { group.querySelector(`input[value="${CSS.escape(value)}"]`).checked = true; };
+
+    let format = EXPORT_FORMATS[defaults.format] ? defaults.format : EXPORT_DEFAULTS.format;
+    const formatGroup = radios("format", t.exportFormat,
+        Object.keys(EXPORT_FORMATS).map((key) => [key, t.exportFormats[key]]), format);
+    formatGroup.querySelector("input:checked").setAttribute("data-autofocus", "");
+    const destinationGroup = radios("destination", t.exportDestination,
+        [["download", t.exportDownload], ["clipboard", t.exportClipboard]],
+        defaults.destination === "clipboard" && EXPORT_FORMATS[format].text ? "clipboard" : "download");
+    const filename = el("input", {
+        type: "text",
+        class: "k-dt-input",
+        id: `${id}-name`,
+        autocomplete: "off",
+        value: defaultFilename(baseName, format)
+    });
+    const filenameField = field(t.exportFilename, filename);
+
+    // ---- More options
+    const scopeOptions = scopes.map(([value, text, count]) => [value, text, t.resultsCount(count)]);
+    const scopeGroup = radios("scope", t.exportRows, scopeOptions,
+        scopes.some(([value]) => value === defaults.scope) ? defaults.scope : "filtered");
+    const allColumns = hasHiddenColumns ? switchEl(t.exportAllColumns, defaults.allColumns) : null;
+    const localized = switchEl(t.exportLocalized, defaults.localized);
+    const headers = switchEl(t.exportHeaders, defaults.headers);
+    const metadata = switchEl(t.exportMetadata, defaults.metadata);
+    const namesGroup = radios("names", t.exportNames,
+        [["label", t.exportNamesLabel], ["key", t.exportNamesKey]], defaults.names ?? defaultNames(format));
+    const delimiterNames = { ";": "semicolon", ",": "comma", "\t": "tab", "|": "pipe" };
+    const delimiterOptions = Object.entries(delimiterNames).map(([value, key]) => [value, t.delimiters[key]]);
+    if (!delimiterNames[defaults.delimiter]) delimiterOptions.push([defaults.delimiter, defaults.delimiter]);
+    const delimiter = el("select", { class: "k-dt-select", id: `${id}-delimiter` },
+        delimiterOptions.map(([value, text]) => el("option", { value, text, selected: value === defaults.delimiter })));
+    const delimiterField = field(t.exportDelimiter, delimiter);
+    const more = el("div", { class: "k-dt-export-more", id: `${id}-more`, hidden: true },
+        [scopeGroup, allColumns, localized, headers, namesGroup, metadata, delimiterField]);
+
+    // Column names and the delimiter follow format and destination until
+    // the user picks one: keys for JSON, tabs for pasting into a spreadsheet.
+    let namesSet = defaults.names != null;
+    let delimiterSet = false;
+    namesGroup.addEventListener("change", () => { namesSet = true; });
+    delimiter.addEventListener("change", () => { delimiterSet = true; });
+
+    const submit = el("button", { type: "submit", class: "k-dt-btn k-dt-btn-primary" });
+    const sync = () => {
+        const clipboard = radioValue(destinationGroup) === "clipboard";
+        // XLSX cannot go to the clipboard.
+        formatGroup.querySelector('[data-value="xlsx"]').hidden = clipboard;
+        filenameField.hidden = clipboard;
+        headers.hidden = format === "json";
+        metadata.hidden = format !== "json";
+        delimiterField.hidden = format !== "csv";
+        namesGroup.hidden = format !== "json" && !inputOf(headers).checked;
+        if (!namesSet) setRadio(namesGroup, defaultNames(format));
+        if (!delimiterSet) delimiter.value = clipboard ? "\t" : defaults.delimiter;
+        submit.textContent = clipboard ? t.exportCopySubmit : t.exportSubmit;
+    };
+    const setFormat = (next) => {
+        // A new format swaps the extension, unless the user typed another one.
+        const oldExt = "." + EXPORT_FORMATS[format].extension;
+        if (filename.value.toLowerCase().endsWith(oldExt)) {
+            filename.value = filename.value.slice(0, -oldExt.length) + "." + EXPORT_FORMATS[next].extension;
+        }
+        format = next;
+        setRadio(formatGroup, next);
+        sync();
+    };
+    formatGroup.addEventListener("change", () => setFormat(radioValue(formatGroup)));
+    destinationGroup.addEventListener("change", () => {
+        if (radioValue(destinationGroup) === "clipboard" && !EXPORT_FORMATS[format].text) setFormat("csv");
+        else sync();
+    });
+    headers.addEventListener("change", sync);
+    sync();
+
+    const toggle = el("button", {
+        type: "button",
+        class: "k-dt-btn k-dt-disclosure",
+        "aria-expanded": "false",
+        "aria-controls": more.id,
+        onclick: () => {
+            more.hidden = !more.hidden;
+            toggle.setAttribute("aria-expanded", String(!more.hidden));
+        }
+    }, [iconEl("chevron-right"), el("span", { text: t.exportMoreOptions })]);
+
+    // Enter in the file name or on an option submits the form.
+    const form = el("form", {
+        class: "k-dt-export-form",
+        onsubmit: (event) => {
+            event.preventDefault();
+            onSubmit({
+                format,
+                destination: radioValue(destinationGroup),
+                filename: filename.value,
+                scope: radioValue(scopeGroup),
+                allColumns: allColumns ? inputOf(allColumns).checked : false,
+                localized: inputOf(localized).checked,
+                headers: inputOf(headers).checked,
+                names: radioValue(namesGroup),
+                metadata: inputOf(metadata).checked,
+                delimiter: delimiter.value
+            });
+        }
+    }, [
+        formatGroup,
+        destinationGroup,
+        filenameField,
+        toggle,
+        more,
+        el("div", { class: "k-dt-panel-actions" }, [
+            el("button", { type: "button", class: "k-dt-btn", text: t.cancel, onclick: onCancel }),
+            submit
+        ])
+    ]);
+
+    return el("div", { class: "k-dt-panel k-dt-export" }, [
+        el("h2", { class: "k-dt-panel-head", text: t.exportTitle }),
+        form
+    ]);
+}
