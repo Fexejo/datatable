@@ -214,3 +214,35 @@ export function distinctValues(data, column, locale = "en-US") {
     const collator = textCollator(locale);
     return Array.from(map.values()).sort((a, b) => collator.compare(String(a.label), String(b.label)));
 }
+
+// Short text for an active filter, e.g. "Anna, Ben +2 more" or "between 10 and 20"
+// (shown in the filter summary). Values and operands use the column's display format.
+/**
+ * @param {import("../types.js").Filter} filter
+ * @param {import("../types.js").Column} column
+ * @param {{ t: object, locale?: string, maxValues?: number }} options
+ * @returns {string}
+ */
+export function describeFilter(filter, column, { t, locale = "en-US", maxValues = 3 }) {
+    if (filter.kind === "value") {
+        const labels = filter.values.map((value) => toText(value, column, locale) || t.emptyValue);
+        const shown = labels.slice(0, maxValues).join(", ");
+        return labels.length > maxValues ? `${shown} ${t.moreValues(labels.length - maxValues)}` : shown;
+    }
+    const meta = operatorMeta(column.type, filter.operator);
+    const operator = t.operators[filter.operator] ?? meta?.label ?? filter.operator;
+    const arity = meta?.arity ?? filter.arity ?? 1;
+    // Operands without a custom formatter: they are not cell values of a row.
+    const plain = { type: column.type, format: column.format, options: column.options, optionsMap: column.optionsMap };
+    const operand = (value) => {
+        if (typeGroup(column.type) === "text") return t.quoted(String(value));
+        // A date input gives "YYYY-MM-DD", which is a local date (as in the filter), not UTC.
+        const local = column.type === "date" && /^\d{4}-\d{2}-\d{2}$/.test(value)
+            ? new Date(...String(value).split("-").map((n, i) => Number(n) - (i === 1 ? 1 : 0)))
+            : value;
+        return toText(local, plain, locale);
+    };
+    if (arity === 0) return operator;
+    if (arity >= 2) return `${operator} ${t.range(operand(filter.operand), operand(filter.operand2))}`;
+    return `${operator} ${operand(filter.operand)}`;
+}

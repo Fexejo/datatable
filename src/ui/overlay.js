@@ -23,6 +23,7 @@ export class Overlay {
         this.openerKey = null;
         this._onOutside = null;
         this._onKey = null;
+        this._escape = null;
     }
 
     isOpen(panel = null) {
@@ -36,7 +37,9 @@ export class Overlay {
 
     // `anchor`: the opener; the popover is placed below it. `centered`: a
     // dialog in the middle of the screen. `sheet`: a bottom sheet (mobile).
-    show(panel, { anchor = null, returnKey = null, centered = false, sheet = false } = {}) {
+    // `onEscape`: called instead of closing on Escape (e.g. to step back to
+    // the panel this one was opened from).
+    show(panel, { anchor = null, returnKey = null, centered = false, sheet = false, onEscape = null } = {}) {
         this.close();
         closeContextMenu();
         panel.classList.add("k-dt-overlay");
@@ -60,6 +63,7 @@ export class Overlay {
 
         this.panel = panel;
         this.returnKey = returnKey;
+        this._escape = onEscape ?? (() => this.close());
         this.openerKey = anchor?.dataset?.fk ?? null;
         if (this.openerKey) anchor.setAttribute("aria-expanded", "true");
 
@@ -74,7 +78,7 @@ export class Overlay {
         };
         // Escape inside the panel is the panel's own (a step inside may handle it).
         this._onKey = (event) => {
-            if (event.key === "Escape" && !event.composedPath().includes(panel)) this.close();
+            if (event.key === "Escape" && !event.composedPath().includes(panel)) this._escape();
         };
         // Next tick, so the opening click does not close the panel right away.
         setTimeout(() => {
@@ -105,7 +109,7 @@ export class Overlay {
         if (event.key === "Escape") {
             event.preventDefault();
             event.stopPropagation();
-            this.close();
+            this._escape();
         } else if (event.key === "Tab") {
             const items = focusables(panel);
             if (!items.length) return;

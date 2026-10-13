@@ -14,7 +14,7 @@ import { getTranslations } from "./core/i18n.js";
 import { getCellValue, clamp, debounce, uid, typeGroup } from "./core/util.js";
 import { formatValue, toText } from "./core/formatters.js";
 import { sortData, toggleSort } from "./core/comparators.js";
-import { distinctValues, isActiveFilter } from "./core/filtering.js";
+import { distinctValues, isActiveFilter, describeFilter } from "./core/filtering.js";
 import { normalizeColumns } from "./core/columns.js";
 import { pageRange } from "./core/pagination.js";
 import {
@@ -39,6 +39,7 @@ import { layoutPinned, updateScrollShadows } from "./ui/pinnedLayout.js";
 import { buildToolbar } from "./render/toolbar.js";
 import { buildFooter } from "./render/footer.js";
 import { buildFilterPanel } from "./panels/filterPanel.js";
+import { buildFilterSummary } from "./panels/filterSummary.js";
 import { buildExportDialog } from "./panels/exportDialog.js";
 import { buildColumnChooser } from "./panels/columnChooser.js";
 import { buildDetailsDialog } from "./panels/detailsDialog.js";
@@ -509,6 +510,7 @@ class JwDataTable extends HTMLElement {
                 onInput: (value) => this._debouncedSearch(value)
             } : null,
             filterCount: features.filtering ? activeFilterCount(this._state, { globalSearch: features.globalSearch }) : 0,
+            onShowFilters: (anchor) => this._openFilterSummary(anchor),
             onClearFilters: () => this.clearFilters(),
             layouts: this._availableLayouts().map((layout) => ({ layout, ...layoutMeta[layout] })),
             currentLayout: this._currentLayout(),
@@ -1335,7 +1337,9 @@ class JwDataTable extends HTMLElement {
 
     // ---- Filter panel -----------------------------------------------------
 
-    _openFilterPanel(column, anchor, returnKey) {
+    // `onDone()`: called instead of closing after Apply/Reset and on Escape
+    // (the filter summary uses it to come back).
+    _openFilterPanel(column, anchor, returnKey, { onDone = null } = {}) {
         closeContextMenu();
         const panel = buildFilterPanel({
             t: this._t,
@@ -1344,10 +1348,86 @@ class JwDataTable extends HTMLElement {
             values: distinctValues(this._sourceData, column, this._config.locale),
             onApply: (filter) => {
                 this._setFilter(column.key, filter);
-                this._closeOverlay();
+                if (onDone) onDone();
+                else this._closeOverlay();
             }
         });
-        this._showOverlay(panel, anchor, returnKey);
+        this._showOverlay(panel, anchor, returnKey, { onEscape: onDone });
+    }
+
+    // ---- Filter summary ---------------------------------------------------
+
+    // The active filters for the summary: the global search first, then the
+    // column filters in display order. `id`: "search" or "column:<key>".
+    _filterEntries() {
+        const t = this._t;
+        const entries = [];
+        if (this._features.globalSearch && this._state.globalSearch) {
+            entries.push({ id: "search", label: t.searchFilter, value: t.quoted(this._state.globalSearch) });
+        }
+        for (const column of this._orderedColumns()) {
+            const filter = this._state.filters[column.key];
+            if (!isActiveFilter(filter)) continue;
+            entries.push({
+                id: `column:${column.key}`,
+                label: column.label,
+                value: describeFilter(filter, column, { t, locale: this._config.locale })
+            });
+        }
+        return entries;
+    }
+
+    // `focusId`: the entry to focus (coming back from its filter panel).
+    _openFilterSummary(anchor, focusId = null) {
+        const summary = buildFilterSummary({
+            t: this._t,
+            entries: () => this._filterEntries(),
+            focusId,
+            onEdit: (id) => this._editFilterEntry(id),
+            onRemove: (id) => {
+                const entries = this._filterEntries();
+                const index = entries.findIndex((e) => e.id === id);
+                // The last one: the summary goes, its toolbar button too.
+                if (entries.length === 1) this._closeOverlay();
+                this._removeFilterEntry(id);
+                if (entries.length > 1) summary.refresh(index);
+            },
+            onClearAll: () => {
+                this._closeOverlay();
+                this.clearFilters();
+            },
+            onClose: () => this._closeOverlay()
+        });
+        this._showOverlay(summary.panel, anchor, "tb:filters");
+    }
+
+    // The search entry goes to the search field; a column entry opens that
+    // column's filter panel, which comes back to the summary when done.
+    _editFilterEntry(id) {
+        if (id === "search") {
+            this._closeOverlay({ restoreFocus: false });
+            this._restoreFocus("search");
+            return;
+        }
+        const column = this._columns.find((c) => `column:${c.key}` === id);
+        const toolbarButton = () => this.shadow.querySelector('[data-fk="tb:filters"]');
+        this._openFilterPanel(column, toolbarButton(), "tb:filters", {
+            onDone: () => {
+                if (!this._filterEntries().length) { this._closeOverlay(); return; }
+                // Without restoring focus: it goes straight into the summary.
+                this._closeOverlay({ restoreFocus: false });
+                this._openFilterSummary(toolbarButton(), id);
+            }
+        });
+    }
+
+    _removeFilterEntry(id) {
+        if (id === "search") {
+            this._debouncedSearch.cancel();
+            this._commit({ globalSearch: "", page: 1 }, { announce: () => this._announceResults() });
+        } else {
+            this._setFilter(id.slice("column:".length), null);
+        }
     }
 
     // `filter`: the column's new filter, or null to remove it.
@@ -1585,8 +1665,8 @@ class JwDataTable extends HTMLElement {
     // Opens `panel` as a modal dialog (see ui/overlay.js); focus returns to
     // `returnKey` (default: the element focused now). `centered`: a dialog in
     // the middle of the screen instead of a popover at `anchor`.
-    _showOverlay(panel, anchor, returnKey = this._focusKey(), { centered = false } = {}) {
-        this._overlay.show(panel, { anchor, returnKey, centered, sheet: this._isMobile() });
+    _showOverlay(panel, anchor, returnKey = this._focusKey(), { centered = false, onEscape = null } = {}) {
+        this._overlay.show(panel, { anchor, returnKey, centered, onEscape, sheet: this._isMobile() });
     }
 
     _closeOverlay(options) {

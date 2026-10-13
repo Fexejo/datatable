@@ -104,13 +104,13 @@ export const datatableStyles = `
     outline: 2px solid var(--k-color-text, #222);
     outline-offset: 1px;
 }
-/* Layout switch: joined toggle buttons, the current layout is filled. */
-.k-dt-layout-switch { display: inline-flex; }
-.k-dt-layout-switch .k-dt-btn { border-radius: 0; }
-.k-dt-layout-switch .k-dt-btn + .k-dt-btn { margin-left: -1px; }
-.k-dt-layout-switch .k-dt-btn:first-child { border-radius: var(--k-radius-s, 8px) 0 0 var(--k-radius-s, 8px); }
-.k-dt-layout-switch .k-dt-btn:last-child { border-radius: 0 var(--k-radius-s, 8px) var(--k-radius-s, 8px) 0; }
-.k-dt-layout-switch .k-dt-btn:focus-visible { position: relative; z-index: 1; }
+/* Joined buttons: the layout switch (the current layout is filled) and "Filter (n)" with its "x". */
+.k-dt-layout-switch, .k-dt-btn-group { display: inline-flex; }
+:is(.k-dt-layout-switch, .k-dt-btn-group) .k-dt-btn { border-radius: 0; }
+:is(.k-dt-layout-switch, .k-dt-btn-group) .k-dt-btn + .k-dt-btn { margin-left: -1px; }
+:is(.k-dt-layout-switch, .k-dt-btn-group) .k-dt-btn:first-child { border-radius: var(--k-radius-s, 8px) 0 0 var(--k-radius-s, 8px); }
+:is(.k-dt-layout-switch, .k-dt-btn-group) .k-dt-btn:last-child { border-radius: 0 var(--k-radius-s, 8px) var(--k-radius-s, 8px) 0; }
+:is(.k-dt-layout-switch, .k-dt-btn-group) .k-dt-btn:focus-visible { position: relative; z-index: 1; }
 .k-dt-layout-switch .k-dt-btn[aria-pressed="true"] {
     background: var(--k-dt-accent);
     border-color: var(--k-dt-accent);
@@ -770,6 +770,25 @@ span.k-dt-th-label { cursor: default; }
 .k-dt-views-load:hover { background: var(--k-dt-hover); }
 .k-dt-views-empty { margin: 0; color: var(--k-color-text-muted, #666); font-size: 0.88rem; }
 
+/* Filter summary: one row per active filter (open it / remove it). */
+.k-dt-fsum-panel:not(.k-dt-overlay--sheet) { width: 360px; max-width: calc(100vw - 8px); }
+.k-dt-fsum-panel .k-dt-panel-actions { flex-wrap: wrap; }
+.k-dt-fsum-items { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.k-dt-fsum-item { display: flex; align-items: center; gap: var(--k-space-2xs, 4px); }
+.k-dt-fsum-item .k-dt-icon-btn { border-color: transparent; flex: none; }
+.k-dt-fsum-edit {
+    flex: 1; min-width: 0; min-height: 44px; text-align: left; font: inherit; cursor: pointer;
+    display: flex; flex-direction: column; justify-content: center; gap: 2px;
+    background: none; border: none; color: inherit;
+    padding: var(--k-space-xs, 6px) var(--k-space-s, 8px); border-radius: var(--k-radius-s, 8px);
+}
+.k-dt-fsum-edit:hover { background: var(--k-dt-hover); }
+.k-dt-fsum-label { font-weight: 600; }
+.k-dt-fsum-value {
+    max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    color: var(--k-color-text-muted, #666); font-size: 0.88rem;
+}
+
 /* Suppress the long-press text selection / callout on touch so our context menu wins. */
 /* Accessibility */
 [hidden] { display: none !important; }
@@ -786,7 +805,7 @@ span.k-dt-th-label { cursor: default; }
 .k-dt-search:focus-within,
 .k-dt-td:focus-visible, .k-dt-card:focus-visible,
 .k-dt-link:focus-visible, .k-dt-cell-action:focus-visible,
-.k-dt-tab:focus-visible, .k-dt-views-load:focus-visible,
+.k-dt-tab:focus-visible, .k-dt-views-load:focus-visible, .k-dt-fsum-edit:focus-visible,
 .k-dt-input:focus-visible, .k-dt-select:focus-visible,
 .k-dt-check input:focus-visible {
     outline: 2px solid var(--k-color-text, #222);

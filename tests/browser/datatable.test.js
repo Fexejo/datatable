@@ -661,6 +661,135 @@ test("applying a filter closes the panel and returns focus to the filter button"
     await announced(table, `${$$(table, "tbody tr").length} rows`);
 });
 
+// ---- Filter summary ---------------------------------------------------------
+
+function mountFiltered() {
+    const table = mount({ features: { filtering: true, globalSearch: true } });
+    table.setState({
+        globalSearch: "e",
+        filters: {
+            name: { kind: "value", values: ["Ben", "Emma"] },
+            fee: { kind: "pattern", operator: "gt", arity: 1, operand: "50" }
+        }
+    });
+    return table;
+}
+const summaryEntries = (table) => $$(table, ".k-dt-overlay .k-dt-fsum-edit").map((b) => b.getAttribute("aria-label"));
+
+test("filter summary: \"Filter (n)\" opens the active filters with their values", async () => {
+    const table = mountFiltered();
+    const open = $(table, '[data-fk="tb:filters"]');
+    assert.equal(open.textContent, "Filter (3)");
+    assert.equal(open.getAttribute("aria-haspopup"), "dialog");
+    assert.equal(accessibleName($(table, '[data-fk="tb:clear"]')), "Clear all filters");
+    assert.ok(hasIcon($(table, '[data-fk="tb:clear"]'), "x"));
+    open.focus();
+    await input.press("Enter");
+
+    const dialog = $(table, '[role="dialog"]');
+    assert.equal(table.shadowRoot.getElementById(dialog.getAttribute("aria-labelledby"))?.textContent, "Active filters");
+    assert.equal($(table, '[data-fk="tb:filters"]').getAttribute("aria-expanded"), "true");
+    assert.deepEqual(summaryEntries(table), [
+        "Edit filter Search: “e”",
+        "Edit filter Name: Ben, Emma",
+        "Edit filter Fee: > €50.00"
+    ]);
+    assert.equal(deepActiveElement()?.dataset.fk, "fsum:edit:search", "focus on the first entry");
+    assert.deepEqual($$(table, '.k-dt-overlay [data-fk^="fsum:remove:"]').map(accessibleName),
+        ["Remove filter: Search", "Remove filter: Name", "Remove filter: Fee"]);
+    assert.ok($$(table, ".k-dt-overlay .k-dt-fsum-item").every((li) => li.getBoundingClientRect().height >= 44), "touch targets");
+
+    await input.press("Escape");
+    assert.equal($(table, '[role="dialog"]'), null);
+    assert.equal(deepActiveElement()?.dataset.fk, "tb:filters", "focus back on the opener");
+
+    await input.press("Enter");
+    assert.deepEqual($$(table, ".k-dt-overlay .k-dt-panel-actions button").map(accessibleName), ["Clear all filters", "Close"]);
+    $(table, '[data-fk="fsum:close"]').focus();
+    await input.press("Enter");
+    assert.equal($(table, '[role="dialog"]'), null, "Close closes the panel");
+    assert.equal(deepActiveElement()?.dataset.fk, "tb:filters", "focus back on the opener");
+    assert.equal(table.getState().filters.name?.values.length, 2, "filters unchanged");
+}, { cdp: true });
+
+test("filter summary: removing one filter keeps the panel open, the last one closes it", async () => {
+    const table = mountFiltered();
+    $(table, '[data-fk="tb:filters"]').click();
+    $(table, '[data-fk="fsum:remove:column:name"]').focus();
+    $(table, '[data-fk="fsum:remove:column:name"]').click();
+    assert.equal(table.getState().filters.name, undefined);
+    assert.deepEqual(summaryEntries(table), ["Edit filter Search: “e”", "Edit filter Fee: > €50.00"]);
+    assert.equal(deepActiveElement()?.dataset.fk, "fsum:remove:column:fee", "focus on the next remove button");
+    assert.equal($(table, '[data-fk="tb:filters"]').textContent, "Filter (2)");
+    await waitFor(() => /^\d+ rows$/.test(statusText(table)), { message: "result count announced in the panel" });
+
+    $(table, '[data-fk="fsum:remove:column:fee"]').click();
+    assert.equal(deepActiveElement()?.dataset.fk, "fsum:remove:search", "the last one left");
+    $(table, '[data-fk="fsum:remove:search"]').click();
+    assert.equal(table.getState().globalSearch, "");
+    assert.equal($(table, ".k-dt-search-input").value, "");
+    assert.equal($(table, '[role="dialog"]'), null, "closed with the last filter");
+    assert.equal($(table, '[data-fk="tb:filters"]'), null);
+    assert.ok(table.shadowRoot.contains(deepActiveElement()), "focus stays in the table");
+});
+
+test("filter summary: \"Clear all filters\" and the toolbar x reset everything", () => {
+    let table = mountFiltered();
+    $(table, '[data-fk="tb:filters"]').click();
+    $(table, '[data-fk="fsum:clear"]').click();
+    assert.equal($(table, '[role="dialog"]'), null);
+    assert.deepEqual([table.getState().filters, table.getState().globalSearch], [{}, ""]);
+
+    table = mountFiltered();
+    $(table, '[data-fk="tb:clear"]').click();
+    assert.equal($(table, '[role="dialog"]'), null, "no panel");
+    assert.deepEqual([table.getState().filters, table.getState().globalSearch], [{}, ""]);
+});
+
+test("filter summary: an entry opens its column filter, which comes back to the summary", async () => {
+    const table = mountFiltered();
+    $(table, '[data-fk="tb:filters"]').click();
+    $(table, '[data-fk="fsum:edit:column:fee"]').focus();
+    await input.press("Enter");
+    const dialog = () => $(table, '[role="dialog"]');
+    assert.equal(table.shadowRoot.getElementById(dialog().getAttribute("aria-labelledby"))?.textContent, "Filter: Fee");
+    assert.equal($(table, '[data-fk="tb:filters"]').getAttribute("aria-expanded"), "true");
+
+    await input.press("Escape");
+    assert.ok(dialog().classList.contains("k-dt-fsum-panel"), "Escape steps back to the summary");
+    assert.equal(deepActiveElement()?.dataset.fk, "fsum:edit:column:fee");
+
+    await input.press("Enter");
+    const operand = $(table, ".k-dt-overlay .k-dt-operands input");
+    operand.focus();
+    operand.select();
+    await type("100");
+    await input.press("Enter");
+    assert.equal(table.getState().filters.fee.operand, "100");
+    assert.ok(dialog().classList.contains("k-dt-fsum-panel"), "Apply comes back to the summary");
+    assert.equal(summaryEntries(table)[2], "Edit filter Fee: > €100.00");
+    assert.equal(deepActiveElement()?.dataset.fk, "fsum:edit:column:fee");
+
+    // Resetting the only column filter left with no search: nothing to come back to.
+    table.setState({ globalSearch: "", filters: { fee: table.getState().filters.fee } });
+    $(table, '[data-fk="tb:filters"]').click();
+    $(table, '[data-fk="fsum:edit:column:fee"]').click();
+    $$(table, ".k-dt-overlay .k-dt-panel-actions button")[0].click();   // Reset
+    assert.equal(dialog(), null);
+    assert.deepEqual(table.getState().filters, {});
+}, { cdp: true });
+
+test("filter summary: the search entry goes to the search field; German texts", async () => {
+    const table = mount({ locale: "de-DE", features: { filtering: true, globalSearch: true } });
+    table.setState({ globalSearch: "e", filters: { joined: { kind: "pattern", operator: "between", arity: 2, operand: "2021-01-01", operand2: "2022-12-31" } } });
+    $(table, '[data-fk="tb:filters"]').click();
+    assert.deepEqual(summaryEntries(table), ["Filter bearbeiten Suche: „e“", "Filter bearbeiten Joined: zwischen 01.01.2021 und 31.12.2022"]);
+    assert.equal(accessibleName($(table, '[data-fk="fsum:clear"]')), "Alle Filter zurücksetzen");
+    $(table, '[data-fk="fsum:edit:search"]').click();
+    assert.equal($(table, '[role="dialog"]'), null);
+    assert.equal(deepActiveElement()?.dataset.fk, "search");
+});
+
 // Identifies the Lucide icon inside `node` (same serialized markup as a fresh one).
 const hasIcon = (node, name) => node.querySelector("svg")?.innerHTML === createIcon(name).innerHTML;
 

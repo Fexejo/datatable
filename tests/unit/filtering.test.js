@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { applyFilters, matchesPattern, isActiveFilter, distinctValues, operatorsForType } from "../../src/core/filtering.js";
+import { applyFilters, matchesPattern, isActiveFilter, distinctValues, operatorsForType, describeFilter } from "../../src/core/filtering.js";
+import { getTranslations } from "../../src/core/i18n.js";
 
 const columns = [
     { key: "name", type: "string" },
@@ -94,4 +95,24 @@ test("boolean conditions read truthy values like the display", () => {
     const rows = [{ ok: "yes" }, { ok: "ja" }, { ok: 1 }, { ok: false }, { ok: "no" }];
     const isTrue = applyFilters(rows, { ok: { kind: "pattern", operator: "isTrue", arity: 0 } }, [ok]);
     assert.deepEqual(isTrue.map((r) => r.ok), ["yes", "ja", 1]);
+});
+
+test("describeFilter: values in display format, pattern with operator and operands", () => {
+    const en = { t: getTranslations("en-US"), locale: "en-US" };
+    const de = { t: getTranslations("de-DE"), locale: "de-DE" };
+    const status = { key: "status", type: "enum", format: { labels: { a: "Active", p: "Paused" } } };
+    assert.equal(describeFilter({ kind: "value", values: ["a", "p"] }, status, en), "Active, Paused");
+    assert.equal(describeFilter({ kind: "value", values: ["A", "B", "C", "D", "E"] }, columns[0], en), "A, B, C +2 more");
+    assert.equal(describeFilter({ kind: "value", values: ["A", "B", "C", "D"] }, columns[0], de), "A, B, C +1 weitere");
+    assert.equal(describeFilter({ kind: "value", values: [""] }, columns[0], en), "(empty)", "empty value");
+
+    assert.equal(describeFilter({ kind: "pattern", operator: "contains", operand: "an" }, columns[0], en), "contains “an”");
+    assert.equal(describeFilter({ kind: "pattern", operator: "contains", operand: "an" }, columns[0], de), "enthält „an“");
+    assert.equal(describeFilter({ kind: "pattern", operator: "between", arity: 2, operand: "1000", operand2: "2000.5" },
+        { key: "fee", type: "currency", format: { currency: "EUR" } }, de).replace(/\s/g, " "), "zwischen 1.000,00 € und 2.000,50 €");
+    assert.equal(describeFilter({ kind: "pattern", operator: "on", operand: "2024-03-05" }, columns[2], de),
+        "am 05.03.2024", "a date operand is a local date");
+    assert.equal(describeFilter({ kind: "pattern", operator: "isTrue", arity: 0 }, columns[3], en), "is true");
+    const linked = { key: "name", type: "string", formatter: () => "ignored" };
+    assert.equal(describeFilter({ kind: "pattern", operator: "equals", operand: "x" }, linked, en), "equals “x”");
 });

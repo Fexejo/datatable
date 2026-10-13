@@ -7,7 +7,7 @@ written in Vanilla JS (ES modules, Shadow DOM). No external dependencies.
 
 - **Pagination** – first/previous/next/last, page numbers, configurable page size
 - **Sorting** – ascending/descending, multi-column (Shift+click), context menu
-- **Filters** – value filter (pick values) and pattern filter (type-specific operators)
+- **Filters** – value filter (pick values) and pattern filter (type-specific operators); a toolbar summary lists the active filters with their values
 - **Quick filters** – right-click a cell → “Filter by value” / “Exclude value”
 - **Global search** – full-text across searchable columns
 - **Context menu** – sort, filter, copy (cell/row/column), pin/hide column, export
@@ -66,7 +66,7 @@ written in Vanilla JS (ES modules, Shadow DOM). No external dependencies.
 | `src/jwDataTable.js` | The Web Component: owns the state, renders table and cards, handles events, opens panels |
 | `src/core/` | DOM-free logic, unit-tested in Node: state (`state.js`), sorting, filtering, formatting, pagination, columns, translations (`i18n.js`), saved-view storage |
 | `src/export/` | CSV / XLSX / JSON export and the XLSX writer |
-| `src/panels/` | Filter panel, export dialog, column chooser, record details, saved views |
+| `src/panels/` | Filter panel, filter summary, export dialog, column chooser, record details, saved views |
 | `src/render/` | Toolbar and footer (pager) |
 | `src/ui/` | DOM building blocks: `el()`, overlay (modal panels), live-region announcer, context menu, clipboard, keyboard navigation, column drag, pinned layout, styles, [Lucide](https://lucide.dev) icons |
 | `src/types.js` | JSDoc types of the config, columns, state and adapters (no runtime code) |
@@ -439,6 +439,15 @@ Text conditions test the displayed text (e.g. the label of an `enum` value or
 the output of a `formatter`), number and date conditions the raw value.
 
 **Quick filter:** right-click a cell → “Filter by value” or “Exclude value”.
+
+**Active filters:** while a filter or the global search is active, the toolbar
+shows “Filter (n)” joined with an “×”. The “×” clears all filters and the
+search right away. “Filter (n)” opens a summary panel: one entry per active
+filter (the search first, then the columns in display order) with its values
+(“Anna, Ben +2 more”, “between €10.00 and €20.00”), each with its own “×” to
+remove it, and “Clear all filters” and “Close” at the bottom. A click on an entry opens
+that column's filter panel; “Apply”, “Reset” and `Esc` lead back to the
+summary. The search entry moves focus to the search field.
 
 Filters combine with global search and each other with **AND**. API:
 
@@ -983,7 +992,9 @@ or touch also works with the keyboard alone.
 | Header button | `Ctrl+Shift+←` / `Ctrl+Shift+→` | Move the column (with `features.columnReorder`); focus stays on the button |
 | Actions menu | `↑` `↓`, `Home` / `End`, `Enter` / `Space`, `Esc` / `Tab` | Navigate, activate, close (focus returns to where the menu was opened) |
 | Sort header | `Enter` / `Space` (`Shift+Enter` adds a sort key) | Sort |
-| Panels (filter, columns, saved views, details, export) | `Tab` / `Shift+Tab`, `Esc` | Focus stays inside the panel; `Esc` closes and returns focus to the button that opened it |
+| Panels (filter, filter summary, columns, saved views, details, export) | `Tab` / `Shift+Tab`, `Esc` | Focus stays inside the panel; `Esc` closes and returns focus to the button that opened it |
+| Filter summary | `Enter` on an entry, on its “×”, on “Clear all filters” or on “Close” | Open the column's filter panel (`Enter` on the search entry: focus the search field); remove that filter (focus moves to the next entry's “×”; the panel closes with the last one); clear all; close (focus returns to “Filter (n)”) |
+| Filter panel opened from the filter summary | “Apply” / “Reset”, `Esc` | Back to the summary, focus on the edited entry (the panel closes when no filter is left) |
 | Details dialog | `Shift+F10` on a cell/card → “Show details”; `Enter` on “Previous” / “Next” | Opens with focus on the dialog heading; focus stays on the pressed button (moves to the other one at the first/last record); closing returns focus to the shown record |
 | Filter panel tabs | `←` `→`, `Home` / `End` | Switch between “Values” and “Pattern” |
 | Filter panel, “Values” tab | `Enter` in the search field or on a search-result option | Apply (same as the “Apply” button); the search-result options are radio buttons (`↑` `↓`) |
@@ -1010,6 +1021,12 @@ table.
   “Filter: Name”, “Copy value: Name”); icons are decorative (`aria-hidden`).
 - The layout switch is a `group` named “Layout” with one toggle button per layout
   (`aria-pressed`, named “Table” / “Cards” / “Compact”).
+- Filter summary: the toolbar's “Filter (n)” opens it (`aria-haspopup="dialog"`,
+  `aria-expanded`, tooltip “Show active filters”); the joined “×” is named
+  “Clear all filters”. The panel is named “Active filters”; its entries are a
+  list, each entry button is named “Edit filter <column>: <values>”, its
+  remove button “Remove filter: <column>”. Removing a filter announces the
+  new result count.
 - Saved views panel: the views are a list; the current view's button has
   `aria-current="true"` and a check mark. Rename/delete buttons are named
   “Rename: <view>” / “Delete: <view>”. Questions (overwrite, delete) are a
