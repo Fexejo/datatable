@@ -148,7 +148,11 @@ export const input = {
     async click(element) {
         element.scrollIntoView({ block: "center" });
         const r = element.getBoundingClientRect();
-        const base = { x: r.left + r.width / 2, y: r.top + r.height / 2, button: "left", clickCount: 1 };
+        await input.clickAt(r.left + r.width / 2, r.top + r.height / 2);
+    },
+    /** Clicks the viewport point (x, y) with a real mouse event, whatever lies there. */
+    async clickAt(x, y) {
+        const base = { x, y, button: "left", clickCount: 1 };
         await cdp("Input.dispatchMouseEvent", { type: "mouseMoved", ...base });
         await cdp("Input.dispatchMouseEvent", { type: "mousePressed", ...base });
         await cdp("Input.dispatchMouseEvent", { type: "mouseReleased", ...base });

@@ -1069,6 +1069,9 @@ table.
 - Actions menu: `role="menu"` / `menuitem`, named “Actions: <column>”.
 - Panels are modal dialogs (`role="dialog"`, `aria-modal`, named by their
   heading); opener buttons carry `aria-haspopup="dialog"` and `aria-expanded`.
+  For the pointer too, the page behind is inert: a backdrop (dimmed behind the
+  details and export dialogs) takes hover and clicks, and a click on it only
+  closes the panel, with focus back on the opener.
   The filter panel uses the tabs pattern (`tablist` / `tab` / `tabpanel`).
 - Segmented controls (export dialog, search-result option in the value
   filter) are native radio groups (`fieldset` / `legend`, one tab stop, arrow

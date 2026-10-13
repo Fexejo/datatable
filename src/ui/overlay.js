@@ -1,8 +1,10 @@
 // Modal panels (filter, columns, saved views, export, record details).
 //
 // A panel is a dialog: focus moves in (to `[data-autofocus]` or the first
-// control), Tab cycles inside, Escape closes, a pointer down outside closes,
-// and focus returns to the opener. Each panel brings its own live region
+// control), Tab cycles inside, Escape closes, and focus returns to the opener.
+// Everything outside is inert, as `aria-modal` tells assistive tech: a
+// backdrop under the panel takes the pointer (no hover or click reaches the
+// page behind), and a click on it only closes the panel. Dialogs dim the page. Each panel brings its own live region
 // (`[data-live]`), because everything outside a modal is hidden from
 // assistive tech. On mobile every panel is a bottom sheet.
 
@@ -21,6 +23,7 @@ export class Overlay {
         this.returnKey = null;
         // Focus key of the opener button (it carries `aria-expanded`).
         this.openerKey = null;
+        this._backdrop = null;
         this._onOutside = null;
         this._onKey = null;
         this._escape = null;
@@ -36,7 +39,8 @@ export class Overlay {
     }
 
     // `anchor`: the opener; the popover is placed below it. `centered`: a
-    // dialog in the middle of the screen. `sheet`: a bottom sheet (mobile).
+    // dialog in the middle of the screen that dims the page. `sheet`: a bottom
+    // sheet (mobile).
     // `onEscape`: called instead of closing on Escape (e.g. to step back to
     // the panel this one was opened from).
     show(panel, { anchor = null, returnKey = null, centered = false, sheet = false, onEscape = null } = {}) {
@@ -54,7 +58,12 @@ export class Overlay {
 
         if (sheet) panel.classList.add("k-dt-overlay--sheet");
         else if (centered) panel.classList.add("k-dt-overlay--dialog");
-        this._root.appendChild(panel);
+        const backdrop = el("div", { class: "k-dt-backdrop" + (centered ? " k-dt-backdrop--dim" : ""), "aria-hidden": "true" });
+        // Focus stays in the panel until the click closes it, then returns to the opener.
+        backdrop.addEventListener("mousedown", (event) => event.preventDefault());
+        backdrop.addEventListener("click", () => { if (this.panel === panel) this.close(); });
+        this._backdrop = backdrop;
+        this._root.append(backdrop, panel);
         if (!sheet && !centered) {
             // Position synchronously so the panel can take focus right away.
             const a = anchor?.isConnected ? anchor.getBoundingClientRect() : { left: 0, top: 0, bottom: 0 };
@@ -74,7 +83,8 @@ export class Overlay {
 
         this._onOutside = (event) => {
             const path = event.composedPath ? event.composedPath() : [event.target];
-            if (!path.includes(panel) && !path.includes(anchor)) this.close({ restoreFocus: false });
+            // The backdrop handles its own click; this catches whatever lies above it.
+            if (!path.includes(panel) && !path.includes(anchor) && !path.includes(backdrop)) this.close({ restoreFocus: false });
         };
         // Escape inside the panel is the panel's own (a step inside may handle it).
         this._onKey = (event) => {
@@ -96,6 +106,8 @@ export class Overlay {
         const hadFocus = panel.contains(deepActiveElement());
         this.panel = null;
         panel.remove();
+        this._backdrop?.remove();
+        this._backdrop = null;
         document.removeEventListener("pointerdown", this._onOutside, true);
         document.removeEventListener("keydown", this._onKey, true);
         if (this.openerKey) {

@@ -1608,6 +1608,34 @@ test("compact layout: Enter on a cell or the details button opens the dialog; fo
     assert.equal(button.getAttribute("aria-expanded"), "false");
 }, { cdp: true });
 
+test("a click beside an overlay only closes it; the page behind gets no hover and no click", async () => {
+    const table = mount({ ...COMPACT, features: { compact: true, columnVisibility: true } });
+    await input.click($(table, '[data-fk="cell:1:id"]'));
+    assert.equal($(table, ".k-dt-details-pos")?.textContent, "Record 2 of 30");
+
+    // A point on another row, beside the dialog.
+    const dialog = $(table, '[role="dialog"]').getBoundingClientRect();
+    const cell = $(table, '[data-fk="cell:4:id"]').getBoundingClientRect();
+    const [x, y] = [cell.left + 4, cell.top + cell.height / 2];
+    assert.ok(x < dialog.left || y < dialog.top || y > dialog.bottom, "the point lies beside the dialog");
+    assert.ok(table.shadowRoot.elementFromPoint(x, y).classList.contains("k-dt-backdrop--dim"),
+        "a dimmed backdrop takes the pointer");
+    await input.clickAt(x, y);
+    assert.equal($(table, '[role="dialog"]'), null, "closed, no other record opened");
+    assert.equal($(table, ".k-dt-backdrop"), null);
+    assert.equal(deepActiveElement()?.dataset.fk, "cell:1:id", "focus back on the row");
+
+    // A panel: the same, without dimming.
+    const opener = $(table, '[data-fk="tb:columns"]');
+    await input.click(opener);
+    assert.ok($(table, '[role="dialog"]'));
+    const backdrop = table.shadowRoot.elementFromPoint(x, y);
+    assert.ok(backdrop.classList.contains("k-dt-backdrop") && !backdrop.classList.contains("k-dt-backdrop--dim"));
+    await input.clickAt(x, y);
+    assert.equal($(table, '[role="dialog"]'), null);
+    assert.equal(deepActiveElement(), opener, "focus back on the opener");
+}, { cdp: true });
+
 test("compact layout is part of the state and falls back to the table without the feature", () => {
     let table = mount({ features: { compact: true } });
     table.setState({ layout: "compact" });

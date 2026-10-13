@@ -476,6 +476,11 @@ span.k-dt-th-label { cursor: default; }
 }
 .k-ctx-menu--sheet .k-ctx-item { padding: var(--k-space-l, 12px) var(--k-space-l, 12px); }
 
+/* Under every overlay: takes the pointer, so the page behind gets no hover
+   and no click (a click here only closes the overlay). Dialogs dim the page. */
+.k-dt-backdrop { position: fixed; inset: 0; z-index: 999; }
+.k-dt-backdrop--dim { background: rgba(0,0,0,0.4); }
+
 /* Filter / columns / saved views panel (overlay) */
 .k-dt-overlay {
     position: fixed;
@@ -516,7 +521,7 @@ span.k-dt-th-label { cursor: default; }
 .k-dt-panel-head { font-weight: 700; font-size: 1rem; margin: 0; }
 .k-dt-panel-head:focus { outline: none; }
 
-/* Record details dialog: centered on desktop, bottom sheet on mobile; dims the page. */
+/* Record details dialog: centered on desktop, bottom sheet on mobile (the backdrop dims the page). */
 .k-dt-overlay--dialog {
     left: 50%;
     top: 50%;
@@ -525,10 +530,6 @@ span.k-dt-th-label { cursor: default; }
     max-height: 85vh;
 }
 .k-dt-details { padding-top: 0; padding-bottom: 0; gap: var(--k-space-s, 8px); }
-.k-dt-details.k-dt-overlay--dialog, .k-dt-details.k-dt-overlay--sheet,
-.k-dt-export.k-dt-overlay--dialog, .k-dt-export.k-dt-overlay--sheet {
-    box-shadow: 0 0 0 100vmax rgba(0,0,0,0.4), 0 10px 30px rgba(0,0,0,0.25);
-}
 .k-dt-details-head, .k-dt-details-actions {
     position: sticky;
     z-index: 1;
