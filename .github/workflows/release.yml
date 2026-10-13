@@ -1,7 +1,9 @@
-# Tests on every push and pull request. On main, semantic-release then
-# determines the next version from Conventional Commits, builds the minified
-# bundle, runs the browser tests against it, and — only if they pass —
-# commits dist/jw-datatable.min.js, tags vX.Y.Z and creates a GitHub release.
+# Lint, type check and tests (incl. axe-core) on every push and pull request;
+# npm installs only the pinned dev tools, the sources need no build. On main,
+# semantic-release then determines the next version from Conventional Commits,
+# builds the minified bundle, runs the browser tests against it, and — only if
+# they pass — commits dist/jw-datatable.min.js, tags vX.Y.Z and creates a
+# GitHub release.
 name: CI & Release
 
 on:
@@ -26,6 +28,16 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24
+          cache: npm
+
+      - name: Install dev tools
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Type check
+        run: npm run typecheck
 
       # ubuntu-latest ships Google Chrome; tests/run.js finds it on PATH.
       - name: Tests against sources
@@ -55,6 +67,11 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24
+          cache: npm
+
+      # The release runs the browser tests (incl. axe-core) against the bundle.
+      - name: Install dev tools
+        run: npm ci
 
       - name: semantic-release
         env:
