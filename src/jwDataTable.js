@@ -18,8 +18,20 @@ import {
 } from "./core/util.js";
 import { formatValue, toText } from "./core/formatters.js";
 import { sortData, toggleSort } from "./core/comparators.js";
+import { normalizeColumns } from "./core/columns.js";
+import { pageItems, pageRange } from "./core/pagination.js";
 import {
-    applyFilters,
+    createState,
+    mergeState,
+    serializeState,
+    viewSignature,
+    activeFilterCount,
+    normalizeOrder,
+    orderedColumns,
+    moveColumn,
+    deriveRows
+} from "./core/state.js";
+import {
     distinctValues,
     operatorsForType,
     operatorMeta,
@@ -231,7 +243,10 @@ class JwDataTable extends HTMLElement {
         this._config.emptyText ??= this._t.emptyData;
         this._config.noResultsText ??= this._t.noResults;
         this._features = { ...DEFAULT_FEATURES, ...(config.features || {}) };
-        this._columns = this._normalizeColumns(config.columns || []);
+        this._columns = normalizeColumns(config.columns || [], {
+            features: this._features,
+            columnMinWidth: this._config.columnMinWidth
+        });
         this._sourceData = Array.isArray(config.data) ? config.data.slice() : [];
 
         const pagination = config.pagination || {};
@@ -246,20 +261,11 @@ class JwDataTable extends HTMLElement {
             this._viewStore = new ViewStore(storage.adapter || new LocalStorageAdapter(namespace));
         }
 
-        const initial = this._knownColumnsOnly(config.initial || {});
-        this._state = {
-            sort: initial.sort ? initial.sort.slice() : [],
-            filters: this._deserializeFilters(initial.filters || {}),
-            globalSearch: initial.globalSearch || "",
-            page: initial.page || 1,
-            pageSize: initial.pageSize || pagination.pageSize || this._pageSizeOptions[0] || 25,
-            layout: initial.layout || config.defaultLayout || "table",
-            hiddenColumns: new Set(
-                initial.hiddenColumns || this._columns.filter((c) => c.hidden).map((c) => c.key)
-            ),
-            pinnedColumns: (initial.pinnedColumns || this._columns.filter((c) => c.pinned).map((c) => c.key)).slice(),
-            columnOrder: this._normalizeOrder(initial.columnOrder)
-        };
+        const initial = config.initial || {};
+        this._state = createState(this._columns, initial, {
+            pageSize: pagination.pageSize || this._pageSizeOptions[0] || 25,
+            layout: config.defaultLayout
+        });
 
         // An explicit layout choice (config or initial state) pins the layout and
         // opts out of the automatic breakpoint-driven switching.
@@ -398,20 +404,12 @@ class JwDataTable extends HTMLElement {
     }
 
     getState() {
-        return this._serializeState();
+        return serializeState(this._state);
     }
 
     setState(partial = {}) {
-        partial = this._knownColumnsOnly(partial);
-        if (partial.sort) this._state.sort = partial.sort.slice();
-        if (partial.filters) this._state.filters = this._deserializeFilters(partial.filters);
-        if (partial.globalSearch != null) this._state.globalSearch = partial.globalSearch;
-        if (partial.pageSize) this._state.pageSize = partial.pageSize;
-        if (partial.page) this._state.page = partial.page;
-        if (partial.layout) { this._state.layout = partial.layout; this._layoutUserSet = true; }
-        if (partial.hiddenColumns) this._state.hiddenColumns = new Set(partial.hiddenColumns);
-        if (partial.pinnedColumns) this._state.pinnedColumns = partial.pinnedColumns.slice();
-        if (partial.columnOrder) this._state.columnOrder = this._normalizeOrder(partial.columnOrder);
+        this._state = mergeState(this._state, partial, this._columns.map((c) => c.key));
+        if (partial.layout) this._layoutUserSet = true;
         this._deriveView();
         this._render();
         this._emitChange();
@@ -524,76 +522,14 @@ class JwDataTable extends HTMLElement {
 
     // ---- Normalization & derivation --------------------------------------
 
-    _normalizeColumns(columns) {
-        return columns.map((col) => {
-            const type = col.type || "string";
-            const group = typeGroup(type);
-            let link = col.link;
-            if (typeof link === "function") link = { url: link };
-            const optionsMap = col.optionsMap
-                || (Array.isArray(col.options)
-                    ? Object.fromEntries(col.options.map((o) => [o.value, o.label ?? o.value]))
-                    : null);
-            return {
-                ...col,
-                key: col.key,
-                label: col.label ?? col.key,
-                type,
-                align: col.align || (group === "number" ? "right" : group === "boolean" ? "center" : "left"),
-                sortable: this._featureColumn("sorting", col.sortable),
-                filterable: this._featureColumn("filtering", col.filterable),
-                copyable: this._features?.copyButtons !== false && !!col.copyable,
-                hidden: !!col.hidden,
-                pinned: !!col.pinned,
-                // Floor for the column width: explicit `minWidth`, else a fixed
-                // `width`, else the global default (text columns only; numbers,
-                // dates and booleans stay on one line at their natural width).
-                minWidth: col.minWidth || col.width || (group === "text" ? this._config.columnMinWidth : undefined) || null,
-                link,
-                optionsMap
-            };
-        });
-    }
-
-    _featureColumn(feature, columnFlag) {
-        const enabled = (this._features ? this._features[feature] : DEFAULT_FEATURES[feature]) !== false;
-        return enabled && columnFlag !== false;
-    }
-
-    // All columns (including hidden ones) in display order: pinned columns
-    // first (in pin order), then the others in `columnOrder`.
+    // All columns (including hidden ones) in display order.
     _orderedColumns() {
-        const byKey = new Map(this._columns.map((c) => [c.key, c]));
-        const ordered = this._state.columnOrder.map((key) => byKey.get(key)).filter(Boolean);
-        if (!this._features.columnPinning) return ordered;
-        const pinned = this._state.pinnedColumns.map((key) => byKey.get(key)).filter(Boolean);
-        return pinned.length ? [...pinned, ...ordered.filter((c) => !pinned.includes(c))] : ordered;
+        return orderedColumns(this._columns, this._state, { pinning: this._features.columnPinning });
     }
 
     // Visible columns in display order.
     _visibleColumns() {
         return this._orderedColumns().filter((c) => !this._state.hiddenColumns.has(c.key));
-    }
-
-    // Column keys in the given order; unknown keys are dropped, missing columns
-    // keep their configured order at the end.
-    _normalizeOrder(order) {
-        const keys = this._columns.map((c) => c.key);
-        const known = (Array.isArray(order) ? order : []).filter((key, i, all) => keys.includes(key) && all.indexOf(key) === i);
-        return [...known, ...keys.filter((key) => !known.includes(key))];
-    }
-
-    // Drops references to columns that do not exist (e.g. in a view saved
-    // before the column configuration changed).
-    _knownColumnsOnly(state) {
-        const known = new Set(this._columns.map((c) => c.key));
-        const result = { ...state };
-        if (Array.isArray(state.sort)) result.sort = state.sort.filter((s) => known.has(s?.key));
-        if (state.filters) result.filters = Object.fromEntries(Object.entries(state.filters).filter(([key]) => known.has(key)));
-        for (const list of ["hiddenColumns", "pinnedColumns"]) {
-            if (Array.isArray(state[list])) result[list] = state[list].filter((key) => known.has(key));
-        }
-        return result;
     }
 
     _orderChanged() {
@@ -605,18 +541,15 @@ class JwDataTable extends HTMLElement {
     }
 
     _deriveView() {
-        this._viewData = applyFilters(this._sourceData, this._state.filters, this._columns, {
+        const rows = deriveRows(this._sourceData, this._state, this._columns, {
             locale: this._config.locale,
-            globalSearch: this._features.globalSearch ? this._state.globalSearch : ""
+            globalSearch: this._features.globalSearch,
+            pagination: this._features.pagination
         });
-        this._viewData = sortData(this._viewData, this._state.sort, this._columns, this._config.locale);
-
-        const total = this._viewData.length;
-        const pageSize = this._features.pagination ? this._state.pageSize : total || 1;
-        this._pageCount = Math.max(1, Math.ceil(total / pageSize));
-        this._state.page = clamp(this._state.page, 1, this._pageCount);
-        const start = (this._state.page - 1) * pageSize;
-        this._pageData = this._features.pagination ? this._viewData.slice(start, start + pageSize) : this._viewData;
+        this._viewData = rows.viewData;
+        this._pageData = rows.pageData;
+        this._pageCount = rows.pageCount;
+        this._state.page = rows.page;
     }
 
     // Full update after a state change: derive, render, notify.
@@ -786,7 +719,7 @@ class JwDataTable extends HTMLElement {
             left.appendChild(search);
         }
 
-        const activeFilters = this._activeFilterCount();
+        const activeFilters = activeFilterCount(this._state, { globalSearch: this._features.globalSearch });
         if (this._features.filtering && activeFilters > 0) {
             right.appendChild(el("button", {
                 type: "button",
@@ -1283,11 +1216,8 @@ class JwDataTable extends HTMLElement {
         return list;
     }
 
-    // 1-based first and last row of the current page, and the row total.
     _pageRange() {
-        const total = this._viewData.length;
-        const { page, pageSize } = this._state;
-        return { start: total === 0 ? 0 : (page - 1) * pageSize + 1, end: Math.min(page * pageSize, total), total };
+        return pageRange(this._state.page, this._state.pageSize, this._viewData.length);
     }
 
     _renderFooter() {
@@ -1335,7 +1265,7 @@ class JwDataTable extends HTMLElement {
         nav.appendChild(navBtn("chevrons-left", this._t.firstPage, 1, page <= 1));
         nav.appendChild(navBtn("chevron-left", this._t.prevPage, page - 1, page <= 1));
 
-        this._pageItems(page, pageCount).forEach((item) => {
+        pageItems(page, pageCount).forEach((item) => {
             if (item === "…") {
                 nav.appendChild(el("span", { class: "k-dt-page-gap", text: "…" }));
             } else {
@@ -1357,16 +1287,6 @@ class JwDataTable extends HTMLElement {
         footer.appendChild(info);
         footer.appendChild(nav);
         return footer;
-    }
-
-    _pageItems(current, total) {
-        if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
-        const items = [1];
-        if (current > 3) items.push("…");
-        for (let p = Math.max(2, current - 1); p <= Math.min(total - 1, current + 1); p++) items.push(p);
-        if (current < total - 2) items.push("…");
-        items.push(total);
-        return items;
     }
 
     _goToPage(page) {
@@ -1965,34 +1885,12 @@ class JwDataTable extends HTMLElement {
     // boundary it keeps its state.
     _moveColumn(key, target, { all = false } = {}) {
         const scope = () => (all ? this._orderedColumns() : this._tableColumns());
-        const keys = scope().map((c) => c.key);
-        const from = keys.indexOf(key);
-        if (from < 0) return;
-        target = clamp(target, 0, keys.length - 1);
-        if (target === from) return;
+        const moved = moveColumn(this._state, scope().map((c) => c.key), key, target, { pinning: this._features.columnPinning });
+        if (!moved) return;
+        const { pinned, wasPinned } = moved;
+        this._state.pinnedColumns = moved.pinnedColumns;
+        this._state.columnOrder = moved.columnOrder;
         const column = this._columns.find((c) => c.key === key);
-        const wasPinned = this._isPinned(column);
-        const rest = keys.filter((k) => k !== key);
-        const pinnedCount = rest.filter((k) => this._isPinned(this._columns.find((c) => c.key === k))).length;
-        const pinned = this._features.columnPinning && (wasPinned ? target <= pinnedCount : target < pinnedCount);
-        rest.splice(target, 0, key);
-
-        if (pinned) {
-            const block = rest.slice(0, pinnedCount + 1);
-            this._state.pinnedColumns = [...block, ...this._state.pinnedColumns.filter((k) => !block.includes(k))];
-        } else {
-            this._state.pinnedColumns = this._state.pinnedColumns.filter((k) => k !== key);
-            // Place it next to its new unpinned neighbour; everything else keeps its order.
-            const unpinned = rest.slice(pinnedCount);
-            const at = unpinned.indexOf(key);
-            const order = this._state.columnOrder.filter((k) => k !== key);
-            const next = unpinned[at + 1];
-            const prev = unpinned[at - 1];
-            if (next) order.splice(order.indexOf(next), 0, key);
-            else if (prev) order.splice(order.indexOf(prev) + 1, 0, key);
-            else order.push(key);
-            this._state.columnOrder = order;
-        }
 
         this._updateColumnsView();
         this._syncColumnChooser();
@@ -2021,7 +1919,7 @@ class JwDataTable extends HTMLElement {
     }
 
     _resetColumnOrder() {
-        this._state.columnOrder = this._normalizeOrder();
+        this._state.columnOrder = normalizeOrder(null, this._columns.map((c) => c.key));
         this._updateColumnsView();
         this._syncColumnChooser();
         this._emitChange();
@@ -2293,18 +2191,11 @@ class JwDataTable extends HTMLElement {
     }
 
     _viewState() {
-        return this._serializeState({ includePage: false });
+        return serializeState(this._state, { includePage: false });
     }
 
-    // The view state with order-independent parts sorted, so the same view
-    // reached by different clicks compares equal.
     _viewSignature() {
-        const state = this._viewState();
-        state.hiddenColumns.sort();
-        state.filters = Object.fromEntries(Object.entries(state.filters)
-            .sort(([a], [b]) => (a < b ? -1 : 1))
-            .map(([key, f]) => [key, f.kind === "value" ? { ...f, values: f.values.map(String).sort() } : f]));
-        return JSON.stringify(state);
+        return viewSignature(this._viewState());
     }
 
     // One panel to save, load, rename and delete views. Questions (overwrite?
@@ -2952,50 +2843,13 @@ class JwDataTable extends HTMLElement {
 
     // ---- State serialization & events ------------------------------------
 
-    // Saved views omit `page` (a saved view should open on page 1).
-    _serializeState({ includePage = true } = {}) {
-        const filters = {};
-        for (const [key, filter] of Object.entries(this._state.filters)) {
-            if (!isActiveFilter(filter)) continue;
-            filters[key] = filter.kind === "value"
-                ? { kind: "value", values: filter.values.slice() }
-                : { kind: "pattern", operator: filter.operator, operand: filter.operand, operand2: filter.operand2, arity: filter.arity };
-        }
-        const state = {
-            sort: this._state.sort.slice(),
-            filters,
-            globalSearch: this._state.globalSearch,
-            pageSize: this._state.pageSize,
-            layout: this._state.layout,
-            hiddenColumns: Array.from(this._state.hiddenColumns),
-            pinnedColumns: this._state.pinnedColumns.slice(),
-            columnOrder: this._state.columnOrder.slice()
-        };
-        if (includePage) state.page = this._state.page;
-        return state;
-    }
-
-    _deserializeFilters(filters) {
-        const result = {};
-        for (const [key, filter] of Object.entries(filters || {})) {
-            if (filter && filter.kind) result[key] = { ...filter };
-        }
-        return result;
-    }
-
-    _activeFilterCount() {
-        let count = Object.values(this._state.filters).filter(isActiveFilter).length;
-        if (this._features.globalSearch && this._state.globalSearch) count += 1;
-        return count;
-    }
-
     // Returns false when a listener cancelled a `cancelable` event.
     _emit(name, detail, { cancelable = false } = {}) {
         return this.dispatchEvent(new CustomEvent("jw-datatable:" + name, { detail, bubbles: true, composed: true, cancelable }));
     }
 
     _emitChange() {
-        this._emit("change", { state: this._serializeState() });
+        this._emit("change", { state: serializeState(this._state) });
     }
 
     _truncate(text, max = 30) {
