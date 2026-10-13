@@ -5,7 +5,14 @@ import { getCellValue, isEmptyValue, toBoolean, toDate, toNumber, typeGroup } fr
 import { toText } from "./formatters.js";
 import { textCollator } from "./comparators.js";
 
+/** @typedef {import("../types.js").Column} Column */
+/** @typedef {import("../types.js").Filter} Filter */
+/** @typedef {import("../types.js").PatternFilter} PatternFilter */
+/** @typedef {import("../types.js").Row} Row */
+/** @typedef {{ id: string, label: string, arity: number }} Operator */
+
 // Pattern operators per type family. `arity` = number of operands.
+/** @type {Record<"text"|"number"|"date"|"boolean", Operator[]>} */
 export const OPERATORS = {
     text: [
         { id: "contains", label: "contains", arity: 1 },
@@ -43,14 +50,25 @@ export const OPERATORS = {
     ]
 };
 
+/** @param {string} [type] */
 export function operatorsForType(type) {
     return OPERATORS[typeGroup(type)] ?? OPERATORS.text;
 }
 
+/**
+ * @param {string|undefined} type
+ * @param {string} operatorId
+ * @returns {Operator|null}
+ */
 export function operatorMeta(type, operatorId) {
     return operatorsForType(type).find((o) => o.id === operatorId) ?? null;
 }
 
+/**
+ * @param {any} value
+ * @param {string} operator
+ * @param {any} operand
+ */
 function matchesText(value, operator, operand) {
     if (operator === "empty") return isEmptyValue(value);
     if (operator === "notEmpty") return !isEmptyValue(value);
@@ -74,6 +92,12 @@ function matchesText(value, operator, operand) {
     }
 }
 
+/**
+ * @param {any} value
+ * @param {string} operator
+ * @param {any} operand
+ * @param {any} operand2
+ */
 function matchesNumber(value, operator, operand, operand2) {
     if (operator === "empty") return isEmptyValue(value);
     if (operator === "notEmpty") return !isEmptyValue(value);
@@ -97,6 +121,12 @@ function matchesNumber(value, operator, operand, operand2) {
     }
 }
 
+/**
+ * @param {any} value
+ * @param {string} operator
+ * @param {any} operand
+ * @param {any} operand2
+ */
 function matchesDate(value, operator, operand, operand2) {
     if (operator === "empty") return isEmptyValue(value);
     if (operator === "notEmpty") return !isEmptyValue(value);
@@ -123,6 +153,10 @@ function matchesDate(value, operator, operand, operand2) {
 }
 
 // Same reading of truthy values as the display ("yes" shows as Yes).
+/**
+ * @param {any} value
+ * @param {string} operator
+ */
 function matchesBoolean(value, operator) {
     if (operator === "isTrue") return toBoolean(value);
     if (operator === "isFalse") return !toBoolean(value);
@@ -130,6 +164,11 @@ function matchesBoolean(value, operator) {
 }
 
 // Tests a single pattern filter against a raw value.
+/**
+ * @param {any} value
+ * @param {PatternFilter} filter
+ * @param {string} [type]
+ */
 export function matchesPattern(value, filter, type) {
     const group = typeGroup(type);
     if (group === "number") return matchesNumber(value, filter.operator, filter.operand, filter.operand2);
@@ -140,6 +179,12 @@ export function matchesPattern(value, filter, type) {
 
 // Text conditions test the displayed text (enum labels, custom formatters),
 // like the global search; numbers and dates test the raw value.
+/**
+ * @param {any} value
+ * @param {Column} column
+ * @param {string} locale
+ * @param {Row} row
+ */
 function patternSubject(value, column, locale, row) {
     if (typeGroup(column.type) !== "text" || isEmptyValue(value)) return value;
     return toText(value, column, locale, row);
@@ -147,20 +192,22 @@ function patternSubject(value, column, locale, row) {
 
 // Applies all active column filters (AND) and optional global search. Returns a new array.
 /**
- * @param {object[]} data
- * @param {Record<string, import("../types.js").Filter>} filters
- * @param {import("../types.js").Column[]} columns
- * @returns {object[]}
+ * @template {Row} R
+ * @param {R[]} data
+ * @param {Record<string, Filter>} filters
+ * @param {Column[]} columns
+ * @param {{ locale?: string, globalSearch?: string }} [options]
+ * @returns {R[]}
  */
 export function applyFilters(data, filters, columns, { locale = "en-US", globalSearch = "" } = {}) {
     const columnByKey = new Map(columns.map((c) => [c.key, c]));
-    const activeFilters = Object.entries(filters || {})
-        .filter(([key, filter]) => columnByKey.has(key) && isActiveFilter(filter))
-        .map(([key, filter]) => ({
-            column: columnByKey.get(key),
-            filter,
-            values: filter.kind === "value" ? new Set(filter.values.map(String)) : null
-        }));
+    const activeFilters = Object.entries(filters || {}).flatMap(([key, filter]) => {
+        const column = columnByKey.get(key);
+        if (!column || !isActiveFilter(filter)) return [];
+        return [filter.kind === "value"
+            ? { column, filter: null, values: new Set(filter.values.map(String)) }
+            : { column, filter, values: null }];
+    });
     const search = String(globalSearch || "").trim().toLowerCase();
     const searchableColumns = columns.filter((c) => c.searchable !== false);
 
@@ -171,7 +218,7 @@ export function applyFilters(data, filters, columns, { locale = "en-US", globalS
             const value = getCellValue(row, column);
             if (values) {
                 if (!values.has(String(value))) return false;
-            } else if (!matchesPattern(patternSubject(value, column, locale, row), filter, column.type)) {
+            } else if (filter && !matchesPattern(patternSubject(value, column, locale, row), filter, column.type)) {
                 return false;
             }
         }
@@ -185,6 +232,7 @@ export function applyFilters(data, filters, columns, { locale = "en-US", globalS
     });
 }
 
+/** @param {Filter|null|undefined} filter */
 export function isActiveFilter(filter) {
     if (!filter) return false;
     if (filter.kind === "value") return Array.isArray(filter.values) && filter.values.length > 0;
@@ -200,13 +248,20 @@ export function isActiveFilter(filter) {
 }
 
 // Distinct column values with counts — basis for the value-filter checkbox list.
+/**
+ * @param {Row[]} data
+ * @param {Column} column
+ * @returns {{ value: any, label: string, count: number }[]}
+ */
 export function distinctValues(data, column, locale = "en-US") {
+    /** @type {Map<string, { value: any, label: string, count: number }>} */
     const map = new Map();
     for (const row of data) {
         const raw = getCellValue(row, column);
         const key = String(raw);
-        if (map.has(key)) {
-            map.get(key).count += 1;
+        const entry = map.get(key);
+        if (entry) {
+            entry.count += 1;
         } else {
             map.set(key, { value: raw, label: toText(raw, column, locale, row), count: 1 });
         }
@@ -218,9 +273,9 @@ export function distinctValues(data, column, locale = "en-US") {
 // Short text for an active filter, e.g. "Anna, Ben +2 more" or "between 10 and 20"
 // (shown in the filter summary). Values and operands use the column's display format.
 /**
- * @param {import("../types.js").Filter} filter
- * @param {import("../types.js").Column} column
- * @param {{ t: object, locale?: string, maxValues?: number }} options
+ * @param {Filter} filter
+ * @param {Column & { optionsMap?: Record<string, any>|null }} column
+ * @param {{ t: import("./i18n.js").Translations, locale?: string, maxValues?: number }} options
  * @returns {string}
  */
 export function describeFilter(filter, column, { t, locale = "en-US", maxValues = 3 }) {
@@ -230,16 +285,16 @@ export function describeFilter(filter, column, { t, locale = "en-US", maxValues 
         return labels.length > maxValues ? `${shown} ${t.moreValues(labels.length - maxValues)}` : shown;
     }
     const meta = operatorMeta(column.type, filter.operator);
-    const operator = t.operators[filter.operator] ?? meta?.label ?? filter.operator;
+    const operator = t.operators[/** @type {keyof typeof t.operators} */ (filter.operator)] ?? meta?.label ?? filter.operator;
     const arity = meta?.arity ?? filter.arity ?? 1;
     // Operands without a custom formatter: they are not cell values of a row.
     const plain = { type: column.type, format: column.format, options: column.options, optionsMap: column.optionsMap };
+    /** @param {any} value */
     const operand = (value) => {
         if (typeGroup(column.type) === "text") return t.quoted(String(value));
         // A date input gives "YYYY-MM-DD", which is a local date (as in the filter), not UTC.
-        const local = column.type === "date" && /^\d{4}-\d{2}-\d{2}$/.test(value)
-            ? new Date(...String(value).split("-").map((n, i) => Number(n) - (i === 1 ? 1 : 0)))
-            : value;
+        const [y, m, d] = String(value).split("-").map(Number);
+        const local = column.type === "date" && /^\d{4}-\d{2}-\d{2}$/.test(value) ? new Date(y, m - 1, d) : value;
         return toText(local, plain, locale);
     };
     if (arity === 0) return operator;

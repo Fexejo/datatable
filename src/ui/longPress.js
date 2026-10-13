@@ -4,9 +4,16 @@
 // for `delay` ms without moving more than `tolerance` px, then calls
 // `onPress(x, y)`. Lifting, cancelling, leaving or moving the finger ends the
 // wait. Returns a function that cancels it.
+/**
+ * @param {HTMLElement} node
+ * @param {PointerEvent} event
+ * @param {(x: number, y: number) => void} onPress
+ * @returns {() => void}
+ */
 export function waitForLongPress(node, event, onPress, { delay = 500, tolerance = 10 } = {}) {
     const startX = event.clientX;
     const startY = event.clientY;
+    /** @param {PointerEvent} ev */
     const onMove = (ev) => {
         if (Math.abs(ev.clientX - startX) > tolerance || Math.abs(ev.clientY - startY) > tolerance) cancel();
     };

@@ -3,14 +3,24 @@
 // can be tested and reused in isolation.
 
 // Reads a nested value via a dot path ("address.city").
+/**
+ * @param {any} obj
+ * @param {string} path
+ * @returns {any}
+ */
 export function getByPath(obj, path) {
     if (obj == null || path == null) return undefined;
     if (typeof path !== "string" || path.indexOf(".") === -1) return obj[path];
-    return path.split(".").reduce((acc, key) => (acc == null ? undefined : acc[key]), obj);
+    return path.split(".").reduce((/** @type {any} */ acc, key) => (acc == null ? undefined : acc[key]), obj);
 }
 
 // Resolves the raw cell value. A column may supply the value via `key`
 // (including dot paths) or an `accessor` function.
+/**
+ * @param {import("../types.js").Row|null|undefined} row
+ * @param {Pick<import("../types.js").Column, "key"|"accessor">} column
+ * @returns {any}
+ */
 export function getCellValue(row, column) {
     if (row == null) return undefined;
     if (typeof column.accessor === "function") return column.accessor(row);
@@ -18,6 +28,7 @@ export function getCellValue(row, column) {
 }
 
 // Empty values: null, undefined, empty string, or NaN.
+/** @param {any} value */
 export function isEmptyValue(value) {
     return (
         value === null ||
@@ -28,6 +39,10 @@ export function isEmptyValue(value) {
 }
 
 // Robust date conversion from Date, timestamp (number), or ISO string.
+/**
+ * @param {any} value
+ * @returns {Date|null}
+ */
 export function toDate(value) {
     if (value == null || value === "") return null;
     if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value;
@@ -36,6 +51,10 @@ export function toDate(value) {
 }
 
 // Lenient number parsing (accepts comma as decimal separator).
+/**
+ * @param {any} value
+ * @returns {number}
+ */
 export function toNumber(value) {
     if (typeof value === "number") return value;
     if (value == null || value === "") return NaN;
@@ -44,19 +63,26 @@ export function toNumber(value) {
 }
 
 // Lenient boolean parsing (true, "true", 1, "1", "yes", "ja").
+/** @param {any} value */
 export function toBoolean(value) {
     return value === true || value === 1 || value === "1" || value === "true"
         || value === "yes" || value === "ja";
 }
 
+/**
+ * @template {any[]} A
+ * @param {(...args: A) => void} fn
+ * @returns {((...args: A) => void) & { cancel: () => void }}
+ */
 export function debounce(fn, wait = 200) {
+    /** @type {ReturnType<typeof setTimeout>|undefined} */
     let timer;
+    /** @param {A} args */
     const wrapped = (...args) => {
         clearTimeout(timer);
         timer = setTimeout(() => fn(...args), wait);
     };
-    wrapped.cancel = () => clearTimeout(timer);
-    return wrapped;
+    return Object.assign(wrapped, { cancel: () => clearTimeout(timer) });
 }
 
 let counter = 0;
@@ -65,6 +91,11 @@ export function uid(prefix = "k") {
     return `${prefix}-${Date.now().toString(36)}-${counter}`;
 }
 
+/**
+ * @param {number} value
+ * @param {number} min
+ * @param {number} max
+ */
 export function clamp(value, min, max) {
     return Math.min(Math.max(value, min), max);
 }
@@ -78,7 +109,11 @@ export const TYPE_GROUPS = {
     text: ["string", "text", "enum", "select"]
 };
 
-export function typeGroup(type) {
+/**
+ * @param {string} [type]
+ * @returns {"number"|"date"|"boolean"|"text"}
+ */
+export function typeGroup(type = "string") {
     if (TYPE_GROUPS.number.includes(type)) return "number";
     if (TYPE_GROUPS.date.includes(type)) return "date";
     if (TYPE_GROUPS.boolean.includes(type)) return "boolean";

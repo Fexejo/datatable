@@ -5,9 +5,23 @@ import { el, segmentedEl } from "../ui/dom.js";
 import { operatorsForType, operatorMeta, isActiveFilter } from "../core/filtering.js";
 import { typeGroup, uid } from "../core/util.js";
 
+/** @typedef {import("../core/i18n.js").Translations} Translations */
+/** @typedef {import("../types.js").Filter} Filter */
+/** @typedef {import("../types.js").PatternFilter} PatternFilter */
+/** @typedef {import("../types.js").ValueFilter} ValueFilter */
+/** @typedef {{ value: any, label: string, count: number }} DistinctValue */
+/**
+ * A tab body: its element, the control that takes focus, and the filter it describes.
+ * @typedef {{ el: HTMLElement, focusTarget: HTMLElement, collect: () => Filter|null }} FilterBody
+ */
+
 // `filter`: the column's current filter or null. `values`: the column's
 // distinct values ({ value, label, count }, see `distinctValues`).
 // `onApply(filter)`: called with the new filter, or null to remove it.
+/**
+ * @param {{ t: Translations, column: import("../types.js").NormalizedColumn, filter: Filter|null,
+ *     values: DistinctValue[], onApply: (filter: Filter|null) => void }} options
+ */
 export function buildFilterPanel({ t, column, filter, values, onApply }) {
     const group = typeGroup(column.type);
     let mode = filter ? filter.kind : (group === "text" ? "value" : "pattern");
@@ -18,6 +32,10 @@ export function buildFilterPanel({ t, column, filter, values, onApply }) {
     // Tabs: Left/Right/Home/End switch, one tab stop.
     const id = uid("kdt-flt");
     const tabs = el("div", { class: "k-dt-tabs", role: "tablist", "aria-label": t.filterMode });
+    /**
+     * @param {string} name
+     * @param {string} text
+     */
     const makeTab = (name, text) => el("button", {
         type: "button", class: "k-dt-tab", role: "tab", id: `${id}-${name}-tab`,
         "aria-controls": `${id}-${name}`, text
@@ -29,16 +47,17 @@ export function buildFilterPanel({ t, column, filter, values, onApply }) {
 
     const bodyValue = valueFilter(t, values, filter);
     const bodyPattern = patternFilter(t, column, filter);
-    for (const [name, body] of [["value", bodyValue], ["pattern", bodyPattern]]) {
+    for (const [name, body] of /** @type {[string, FilterBody][]} */ ([["value", bodyValue], ["pattern", bodyPattern]])) {
         body.el.id = `${id}-${name}`;
         body.el.setAttribute("role", "tabpanel");
         body.el.setAttribute("aria-labelledby", `${id}-${name}-tab`);
         panel.appendChild(body.el);
     }
 
+    /** @param {Filter["kind"]} next */
     const setMode = (next, focusTab = false) => {
         mode = next;
-        for (const [tab, body, name] of [[valueTab, bodyValue, "value"], [patternTab, bodyPattern, "pattern"]]) {
+        for (const [tab, body, name] of /** @type {[HTMLElement, FilterBody, string][]} */ ([[valueTab, bodyValue, "value"], [patternTab, bodyPattern, "pattern"]])) {
             const selected = next === name;
             tab.classList.toggle("is-active", selected);
             tab.setAttribute("aria-selected", String(selected));
@@ -73,8 +92,9 @@ export function buildFilterPanel({ t, column, filter, values, onApply }) {
 
     // Enter in the value search, on a search-result option or in a pattern operand applies,
     // like a click on "Apply".
-    const applyOnEnter = (isTarget) => (e) => {
-        if (e.key !== "Enter" || e.isComposing || !isTarget(e.target)) return;
+    /** @param {(target: HTMLInputElement) => boolean} isTarget */
+    const applyOnEnter = (isTarget) => (/** @type {KeyboardEvent} */ e) => {
+        if (e.key !== "Enter" || e.isComposing || !isTarget(/** @type {HTMLInputElement} */ (e.target))) return;
         e.preventDefault();
         applyButton.click();
     };
@@ -84,6 +104,12 @@ export function buildFilterPanel({ t, column, filter, values, onApply }) {
 }
 
 // Checkbox list of the distinct values with a search field.
+/**
+ * @param {Translations} t
+ * @param {DistinctValue[]} values
+ * @param {Filter|null} existing
+ * @returns {FilterBody}
+ */
 function valueFilter(t, values, existing) {
     const container = el("div", { class: "k-dt-filter-body" });
     const selected = new Set(
@@ -94,10 +120,14 @@ function valueFilter(t, values, existing) {
     // filter becomes either only the checked matches or (with "add") the
     // checked matches plus the selection from before the search. Clearing
     // the search restores that earlier selection.
-    let baseline = null;   // Map<label element, checked> captured when a search starts
+    /** @type {Map<HTMLElement, boolean>|null} */
+    let baseline = null;   // captured when a search starts
+    /** @returns {HTMLElement[]} */
     const checkboxes = () => Array.from(list.querySelectorAll(".k-dt-check"));
+    /** @param {HTMLElement} label */
     const isVisible = (label) => label.style.display !== "none";
-    const boxOf = (label) => label.querySelector('input[type="checkbox"]');
+    /** @param {HTMLElement} label */
+    const boxOf = (label) => /** @type {HTMLInputElement} */ (label.querySelector('input[type="checkbox"]'));
     const syncToggleAll = () => {
         const visible = checkboxes().filter(isVisible);
         toggleAllBox.checked = visible.length > 0 && visible.every((label) => boxOf(label).checked);
@@ -109,13 +139,13 @@ function valueFilter(t, values, existing) {
         placeholder: t.searchValues,
         "aria-label": t.searchValues,
         oninput: (e) => {
-            const q = e.target.value.trim().toLowerCase();
+            const q = e.currentTarget.value.trim().toLowerCase();
             if (q && !baseline) baseline = new Map(checkboxes().map((label) => [label, boxOf(label).checked]));
             checkboxes().forEach((label) => {
-                const match = !q || label.dataset.label.includes(q);
+                const match = !q || (label.dataset.label ?? "").includes(q);
                 label.style.display = match ? "" : "none";
                 // Matches start checked; everything else keeps the earlier selection.
-                if (baseline) boxOf(label).checked = (q && match) || baseline.get(label);
+                if (baseline) boxOf(label).checked = (!!q && match) || !!baseline.get(label);
             });
             if (!q) baseline = null;
             toggleAllText.textContent = q ? t.selectAllResults : t.selectAll;
@@ -130,7 +160,7 @@ function valueFilter(t, values, existing) {
         checked: selected.size === values.length,
         onchange: (e) => {
             checkboxes().forEach((label) => {
-                if (isVisible(label)) boxOf(label).checked = e.target.checked;
+                if (isVisible(label)) boxOf(label).checked = e.currentTarget.checked;
             });
         }
     });
@@ -161,13 +191,14 @@ function valueFilter(t, values, existing) {
         el: container,
         focusTarget: search,
         collect: () => {
-            const add = !searchMode.hidden && searchMode.querySelector('input[value="add"]').checked;
+            const add = !searchMode.hidden && /** @type {HTMLInputElement} */ (searchMode.querySelector('input[value="add"]')).checked;
+            /** @type {any[]} */
             const chosen = [];
             checkboxes().forEach((label) => {
                 const take = searchMode.hidden
                     ? boxOf(label).checked
                     : isVisible(label)
-                        ? boxOf(label).checked || (add && baseline.get(label))
+                        ? boxOf(label).checked || (add && baseline?.get(label))
                         : add && boxOf(label).checked;
                 if (take) {
                     const original = values.find((v) => String(v.value) === label.dataset.value);
@@ -182,6 +213,12 @@ function valueFilter(t, values, existing) {
 }
 
 // Operator select plus zero, one or two operand fields.
+/**
+ * @param {Translations} t
+ * @param {import("../types.js").Column} column
+ * @param {Filter|null} existing
+ * @returns {FilterBody}
+ */
 function patternFilter(t, column, existing) {
     const container = el("div", { class: "k-dt-filter-body" });
     const operators = operatorsForType(column.type);
@@ -201,13 +238,17 @@ function patternFilter(t, column, existing) {
         class: "k-dt-select",
         id: selectId,
         onchange: () => renderOperands()
-    }, operators.map((op) => el("option", { value: op.id, text: t.operators[op.id] ?? op.label, selected: current && current.operator === op.id })));
+    }, operators.map((op) => el("option", {
+        value: op.id,
+        text: t.operators[/** @type {keyof typeof t.operators} */ (op.id)] ?? op.label,
+        selected: current && current.operator === op.id
+    })));
 
     const renderOperands = () => {
         const n = arity();
         operand1.setAttribute("aria-label", n >= 2 ? t.operandFrom : t.operandValue);
         operand2.setAttribute("aria-label", t.operandTo);
-        operandWrap.replaceChildren(...[n >= 1 && operand1, n >= 2 && operand2].filter(Boolean));
+        operandWrap.replaceChildren(...[operand1, operand2].slice(0, n));
     };
     renderOperands();
 
@@ -222,6 +263,7 @@ function patternFilter(t, column, existing) {
         focusTarget: select,
         collect: () => {
             const n = arity();
+            /** @type {PatternFilter} */
             const filter = { kind: "pattern", operator: select.value, arity: n };
             if (n >= 1) filter.operand = operand1.value;
             if (n >= 2) filter.operand2 = operand2.value;

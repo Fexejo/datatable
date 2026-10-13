@@ -4,12 +4,14 @@
 
 import { datatableStyles } from "./styles.js";
 
+/** @type {CSSStyleSheet|null} */
 let componentSheet = null;
 
 function supportsAdoptedStyles() {
     return typeof CSSStyleSheet === "function" && "adoptedStyleSheets" in ShadowRoot.prototype;
 }
 
+/** @param {ShadowRoot} root */
 export function applyStyles(root, extra = "") {
     if (!supportsAdoptedStyles()) {
         const style = root.querySelector("style") || root.appendChild(document.createElement("style"));

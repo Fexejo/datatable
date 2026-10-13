@@ -4,10 +4,23 @@
 import { isEmptyValue, toDate, toBoolean } from "./util.js";
 import { getTranslations } from "./i18n.js";
 
+/** @typedef {import("../types.js").ColumnFormat} ColumnFormat */
+/**
+ * What formatting reads of a column (operands are formatted without a formatter).
+ * @typedef {Pick<import("../types.js").Column, "formatter"|"emptyText"|"type"|"format"|"options">
+ *     & { optionsMap?: Record<string, any>|null }} FormatColumn
+ */
+
 // Intl formatters are expensive to create — simple memoization.
+/** @type {Map<string, Intl.NumberFormat>} */
 const numberCache = new Map();
+/** @type {Map<string, Intl.DateTimeFormat>} */
 const dateCache = new Map();
 
+/**
+ * @param {string} locale
+ * @param {Intl.NumberFormatOptions} options
+ */
 function numberFormatter(locale, options) {
     const key = locale + "|" + JSON.stringify(options);
     let f = numberCache.get(key);
@@ -18,6 +31,10 @@ function numberFormatter(locale, options) {
     return f;
 }
 
+/**
+ * @param {string} locale
+ * @param {Intl.DateTimeFormatOptions} options
+ */
 function dateFormatter(locale, options) {
     const key = locale + "|" + JSON.stringify(options);
     let f = dateCache.get(key);
@@ -28,7 +45,9 @@ function dateFormatter(locale, options) {
     return f;
 }
 
+/** @param {ColumnFormat} fmt */
 function numberOptions(fmt) {
+    /** @type {Intl.NumberFormatOptions} */
     const options = {};
     if (fmt.decimals != null) {
         options.minimumFractionDigits = fmt.decimals;
@@ -40,6 +59,7 @@ function numberOptions(fmt) {
     return options;
 }
 
+/** @type {Record<string, Intl.DateTimeFormatOptions>} */
 const DATE_DEFAULTS = {
     date: { year: "numeric", month: "2-digit", day: "2-digit" },
     datetime: { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" },
@@ -47,9 +67,15 @@ const DATE_DEFAULTS = {
 };
 
 // Display-ready value. Usually a string; custom `formatter` may return a DOM node.
+/**
+ * @param {any} value
+ * @param {FormatColumn} column
+ * @param {import("../types.js").Row|null} [row]
+ * @returns {string|Node}
+ */
 export function formatValue(value, column, locale = "en-US", row = null) {
     if (typeof column.formatter === "function") {
-        return column.formatter(value, { row, column, locale });
+        return column.formatter(value, { row, column: /** @type {import("../types.js").Column} */ (column), locale });
     }
     if (isEmptyValue(value)) return column.emptyText ?? "";
 
@@ -66,6 +92,7 @@ export function formatValue(value, column, locale = "en-US", row = null) {
         case "integer": {
             const num = Number(value);
             if (Number.isNaN(num)) return String(value);
+            /** @type {Intl.NumberFormatOptions} */
             const options = { maximumFractionDigits: 0 };
             if (fmt.grouping === false) options.useGrouping = false;
             return numberFormatter(locale, options).format(num);
@@ -73,6 +100,7 @@ export function formatValue(value, column, locale = "en-US", row = null) {
         case "currency": {
             const num = Number(value);
             if (Number.isNaN(num)) return String(value);
+            /** @type {Intl.NumberFormatOptions} */
             const options = { style: "currency", currency: fmt.currency ?? "EUR", ...numberOptions(fmt) };
             return numberFormatter(locale, options).format(num);
         }
@@ -82,6 +110,7 @@ export function formatValue(value, column, locale = "en-US", row = null) {
             // Default: value is a fraction (0.5 -> 50%). With `asNumber: true` the value is
             // already scaled (50 -> 50%).
             const fraction = fmt.asNumber ? num / 100 : num;
+            /** @type {Intl.NumberFormatOptions} */
             const options = { style: "percent", ...numberOptions(fmt) };
             if (fmt.decimals == null && fmt.maximumFractionDigits == null) options.maximumFractionDigits = 1;
             return numberFormatter(locale, options).format(fraction);
@@ -114,6 +143,12 @@ export function formatValue(value, column, locale = "en-US", row = null) {
 
 // Plain cell text — for CSV export, copy, and global search.
 // Falls back to textContent or raw value when a node is returned.
+/**
+ * @param {any} value
+ * @param {FormatColumn} column
+ * @param {import("../types.js").Row|null} [row]
+ * @returns {string}
+ */
 export function toText(value, column, locale = "en-US", row = null) {
     const out = formatValue(value, column, locale, row);
     if (typeof out === "string") return out;

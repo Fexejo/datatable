@@ -46,7 +46,7 @@ const ICONS = {
  * @returns {SVGSVGElement}
  */
 export function createIcon(name, { label } = {}) {
-    const svg = iconTemplate(name).cloneNode(true);
+    const svg = /** @type {SVGSVGElement} */ (iconTemplate(name).cloneNode(true));
     if (label) {
         svg.setAttribute("role", "img");
         svg.setAttribute("aria-label", label);
@@ -58,8 +58,10 @@ export function createIcon(name, { label } = {}) {
 
 // Parsed once per name and cloned afterwards: a large table shows an icon in
 // every copyable cell, and cloning is much cheaper than parsing the markup.
+/** @type {Map<string, SVGSVGElement>} */
 const templates = new Map();
 
+/** @param {string} name */
 function iconTemplate(name) {
     let svg = templates.get(name);
     if (svg) return svg;

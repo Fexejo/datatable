@@ -9,6 +9,12 @@ import { el, iconEl } from "../ui/dom.js";
 // Returns { panel, refresh(focusIndex) }: `refresh` rebuilds the list after a
 // removal and focuses the remove button at `focusIndex` (or the last one).
 // `focusId` marks the entry that takes focus when the panel opens.
+/**
+ * @param {{ t: import("../core/i18n.js").Translations, entries: () => { id: string, label: string, value: string }[],
+ *     focusId?: string|null, onEdit: (id: string) => void, onRemove: (id: string) => void,
+ *     onClearAll: () => void, onClose: () => void }} options
+ * @returns {{ panel: HTMLElement, refresh: (focusIndex: number) => void }}
+ */
 export function buildFilterSummary({ t, entries, focusId = null, onEdit, onRemove, onClearAll, onClose }) {
     const list = el("ul", { class: "k-dt-fsum-items", "aria-label": t.filterSummaryTitle });
     const panel = el("div", { class: "k-dt-panel k-dt-fsum-panel" }, [
@@ -22,6 +28,7 @@ export function buildFilterSummary({ t, entries, focusId = null, onEdit, onRemov
         ])
     ]);
 
+    /** @param {string|null} autofocusId */
     const render = (autofocusId) => {
         list.replaceChildren(...entries().map(({ id, label, value }) => el("li", { class: "k-dt-fsum-item" }, [
             el("button", {
@@ -48,10 +55,14 @@ export function buildFilterSummary({ t, entries, focusId = null, onEdit, onRemov
     };
     render(focusId);
 
+    /** @param {number} focusIndex */
     const refresh = (focusIndex) => {
         render(null);
+        /** @type {NodeListOf<HTMLElement>} */
         const buttons = list.querySelectorAll('[data-fk^="fsum:remove:"]');
-        (buttons[Math.min(focusIndex, buttons.length - 1)] ?? panel.querySelector('[data-fk="fsum:clear"]')).focus();
+        /** @type {HTMLElement|null} */
+        const target = buttons[Math.min(focusIndex, buttons.length - 1)] ?? panel.querySelector('[data-fk="fsum:clear"]');
+        target?.focus();
     };
     return { panel, refresh };
 }

@@ -10,7 +10,9 @@
 const SR_ONLY_STYLE = "position:absolute;width:1px;height:1px;margin:-1px;padding:0;border:0;"
     + "overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap;";
 
+/** @returns {HTMLElement} */
 export function getAnnouncer() {
+    /** @type {HTMLElement|null} */
     let node = document.querySelector("body > [data-jw-datatable-announcer]");
     if (!node) {
         node = document.createElement("div");
@@ -27,12 +29,15 @@ export function getAnnouncer() {
 // text is written, since an action may close a modal panel (which has its
 // own region) right after announcing.
 export class Announcer {
+    /** @param {() => HTMLElement} [target] */
     constructor(target = getAnnouncer) {
         this._target = target;
-        this._timer = null;
+        /** @type {ReturnType<typeof setTimeout>|undefined} */
+        this._timer = undefined;
         this._toggle = false;
     }
 
+    /** @param {string|null|undefined} message */
     announce(message) {
         if (!message) return;
         clearTimeout(this._timer);

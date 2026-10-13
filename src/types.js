@@ -5,8 +5,8 @@
 
 /**
  * @typedef {object} DataTableConfig
- * @property {Column[]} columns                 Column definitions.
- * @property {object[]} [data]                  Row objects.
+ * @property {Column[]} [columns]               Column definitions.
+ * @property {Row[]} [data]                     Row objects.
  * @property {string} [id]                      Namespace of the saved views (default "default").
  * @property {string} [title]                   Toolbar title; also names the table for assistive tech.
  * @property {string} [locale]                  BCP-47 locale: formatting, sorting and UI language (default "en-US").
@@ -27,10 +27,12 @@
  * @property {string} [exportFilename]          Base of the default export file name.
  * @property {Partial<ExportOptions>} [exportDefaults]
  * @property {string} [styles]                  Extra CSS for this table.
- * @property {(row: object, index: number) => string} [rowClass]
- * @property {(row: object, index: number) => void} [onRowClick]
- * @property {(value: any, row: object, column: Column) => void} [onCellClick]
+ * @property {(row: Row, index: number) => string} [rowClass]
+ * @property {(row: Row, index: number) => void} [onRowClick]
+ * @property {(value: any, row: Row, column: Column) => void} [onCellClick]
  */
+
+/** @typedef {Record<string, any>} Row A data row; columns read it by key or accessor. */
 
 /**
  * Opt-in features are off unless enabled; pagination, context menu, copy
@@ -60,10 +62,11 @@
  * @property {string} key                       Field of the row; dot paths work ("address.city").
  * @property {string} [label]                   Header (default: key).
  * @property {string} [type]                    "string", "number", "currency", "date", "boolean", "enum", … (default "string").
- * @property {(row: object) => any} [accessor]  Value instead of `key`.
- * @property {object} [format]                  Type-dependent format options.
- * @property {(value: any, ctx: { row: object, column: Column, locale: string }) => string|Node} [formatter]
- * @property {(value: any, ctx: object) => any} [exportFormatter]
+ * @property {(row: Row) => any} [accessor]     Value instead of `key`.
+ * @property {ColumnFormat} [format]            Type-dependent format options.
+ * @property {(value: any, ctx: { row: Row|null, column: Column, locale: string }) => string|Node} [formatter]
+ * @property {(value: any, ctx: { row: Row, column: Column, locale: string, localized: boolean, format: string }) => any} [exportFormatter]
+ * @property {string} [emptyText]               Shown for empty values (default "").
  * @property {{ value: any, label?: string }[]} [options] Labels of enum/select values.
  * @property {"left"|"right"|"center"} [align]
  * @property {string} [width]
@@ -78,16 +81,40 @@
  * @property {boolean} [searchable]
  * @property {boolean} [exportable]
  * @property {boolean} [copyable]
- * @property {string|((row: object, value: any) => string)|ColumnLink} [link]
- * @property {(row: object, value: any, event: Event) => void} [action]
- * @property {(value: any, row: object) => string} [cellClass]
+ * @property {((row: Row, value: any) => string)|ColumnLink} [link]
+ * @property {(row: Row, value: any, event: Event) => void} [action]
+ * @property {(value: any, row: Row) => string} [cellClass]
+ */
+
+/**
+ * Format options; which apply depends on the column type (README "Formatting").
+ * @typedef {object} ColumnFormat
+ * @property {number} [decimals]
+ * @property {number} [minimumFractionDigits]
+ * @property {number} [maximumFractionDigits]
+ * @property {boolean} [grouping]
+ * @property {string} [currency]
+ * @property {boolean} [asNumber]               Percent: the value is 0–100, not 0–1.
+ * @property {string} [trueLabel]
+ * @property {string} [falseLabel]
+ * @property {Intl.DateTimeFormatOptions} [options]
+ * @property {Record<string, string>} [labels]  Enum/select labels by value.
+ */
+
+/**
+ * A column with the defaults filled in (core/columns.js `normalizeColumns`).
+ * @typedef {Omit<Column, "link"> & {
+ *     label: string, type: string, align: "left"|"right"|"center",
+ *     sortable: boolean, filterable: boolean, copyable: boolean, hidden: boolean, pinned: boolean,
+ *     link?: ColumnLink, optionsMap: Record<string, any>|null
+ * }} NormalizedColumn
  */
 
 /**
  * @typedef {object} ColumnLink
- * @property {string|((row: object, value: any) => string)} [url]
+ * @property {string|((row: Row, value: any) => string)} [url]
  * @property {boolean} [spa]                    Emit `jw-datatable:navigate` instead of navigating.
- * @property {(row: object, value: any, event: Event) => void} [handler]
+ * @property {(row: Row, value: any, event: Event) => void} [handler]
  */
 
 /** @typedef {{ key: string, direction: "asc"|"desc" }} SortSpec */

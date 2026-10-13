@@ -1,0 +1,15 @@
+{
+    // Type check of the JSDoc-annotated sources — no emit (npm run typecheck).
+    "compilerOptions": {
+        "allowJs": true,
+        "checkJs": true,
+        "noEmit": true,
+        "strict": true,
+        "target": "es2023",
+        "module": "nodenext",
+        "lib": ["es2023", "dom", "dom.iterable"],
+        "types": [],
+        "skipLibCheck": true
+    },
+    "include": ["datatable.js", "src/**/*.js"]
+}

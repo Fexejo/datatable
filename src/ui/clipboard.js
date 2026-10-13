@@ -6,6 +6,10 @@ let fallbackActive = false;
 
 // Writes `text` to the clipboard. Falls back to `execCommand("copy")` where
 // the async Clipboard API is missing or refused (e.g. plain HTTP).
+/**
+ * @param {string} text
+ * @returns {Promise<void>}
+ */
 export function writeClipboard(text) {
     if (!navigator.clipboard?.writeText) {
         fallbackCopy(text);
@@ -16,6 +20,7 @@ export function writeClipboard(text) {
 
 // The helper textarea needs focus for execCommand; focus is put back
 // afterwards so keyboard and screen-reader users stay where they were.
+/** @param {string} text */
 function fallbackCopy(text) {
     const previous = deepActiveElement();
     const ta = el("textarea", { value: text, readOnly: true, "aria-hidden": "true", tabIndex: -1 });
@@ -37,13 +42,17 @@ function fallbackCopy(text) {
 // Screen readers announce name changes of the focused element; unlike live
 // regions this does not depend on settings (NVDA "report dynamic content
 // changes"). Used instead of — not in addition to — a live region.
+/**
+ * @param {HTMLElement} button
+ * @param {string} message
+ */
 export function confirmOnButton(button, message) {
     if (button.dataset.label == null) {
         button.dataset.label = button.getAttribute("aria-label") || "";
         const onBlur = () => {
             if (fallbackActive) return;   // the helper textarea took focus briefly
             button.removeEventListener("blur", onBlur);
-            button.setAttribute("aria-label", button.dataset.label);
+            button.setAttribute("aria-label", button.dataset.label ?? "");
             delete button.dataset.label;
             setCopied(button, false);
         };
@@ -57,6 +66,7 @@ export function confirmOnButton(button, message) {
 }
 
 // Shows the check icon briefly (the message goes to a live region instead).
+/** @param {HTMLElement & { _copiedTimer?: ReturnType<typeof setTimeout> }} button */
 export function flashCopied(button) {
     setCopied(button, true);
     clearTimeout(button._copiedTimer);
@@ -66,6 +76,10 @@ export function flashCopied(button) {
 }
 
 // Visual copy confirmation: check icon + accent color.
+/**
+ * @param {HTMLElement} button
+ * @param {boolean} copied
+ */
 function setCopied(button, copied) {
     button.classList.toggle("is-copied", copied);
     button.replaceChildren(iconEl(copied ? "check" : "copy"));

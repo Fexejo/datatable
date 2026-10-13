@@ -11,6 +11,8 @@
 /** @typedef {import("../types.js").TableState} TableState */
 /** @typedef {import("../types.js").SerializedState} SerializedState */
 /** @typedef {import("../types.js").Column} Column */
+/** @typedef {import("../types.js").Filter} Filter */
+/** @typedef {import("../types.js").Layout} Layout */
 
 import { applyFilters, isActiveFilter } from "./filtering.js";
 import { sortData } from "./comparators.js";
@@ -20,13 +22,13 @@ import { paginate } from "./pagination.js";
 // `defaults`: { pageSize, layout } used when `initial` has none.
 /**
  * @param {Column[]} columns
- * @param {Partial<SerializedState>} [initial]
- * @param {{ pageSize?: number, layout?: string }} [defaults]
+ * @param {Partial<SerializedState>} initialState
+ * @param {{ pageSize: number, layout?: Layout }} defaults
  * @returns {TableState}
  */
-export function createState(columns, initial = {}, defaults = {}) {
+export function createState(columns, initialState, defaults) {
     const keys = columns.map((c) => c.key);
-    initial = knownColumnsOnly(initial, keys);
+    const initial = knownColumnsOnly(initialState, keys);
     return {
         sort: initial.sort ? initial.sort.slice() : [],
         filters: copyFilters(initial.filters),
@@ -70,6 +72,7 @@ export function mergeState(state, partial, keys) {
  * @returns {SerializedState}
  */
 export function serializeState(state, { includePage = true } = {}) {
+    /** @type {Record<string, Filter>} */
     const filters = {};
     for (const [key, filter] of Object.entries(state.filters)) {
         if (!isActiveFilter(filter)) continue;
@@ -77,6 +80,7 @@ export function serializeState(state, { includePage = true } = {}) {
             ? { kind: "value", values: filter.values.slice() }
             : { kind: "pattern", operator: filter.operator, operand: filter.operand, operand2: filter.operand2, arity: filter.arity };
     }
+    /** @type {SerializedState} */
     const result = {
         sort: state.sort.slice(),
         filters,
@@ -93,6 +97,7 @@ export function serializeState(state, { includePage = true } = {}) {
 
 // A serialized view state with order-independent parts sorted, so the same
 // view reached by different clicks compares equal.
+/** @param {SerializedState} viewState */
 export function viewSignature(viewState) {
     const state = { ...viewState, hiddenColumns: viewState.hiddenColumns.slice().sort() };
     state.filters = Object.fromEntries(Object.entries(viewState.filters)
@@ -101,7 +106,12 @@ export function viewSignature(viewState) {
     return JSON.stringify(state);
 }
 
+/**
+ * @param {Record<string, Filter>} [filters]
+ * @returns {Record<string, Filter>}
+ */
 function copyFilters(filters) {
+    /** @type {Record<string, Filter>} */
     const result = {};
     for (const [key, filter] of Object.entries(filters || {})) {
         if (filter && filter.kind) result[key] = { ...filter };
@@ -110,6 +120,7 @@ function copyFilters(filters) {
 }
 
 // Number of active filters, counting the global search as one.
+/** @param {TableState} state */
 export function activeFilterCount(state, { globalSearch = true } = {}) {
     const count = Object.values(state.filters).filter(isActiveFilter).length;
     return count + (globalSearch && state.globalSearch ? 1 : 0);
@@ -119,6 +130,11 @@ export function activeFilterCount(state, { globalSearch = true } = {}) {
 
 // Column keys in the given order; unknown and repeated keys are dropped,
 // missing columns keep their configured order at the end.
+/**
+ * @param {string[]|undefined} order
+ * @param {string[]} keys
+ * @returns {string[]}
+ */
 export function normalizeOrder(order, keys) {
     const known = (Array.isArray(order) ? order : []).filter((key, i, all) => keys.includes(key) && all.indexOf(key) === i);
     return [...known, ...keys.filter((key) => !known.includes(key))];
@@ -126,28 +142,47 @@ export function normalizeOrder(order, keys) {
 
 // Drops references to columns that do not exist (e.g. in a view saved
 // before the column configuration changed).
+/**
+ * @param {Partial<SerializedState>} state
+ * @param {string[]} keys
+ * @returns {Partial<SerializedState>}
+ */
 export function knownColumnsOnly(state, keys) {
     const known = new Set(keys);
     const result = { ...state };
     if (Array.isArray(state.sort)) result.sort = state.sort.filter((s) => known.has(s?.key));
     if (state.filters) result.filters = Object.fromEntries(Object.entries(state.filters).filter(([key]) => known.has(key)));
-    for (const list of ["hiddenColumns", "pinnedColumns"]) {
-        if (Array.isArray(state[list])) result[list] = state[list].filter((key) => known.has(key));
+    for (const list of /** @type {const} */ (["hiddenColumns", "pinnedColumns"])) {
+        const value = state[list];
+        if (Array.isArray(value)) result[list] = value.filter((key) => known.has(key));
     }
     return result;
 }
 
 // Keys of the pinned columns, or none when pinning is off.
+/**
+ * @param {TableState} state
+ * @param {boolean} pinning
+ * @returns {string[]}
+ */
 export function pinnedKeys(state, pinning) {
     return pinning ? state.pinnedColumns : [];
 }
 
 // All columns (including hidden ones) in display order: pinned columns
 // first (in pin order), then the others in `columnOrder`.
+/**
+ * @template {Column} C
+ * @param {C[]} columns
+ * @param {TableState} state
+ * @returns {C[]}
+ */
 export function orderedColumns(columns, state, { pinning = false } = {}) {
     const byKey = new Map(columns.map((c) => [c.key, c]));
-    const ordered = state.columnOrder.map((key) => byKey.get(key)).filter(Boolean);
-    const pinned = pinnedKeys(state, pinning).map((key) => byKey.get(key)).filter(Boolean);
+    /** @param {string[]} keys */
+    const lookup = (keys) => keys.flatMap((key) => byKey.get(key) ?? []);
+    const ordered = lookup(state.columnOrder);
+    const pinned = lookup(pinnedKeys(state, pinning));
     return pinned.length ? [...pinned, ...ordered.filter((c) => !pinned.includes(c))] : ordered;
 }
 
@@ -157,11 +192,19 @@ export function orderedColumns(columns, state, { pinning = false } = {}) {
 // unpinned; right at the boundary it keeps its state.
 // Returns { pinnedColumns, columnOrder, pinned, wasPinned }, or null when
 // nothing moves.
+/**
+ * @param {TableState} state
+ * @param {string[]} keys
+ * @param {string} key
+ * @param {number} target
+ * @returns {{ pinnedColumns: string[], columnOrder: string[], pinned: boolean, wasPinned: boolean }|null}
+ */
 export function moveColumn(state, keys, key, target, { pinning = false } = {}) {
     const from = keys.indexOf(key);
     if (from < 0) return null;
     target = Math.min(Math.max(target, 0), keys.length - 1);
     if (target === from) return null;
+    /** @param {string} k */
     const isPinned = (k) => pinnedKeys(state, pinning).includes(k);
     const wasPinned = isPinned(key);
     const rest = keys.filter((k) => k !== key);
@@ -195,10 +238,12 @@ export function moveColumn(state, keys, key, target, { pinning = false } = {}) {
 // (`pageData`, all rows without pagination). `page` is clamped to the pages
 // that exist.
 /**
- * @param {object[]} source
+ * @template {import("../types.js").Row} R
+ * @param {R[]} source
  * @param {TableState} state
  * @param {Column[]} columns
- * @returns {{ viewData: object[], pageData: object[], page: number, pageCount: number }}
+ * @param {{ locale?: string, globalSearch?: boolean, pagination?: boolean }} [options]
+ * @returns {{ viewData: R[], pageData: R[], page: number, pageCount: number }}
  */
 export function deriveRows(source, state, columns, { locale, globalSearch = true, pagination = true } = {}) {
     const filtered = applyFilters(source, state.filters, columns, {

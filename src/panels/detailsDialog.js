@@ -8,11 +8,24 @@ import { clamp } from "../core/util.js";
 // `title(row)`: short name of a record ("" if none). `fields(row)`: its
 // label/value list. `onNavigate(row, message)`: after previous/next.
 // `onOpen(row)`: optional primary action ("Open"). `onClose()`.
+/** @typedef {import("../types.js").Row} Row */
+/**
+ * @param {{ t: import("../core/i18n.js").Translations, rows: () => Row[], index: number,
+ *     title: (row: Row) => string, fields: (row: Row) => Node,
+ *     onNavigate: (row: Row, message: string) => void, onOpen?: ((row: Row) => void)|null,
+ *     onClose: () => void }} options
+ */
 export function buildDetailsDialog({ t, rows, index, title, fields, onNavigate, onOpen, onClose }) {
     let current = index;
     const head = el("h2", { class: "k-dt-panel-head", tabIndex: -1, "data-autofocus": "" });
     const position = el("p", { class: "k-dt-details-pos" });
     const body = el("div", { class: "k-dt-details-body" });
+    /**
+     * @param {string} icon
+     * @param {string} text
+     * @param {string} label
+     * @param {number} step
+     */
     const navButton = (icon, text, label, step) => el("button", {
         type: "button",
         class: "k-dt-btn",
@@ -31,6 +44,10 @@ export function buildDetailsDialog({ t, rows, index, title, fields, onNavigate, 
         }));
     }
 
+    /**
+     * @param {number} target
+     * @param {boolean} navigated
+     */
     const show = (target, navigated) => {
         const all = rows();
         current = clamp(target, 0, all.length - 1);
@@ -43,7 +60,8 @@ export function buildDetailsDialog({ t, rows, index, title, fields, onNavigate, 
         next.disabled = current >= all.length - 1;
         if (!navigated) return;
         // Focus stays on the pressed button, or moves to the other one at an end.
-        if (deepActiveElement()?.disabled || !deepActiveElement()) (prev.disabled ? next : prev).focus();
+        const active = /** @type {(HTMLElement & { disabled?: boolean })|null} */ (deepActiveElement());
+        if (!active || active.disabled) (prev.disabled ? next : prev).focus();
         onNavigate(record, name ? `${position.textContent}: ${name}` : position.textContent);
     };
 

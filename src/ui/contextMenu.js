@@ -10,11 +10,25 @@
 import { createIcon } from "./icons.js";
 import { deepActiveElement, focusIsLost, placePopup } from "./dom.js";
 
+/**
+ * @typedef {object} MenuItem
+ * @property {boolean} [separator]
+ * @property {string} [label]
+ * @property {string} [icon]
+ * @property {boolean} [danger]
+ * @property {boolean} [disabled]
+ * @property {boolean|null} [checked]
+ * @property {(event: MouseEvent) => void} [onSelect]
+ * @property {(MenuItem|null|false|undefined)[]} [submenu]
+ */
+
+/** @type {{ el: HTMLElement, restoreFocus?: () => void, cleanup: () => void }|null} */
 let activeMenu = null;
 
 // items: array of
 //   { separator: true }
 //   { label, icon?, danger?, disabled?, checked?, onSelect?, submenu?: items[] }
+//   (null/false entries are skipped)
 //
 // options:
 //   x, y          pointer position (ignored for `sheet`)
@@ -23,10 +37,16 @@ let activeMenu = null;
 //   restoreFocus  () => void — called after a keyboard close / activation when
 //                 focus would otherwise be lost
 //   onClose       () => void
-export function openContextMenu(root, { x, y, items, label, onClose, restoreFocus, sheet = false } = {}) {
+/**
+ * @param {Node} root
+ * @param {{ x: number, y: number, items: (MenuItem|null|false|undefined)[], label?: string,
+ *     onClose?: () => void, restoreFocus?: () => void, sheet?: boolean }} options
+ * @returns {HTMLElement}
+ */
+export function openContextMenu(root, { x, y, items, label, onClose, restoreFocus, sheet = false }) {
     closeContextMenu();
 
-    const menu = buildMenu(items, (options) => closeContextMenu(options));
+    const menu = buildMenu(items, () => closeContextMenu());
     if (label) menu.setAttribute("aria-label", label);
     if (sheet) menu.classList.add("k-ctx-menu--sheet");
     // The menu lives outside the table root, so suppress the native menu here too
@@ -39,16 +59,19 @@ export function openContextMenu(root, { x, y, items, label, onClose, restoreFocu
     if (!sheet) placePopup(menu, x, y);
     focusItem(menuItems(menu)[0]);
 
+    /** @param {PointerEvent} event */
     const handleOutside = (event) => {
         const path = event.composedPath ? event.composedPath() : [event.target];
         if (!path.includes(menu)) closeContextMenu();
     };
     // Escape while focus is elsewhere (e.g. menu opened by pointer).
+    /** @param {KeyboardEvent} event */
     const handleKey = (event) => {
         if (event.key === "Escape") closeContextMenu({ restoreFocus: true });
     };
     // Only a real window blur (switching apps/tabs) — element blurs inside the
     // page also reach a capturing window listener.
+    /** @param {FocusEvent} event */
     const handleBlur = (event) => {
         if (event.target === window) closeContextMenu();
     };
@@ -90,12 +113,19 @@ export function closeContextMenu({ restoreFocus = false } = {}) {
 
 // ---- Keyboard -------------------------------------------------------------
 
+/**
+ * @param {Element|null} menu
+ * @returns {HTMLElement[]}
+ */
 function menuItems(menu) {
+    if (!menu) return [];
     // Direct items of this menu level only (submenu items belong to their own level).
     return Array.from(menu.querySelectorAll('[role^="menuitem"]'))
-        .filter((item) => item.closest('[role="menu"]') === menu);
+        .filter((item) => item.closest('[role="menu"]') === menu)
+        .map((item) => /** @type {HTMLElement} */ (item));
 }
 
+/** @param {HTMLElement|null|undefined} item */
 function focusItem(item) {
     if (!item) return;
     const menu = item.closest('[role="menu"]');
@@ -104,25 +134,33 @@ function focusItem(item) {
     item.focus();
 }
 
+/** @param {HTMLElement} entry */
 function openSubmenu(entry) {
-    const wrap = entry.parentElement;
+    const wrap = /** @type {HTMLElement} */ (entry.parentElement);
     wrap.classList.add("is-open");
     entry.setAttribute("aria-expanded", "true");
     focusItem(menuItems(wrap.querySelector('[role="menu"]'))[0]);
 }
 
+/** @param {Element} submenu */
 function closeSubmenu(submenu) {
-    const wrap = submenu.parentElement;
+    const wrap = /** @type {HTMLElement} */ (submenu.parentElement);
+    /** @type {HTMLElement|null} */
     const entry = wrap.querySelector(':scope > [role^="menuitem"]');
     wrap.classList.remove("is-open");
-    entry.setAttribute("aria-expanded", "false");
+    entry?.setAttribute("aria-expanded", "false");
     focusItem(entry);
 }
 
+/**
+ * @param {KeyboardEvent} event
+ * @param {HTMLElement} rootMenu
+ */
 function handleMenuKey(event, rootMenu) {
-    const item = event.target.closest('[role^="menuitem"]');
+    /** @type {HTMLElement|null} */
+    const item = /** @type {Element} */ (event.target).closest('[role^="menuitem"]');
     if (!item) return;
-    const menu = item.closest('[role="menu"]');
+    const menu = /** @type {HTMLElement} */ (item.closest('[role="menu"]'));
     const items = menuItems(menu);
     const index = items.indexOf(item);
     const isSub = menu !== rootMenu;
@@ -164,6 +202,11 @@ function handleMenuKey(event, rootMenu) {
 
 // ---- Building -------------------------------------------------------------
 
+/**
+ * @param {(MenuItem|null|false|undefined)[]} items
+ * @param {() => void} requestClose
+ * @returns {HTMLElement}
+ */
 function buildMenu(items, requestClose, isSubmenu = false) {
     const menu = document.createElement("div");
     menu.className = "k-ctx-menu" + (isSubmenu ? " k-ctx-submenu" : "");

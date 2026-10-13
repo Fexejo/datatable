@@ -27,7 +27,7 @@ test("normalizeColumns fills defaults and follows the features", () => {
         [name.label, name.type, name.align, name.sortable, name.filterable, name.copyable, name.minWidth],
         ["name", "string", "left", true, false, true, "8rem"]
     );
-    assert.deepEqual([fee.align, fee.sortable, fee.minWidth], ["right", false, null]);
+    assert.deepEqual([fee.align, fee.sortable, fee.minWidth], ["right", false, undefined]);
     const [copyOff] = normalizeColumns([{ key: "x", copyable: true }], { features: { copyButtons: false } });
     assert.equal(copyOff.copyable, false);
 });

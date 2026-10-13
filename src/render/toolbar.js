@@ -3,6 +3,16 @@
 
 import { el, iconEl } from "../ui/dom.js";
 
+/** @typedef {import("../core/i18n.js").Translations} Translations */
+/**
+ * @typedef {object} FilterButtonsOptions
+ * @property {Translations} t
+ * @property {number} filterCount
+ * @property {(anchor: HTMLElement) => void} onShowFilters
+ * @property {() => void} onClearFilters
+ * @property {string|null} openerKey
+ */
+
 // `search`: { value, placeholder, onInput(value) }, or null without search.
 // `filterCount`: active filters; above 0 shows "Filter (n)", which calls
 // `onShowFilters(anchor)`, joined with an "x" that calls `onClearFilters()`.
@@ -10,6 +20,15 @@ import { el, iconEl } from "../ui/dom.js";
 // `onLayout(layout)` for a click on another one than `currentLayout`.
 // `panels`: [{ fk, icon, label, open(anchor) }] — buttons that open a panel;
 // the one whose focus key is `openerKey` is expanded.
+/**
+ * @param {FilterButtonsOptions & {
+ *     title?: string, titleId: string,
+ *     search: { value: string, placeholder: string, onInput: (value: string) => void }|null,
+ *     layouts: { layout: import("../types.js").Layout, icon: string, label: string }[],
+ *     currentLayout: import("../types.js").Layout, onLayout: (layout: import("../types.js").Layout) => void,
+ *     panels: { fk: string, icon: string, label: string, open: (anchor: HTMLElement) => void }[]
+ * }} options
+ */
 export function buildToolbar({
     t, title, titleId, search, filterCount, onShowFilters, onClearFilters,
     layouts, currentLayout, onLayout, panels, openerKey
@@ -25,7 +44,7 @@ export function buildToolbar({
                 placeholder: search.placeholder,
                 value: search.value,
                 "aria-label": t.searchAriaLabel,
-                oninput: (e) => search.onInput(e.target.value)
+                oninput: (e) => search.onInput(e.currentTarget.value)
             })
         ])
     ]);
@@ -60,6 +79,7 @@ export function buildToolbar({
 
 // "Filter (n)" joined with its "x", or null without active filters. Also
 // used on its own to update them while the search field keeps focus.
+/** @param {FilterButtonsOptions} options */
 export function buildFilterButtons({ t, filterCount, onShowFilters, onClearFilters, openerKey }) {
     if (!(filterCount > 0)) return null;
     return el("div", { class: "k-dt-btn-group" }, [

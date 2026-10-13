@@ -1,456 +1,504 @@
 // i18n — UI strings and locale settings for jw-datatable.
 //
 // To add a new language:
-//   1. Copy the "en" block, change the key to the BCP-47 language code (e.g. "fr")
+//   1. Copy the `en` bundle as `/** @type {Translations} */ const fr = { … }`
 //   2. Translate all string values and template functions
-//   3. That's it — getTranslations("fr-FR") will pick it up automatically.
+//   3. Add it to LOCALES under its BCP-47 language code (e.g. "fr") and to
+//      LOCALE_NAMES — getTranslations("fr-FR") then picks it up.
 //
 // String properties are plain strings.
 // Function properties accept parameters for interpolation; they return a string.
+// `en` is the reference: its keys and template parameter types type all others.
 
-/** @type {Record<string, object>} */
-export const LOCALES = {
+// ---------------------------------------------------------------------- English
+const en = {
+    // Toolbar
+    searchPlaceholder: "Search…",
+    searchAriaLabel: "Search table",
+    clearFilters: "Clear all filters",
+    /** @param {number} n */
+    filterCount: (n) => `Filter (${n})`,
+    showFilters: "Show active filters",
+    filterSummaryTitle: "Active filters",
+    searchFilter: "Search",
+    /** @param {string} label @param {string} value */
+    editFilterNamed: (label, value) => `Edit filter ${label}: ${value}`,
+    /** @param {string} label */
+    removeFilterNamed: (label) => `Remove filter: ${label}`,
+    /** @param {number} n */
+    moreValues: (n) => `+${n} more`,
+    /** @param {string} text */
+    quoted: (text) => `“${text}”`,
+    /** @param {string} from @param {string} to */
+    range: (from, to) => `${from} and ${to}`,
+    layoutTable: "Table",
+    layoutGrid: "Cards",
+    layoutCompact: "Compact",
+    layoutSwitch: "Layout",
+    showHideColumns: "Show or hide columns",
+    savedViews: "Saved views",
+    exportData: "Export",
 
-    // ------------------------------------------------------------------ English
-    en: {
-        // Toolbar
-        searchPlaceholder: "Search…",
-        searchAriaLabel: "Search table",
-        clearFilters: "Clear all filters",
-        filterCount: (n) => `Filter (${n})`,
-        showFilters: "Show active filters",
-        filterSummaryTitle: "Active filters",
-        searchFilter: "Search",
-        editFilterNamed: (label, value) => `Edit filter ${label}: ${value}`,
-        removeFilterNamed: (label) => `Remove filter: ${label}`,
-        moreValues: (n) => `+${n} more`,
-        quoted: (text) => `“${text}”`,
-        range: (from, to) => `${from} and ${to}`,
-        layoutTable: "Table",
-        layoutGrid: "Cards",
-        layoutCompact: "Compact",
-        layoutSwitch: "Layout",
-        showHideColumns: "Show or hide columns",
-        savedViews: "Saved views",
-        exportData: "Export",
+    // Column header
+    sortHint: "Sort (Shift+click for multi-column)",
+    filterActive: "Filter active — edit",
+    filter: "Filter",
+    copyValue: "Copy value",
 
-        // Column header
-        sortHint: "Sort (Shift+click for multi-column)",
-        filterActive: "Filter active — edit",
-        filter: "Filter",
-        copyValue: "Copy value",
+    // Table body
+    emptyData: "No data.",
+    noResults: "No rows match the current filters.",
 
-        // Table body
-        emptyData: "No data.",
-        noResults: "No rows match the current filters.",
+    // Footer / pagination
+    /** @param {number} start @param {number} end @param {number} total */
+    pageInfo: (start, end, total) => `${start}–${end} of ${total}`,
+    perPage: "per page:",
+    rowsPerPage: "Rows per page",
+    paginationAriaLabel: "Pagination",
+    firstPage: "First page",
+    prevPage: "Previous page",
+    nextPage: "Next page",
+    lastPage: "Last page",
 
-        // Footer / pagination
-        pageInfo: (start, end, total) => `${start}–${end} of ${total}`,
-        perPage: "per page:",
-        rowsPerPage: "Rows per page",
-        paginationAriaLabel: "Pagination",
-        firstPage: "First page",
-        prevPage: "Previous page",
-        nextPage: "Next page",
-        lastPage: "Last page",
+    // Context menu
+    sortAsc: "Sort ascending",
+    sortDesc: "Sort descending",
+    addSortKey: "Add as sort key (asc)",
+    removeSortKey: "Remove sort for this column",
+    /** @param {string} v */
+    filterByValue: (v) => `Filter by “${v}”`,
+    /** @param {string} v */
+    excludeValue: (v) => `Exclude “${v}”`,
+    openFilter: "Open filter…",
+    clearColumnFilter: "Clear column filter",
+    copyCell: "Copy cell",
+    copyRow: "Copy row",
+    showDetails: "Show details",
+    /** @param {string} title */
+    showDetailsFor: (title) => (title ? `Show details: ${title}` : "Show details"),
+    copyColumn: "Copy column",
+    hideColumn: "Hide column",
+    pinColumn: "Pin column",
+    unpinColumn: "Unpin column",
+    moveLeft: "Move left",
+    moveRight: "Move right",
+    moveToStart: "Move to start",
+    moveToEnd: "Move to end",
+    resetColumnOrder: "Reset column order",
+    exportMenu: "Export…",
 
-        // Context menu
-        sortAsc: "Sort ascending",
-        sortDesc: "Sort descending",
-        addSortKey: "Add as sort key (asc)",
-        removeSortKey: "Remove sort for this column",
-        filterByValue: (v) => `Filter by “${v}”`,
-        excludeValue: (v) => `Exclude “${v}”`,
-        openFilter: "Open filter…",
-        clearColumnFilter: "Clear column filter",
-        copyCell: "Copy cell",
-        copyRow: "Copy row",
-        showDetails: "Show details",
-        showDetailsFor: (title) => (title ? `Show details: ${title}` : "Show details"),
-        copyColumn: "Copy column",
-        hideColumn: "Hide column",
-        pinColumn: "Pin column",
-        unpinColumn: "Unpin column",
-        moveLeft: "Move left",
-        moveRight: "Move right",
-        moveToStart: "Move to start",
-        moveToEnd: "Move to end",
-        resetColumnOrder: "Reset column order",
-        exportMenu: "Export…",
+    // Filter panel
+    /** @param {string} label */
+    filterPanelTitle: (label) => `Filter: ${label}`,
+    valuesTab: "Values",
+    patternTab: "Pattern",
+    reset: "Reset",
+    apply: "Apply",
+    searchValues: "Search values…",
+    selectAll: "Select all",
+    selectAllResults: "Select all search results",
+    searchResultsMode: "Search results",
+    searchResultsOnly: "Only these values",
+    searchResultsAdd: "Add to filter",
+    emptyValue: "(empty)",
+    condition: "Condition",
 
-        // Filter panel
-        filterPanelTitle: (label) => `Filter: ${label}`,
-        valuesTab: "Values",
-        patternTab: "Pattern",
-        reset: "Reset",
-        apply: "Apply",
-        searchValues: "Search values…",
-        selectAll: "Select all",
-        selectAllResults: "Select all search results",
-        searchResultsMode: "Search results",
-        searchResultsOnly: "Only these values",
-        searchResultsAdd: "Add to filter",
-        emptyValue: "(empty)",
-        condition: "Condition",
+    // Column chooser panel
+    columnsPanel: "Columns",
+    moveUp: "Move up (left in the table)",
+    moveDown: "Move down (right in the table)",
+    /** @param {string} label */
+    moveUpNamed: (label) => `Move up: ${label}`,
+    /** @param {string} label */
+    moveDownNamed: (label) => `Move down: ${label}`,
 
-        // Column chooser panel
-        columnsPanel: "Columns",
-        moveUp: "Move up (left in the table)",
-        moveDown: "Move down (right in the table)",
-        moveUpNamed: (label) => `Move up: ${label}`,
-        moveDownNamed: (label) => `Move down: ${label}`,
-
-        // Record details dialog
-        details: "Details",
-        detailsTitle: (title) => `Details: ${title}`,
-        recordPosition: (n, total) => `Record ${n} of ${total}`,
-        previous: "Previous",
-        next: "Next",
-        prevRecord: "Previous record",
-        nextRecord: "Next record",
-        openRecord: "Open",
-        close: "Close",
+    // Record details dialog
+    details: "Details",
+    /** @param {string} title */
+    detailsTitle: (title) => `Details: ${title}`,
+    /** @param {number} n @param {number} total */
+    recordPosition: (n, total) => `Record ${n} of ${total}`,
+    previous: "Previous",
+    next: "Next",
+    prevRecord: "Previous record",
+    nextRecord: "Next record",
+    openRecord: "Open",
+    close: "Close",
 
 
-        // Export dialog
-        exportTitle: "Export",
-        exportFormat: "Format",
-        exportFormats: { csv: "CSV", xlsx: "Excel", json: "JSON" },
-        exportDestination: "Destination",
-        exportDownload: "File",
-        exportClipboard: "Clipboard",
-        exportFilename: "File name",
-        exportMoreOptions: "More options",
-        exportRows: "Rows",
-        exportScopePage: "Current page",
-        exportScopeFiltered: "Current filter",
-        exportScopeAll: "Entire table",
-        exportAllColumns: "Include hidden columns",
-        exportLocalized: "Values as displayed (formatted)",
-        exportHeaders: "Header row",
-        exportNames: "Column names",
-        exportNamesLabel: "Label",
-        exportNamesKey: "Key",
-        exportMetadata: "Include column info (label, data type)",
-        exportDelimiter: "Delimiter",
-        delimiters: {
-            semicolon: "Semicolon (;)",
-            comma: "Comma (,)",
-            tab: "Tab",
-            pipe: "Vertical bar (|)"
-        },
-        exportSubmit: "Export",
-        exportCopySubmit: "Copy",
-        cancel: "Cancel",
-
-        // Saved views panel
-        viewNamePlaceholder: "Name of the view",
-        save: "Save",
-        noSavedViews: "No saved views yet.",
-        viewsLoading: "Loading saved views…",
-        loadView: "Load view",
-        renameView: "Rename",
-        renameViewNamed: (name) => `Rename: ${name}`,
-        newViewName: (name) => `New name for “${name}”`,
-        deleteView: "Delete",
-        deleteViewNamed: (name) => `Delete: ${name}`,
-        confirmDelete: (name) => `Delete the view “${name}”?`,
-        confirmOverwrite: (name) => `A view named “${name}” already exists. Overwrite it?`,
-        overwrite: "Overwrite",
-        activeView: "Current view",
-        viewModified: "modified",
-        updateView: "Update",
-        retry: "Try again",
-        viewNameRequired: "Please enter a name.",
-        viewNameTaken: (name) => `A view named “${name}” already exists.`,
-        viewNotFound: (name) => `The view “${name}” no longer exists.`,
-        viewsLoadFailed: "The saved views could not be loaded.",
-        viewActionFailed: "That did not work. Please try again.",
-
-        // Accessibility: keyboard hints, accessible names, screen-reader announcements
-        tableKeyboardHint: "Arrow keys move between cells, Enter opens a link, Shift+F10 opens the actions menu.",
-        gridKeyboardHint: "Arrow keys move between cards, Shift+F10 opens the actions menu.",
-        compactKeyboardHint: "Arrow keys move between cells, Enter opens the details of the row, Shift+F10 opens the actions menu.",
-        actionsFor: (label) => `Actions: ${label}`,
-        pageN: (n) => `Page ${n}`,
-        filterMode: "Filter type",
-        operandValue: "Value",
-        operandFrom: "From",
-        operandTo: "To",
-        resultsCount: (n) => (n === 1 ? "1 row" : `${n} rows`),
-        sortedBy: (list) => `Sorted by ${list}`,
-        sortCleared: "Sorting removed",
-        ascending: "ascending",
-        sortPriority: (n) => `, sort priority ${n}`,
-        descending: "descending",
-        copied: "Copied to clipboard",
-        copiedValue: (value) => `Copied to clipboard: ${value}`,
-        columnHidden: (label) => `Column “${label}” hidden`,
-        pinColumnNamed: (label) => `Pin column: ${label}`,
-        unpinColumnNamed: (label) => `Unpin column: ${label}`,
-        columnPinned: (label) => `Column “${label}” pinned`,
-        columnUnpinned: (label) => `Column “${label}” unpinned`,
-        columnMoved: (label, pos, total) => `Column “${label}” moved to position ${pos} of ${total}`,
-        columnMovedPinned: (label, pos, total) => `Column “${label}” pinned, position ${pos} of ${total}`,
-        columnMovedUnpinned: (label, pos, total) => `Column “${label}” unpinned, now position ${pos} of ${total}`,
-        columnOrderReset: "Column order reset",
-        pinsPaused: (label, paused) => `Column “${label}” pinned. Not enough room for all pinned columns; scrolling with the table for now: ${paused}.`,
-        viewSaved: (name) => `View “${name}” saved`,
-        viewUpdated: (name) => `View “${name}” updated`,
-        viewLoaded: (name) => `View “${name}” loaded`,
-        viewRenamed: (oldName, name) => `View “${oldName}” renamed to “${name}”`,
-        viewDeleted: (name) => `View “${name}” deleted`,
-        exported: (count, filename) => `${count} exported to “${filename}”`,
-        exportedClipboard: (count) => `${count} copied to clipboard`,
-
-        // Boolean cell display (overridable per column via format.trueLabel / format.falseLabel)
-        boolTrue: "Yes",
-        boolFalse: "No",
-
-        // Filter operator labels (keyed by operator id from filtering.js)
-        operators: {
-            contains: "contains",
-            notContains: "does not contain",
-            equals: "equals",
-            notEquals: "does not equal",
-            startsWith: "starts with",
-            endsWith: "ends with",
-            regex: "RegEx",
-            empty: "is empty",
-            notEmpty: "is not empty",
-            gt: ">",
-            gte: "≥",
-            lt: "<",
-            lte: "≤",
-            between: "between",
-            on: "on",
-            before: "before",
-            after: "after",
-            isTrue: "is true",
-            isFalse: "is false"
-        }
+    // Export dialog
+    exportTitle: "Export",
+    exportFormat: "Format",
+    exportFormats: { csv: "CSV", xlsx: "Excel", json: "JSON" },
+    exportDestination: "Destination",
+    exportDownload: "File",
+    exportClipboard: "Clipboard",
+    exportFilename: "File name",
+    exportMoreOptions: "More options",
+    exportRows: "Rows",
+    exportScopePage: "Current page",
+    exportScopeFiltered: "Current filter",
+    exportScopeAll: "Entire table",
+    exportAllColumns: "Include hidden columns",
+    exportLocalized: "Values as displayed (formatted)",
+    exportHeaders: "Header row",
+    exportNames: "Column names",
+    exportNamesLabel: "Label",
+    exportNamesKey: "Key",
+    exportMetadata: "Include column info (label, data type)",
+    exportDelimiter: "Delimiter",
+    delimiters: {
+        semicolon: "Semicolon (;)",
+        comma: "Comma (,)",
+        tab: "Tab",
+        pipe: "Vertical bar (|)"
     },
+    exportSubmit: "Export",
+    exportCopySubmit: "Copy",
+    cancel: "Cancel",
 
-    // ------------------------------------------------------------------ German
-    de: {
-        // Toolbar
-        searchPlaceholder: "Suchen…",
-        searchAriaLabel: "Tabelle durchsuchen",
-        clearFilters: "Alle Filter zurücksetzen",
-        filterCount: (n) => `Filter (${n})`,
-        showFilters: "Aktive Filter anzeigen",
-        filterSummaryTitle: "Aktive Filter",
-        searchFilter: "Suche",
-        editFilterNamed: (label, value) => `Filter bearbeiten ${label}: ${value}`,
-        removeFilterNamed: (label) => `Filter entfernen: ${label}`,
-        moreValues: (n) => `+${n} weitere`,
-        quoted: (text) => `„${text}“`,
-        range: (from, to) => `${from} und ${to}`,
-        layoutTable: "Tabelle",
-        layoutGrid: "Karten",
-        layoutCompact: "Kompakt",
-        layoutSwitch: "Darstellung",
-        showHideColumns: "Spalten ein-/ausblenden",
-        savedViews: "Gespeicherte Ansichten",
-        exportData: "Exportieren",
+    // Saved views panel
+    viewNamePlaceholder: "Name of the view",
+    save: "Save",
+    noSavedViews: "No saved views yet.",
+    viewsLoading: "Loading saved views…",
+    loadView: "Load view",
+    renameView: "Rename",
+    /** @param {string} name */
+    renameViewNamed: (name) => `Rename: ${name}`,
+    /** @param {string} name */
+    newViewName: (name) => `New name for “${name}”`,
+    deleteView: "Delete",
+    /** @param {string} name */
+    deleteViewNamed: (name) => `Delete: ${name}`,
+    /** @param {string} name */
+    confirmDelete: (name) => `Delete the view “${name}”?`,
+    /** @param {string} name */
+    confirmOverwrite: (name) => `A view named “${name}” already exists. Overwrite it?`,
+    overwrite: "Overwrite",
+    activeView: "Current view",
+    viewModified: "modified",
+    updateView: "Update",
+    retry: "Try again",
+    viewNameRequired: "Please enter a name.",
+    /** @param {string} name */
+    viewNameTaken: (name) => `A view named “${name}” already exists.`,
+    /** @param {string} name */
+    viewNotFound: (name) => `The view “${name}” no longer exists.`,
+    viewsLoadFailed: "The saved views could not be loaded.",
+    viewActionFailed: "That did not work. Please try again.",
 
-        // Column header
-        sortHint: "Sortieren (Umschalt+Klick für Mehrspaltigkeit)",
-        filterActive: "Filter aktiv – bearbeiten",
-        filter: "Filtern",
-        copyValue: "Wert kopieren",
+    // Accessibility: keyboard hints, accessible names, screen-reader announcements
+    tableKeyboardHint: "Arrow keys move between cells, Enter opens a link, Shift+F10 opens the actions menu.",
+    gridKeyboardHint: "Arrow keys move between cards, Shift+F10 opens the actions menu.",
+    compactKeyboardHint: "Arrow keys move between cells, Enter opens the details of the row, Shift+F10 opens the actions menu.",
+    /** @param {string} label */
+    actionsFor: (label) => `Actions: ${label}`,
+    /** @param {number} n */
+    pageN: (n) => `Page ${n}`,
+    filterMode: "Filter type",
+    operandValue: "Value",
+    operandFrom: "From",
+    operandTo: "To",
+    /** @param {number} n */
+    resultsCount: (n) => (n === 1 ? "1 row" : `${n} rows`),
+    /** @param {string} list */
+    sortedBy: (list) => `Sorted by ${list}`,
+    sortCleared: "Sorting removed",
+    ascending: "ascending",
+    /** @param {number} n */
+    sortPriority: (n) => `, sort priority ${n}`,
+    descending: "descending",
+    copied: "Copied to clipboard",
+    /** @param {string} value */
+    copiedValue: (value) => `Copied to clipboard: ${value}`,
+    /** @param {string} label */
+    columnHidden: (label) => `Column “${label}” hidden`,
+    /** @param {string} label */
+    pinColumnNamed: (label) => `Pin column: ${label}`,
+    /** @param {string} label */
+    unpinColumnNamed: (label) => `Unpin column: ${label}`,
+    /** @param {string} label */
+    columnPinned: (label) => `Column “${label}” pinned`,
+    /** @param {string} label */
+    columnUnpinned: (label) => `Column “${label}” unpinned`,
+    /** @param {string} label @param {number} pos @param {number} total */
+    columnMoved: (label, pos, total) => `Column “${label}” moved to position ${pos} of ${total}`,
+    /** @param {string} label @param {number} pos @param {number} total */
+    columnMovedPinned: (label, pos, total) => `Column “${label}” pinned, position ${pos} of ${total}`,
+    /** @param {string} label @param {number} pos @param {number} total */
+    columnMovedUnpinned: (label, pos, total) => `Column “${label}” unpinned, now position ${pos} of ${total}`,
+    columnOrderReset: "Column order reset",
+    /** @param {string} label @param {string} paused */
+    pinsPaused: (label, paused) => `Column “${label}” pinned. Not enough room for all pinned columns; scrolling with the table for now: ${paused}.`,
+    /** @param {string} name */
+    viewSaved: (name) => `View “${name}” saved`,
+    /** @param {string} name */
+    viewUpdated: (name) => `View “${name}” updated`,
+    /** @param {string} name */
+    viewLoaded: (name) => `View “${name}” loaded`,
+    /** @param {string} oldName @param {string} name */
+    viewRenamed: (oldName, name) => `View “${oldName}” renamed to “${name}”`,
+    /** @param {string} name */
+    viewDeleted: (name) => `View “${name}” deleted`,
+    /** @param {string} count e.g. "12 rows" (`resultsCount`) @param {string} filename */
+    exported: (count, filename) => `${count} exported to “${filename}”`,
+    /** @param {string} count e.g. "12 rows" (`resultsCount`) */
+    exportedClipboard: (count) => `${count} copied to clipboard`,
 
-        // Table body
-        emptyData: "Keine Daten vorhanden.",
-        noResults: "Keine Treffer für die aktuelle Filterung.",
+    // Boolean cell display (overridable per column via format.trueLabel / format.falseLabel)
+    boolTrue: "Yes",
+    boolFalse: "No",
 
-        // Footer / pagination
-        pageInfo: (start, end, total) => `${start}–${end} von ${total}`,
-        perPage: "pro Seite:",
-        rowsPerPage: "Einträge pro Seite",
-        paginationAriaLabel: "Seitennavigation",
-        firstPage: "Erste Seite",
-        prevPage: "Vorherige Seite",
-        nextPage: "Nächste Seite",
-        lastPage: "Letzte Seite",
-
-        // Context menu
-        sortAsc: "Aufsteigend sortieren",
-        sortDesc: "Absteigend sortieren",
-        addSortKey: "Als weiteres Kriterium (aufsteigend)",
-        removeSortKey: "Sortierung dieser Spalte entfernen",
-        filterByValue: (v) => `Nach „${v}“ filtern`,
-        excludeValue: (v) => `„${v}“ ausschließen`,
-        openFilter: "Filter öffnen…",
-        clearColumnFilter: "Spaltenfilter zurücksetzen",
-        copyCell: "Zelle kopieren",
-        copyRow: "Zeile kopieren",
-        showDetails: "Details anzeigen",
-        showDetailsFor: (title) => (title ? `Details anzeigen: ${title}` : "Details anzeigen"),
-        copyColumn: "Spalte kopieren",
-        hideColumn: "Spalte ausblenden",
-        pinColumn: "Spalte fixieren",
-        unpinColumn: "Fixierung aufheben",
-        moveLeft: "Nach links verschieben",
-        moveRight: "Nach rechts verschieben",
-        moveToStart: "An den Anfang verschieben",
-        moveToEnd: "Ans Ende verschieben",
-        resetColumnOrder: "Spaltenreihenfolge zurücksetzen",
-        exportMenu: "Exportieren…",
-
-        // Filter panel
-        filterPanelTitle: (label) => `Filter: ${label}`,
-        valuesTab: "Werte",
-        patternTab: "Muster",
-        reset: "Zurücksetzen",
-        apply: "Anwenden",
-        searchValues: "Werte durchsuchen…",
-        selectAll: "Alle auswählen",
-        selectAllResults: "Alle Suchergebnisse auswählen",
-        searchResultsMode: "Suchergebnisse",
-        searchResultsOnly: "Nur diese Werte",
-        searchResultsAdd: "Zum Filter hinzufügen",
-        emptyValue: "(leer)",
-        condition: "Bedingung",
-
-        // Column chooser panel
-        columnsPanel: "Spalten",
-        moveUp: "Nach oben (in der Tabelle nach links)",
-        moveDown: "Nach unten (in der Tabelle nach rechts)",
-        moveUpNamed: (label) => `Nach oben: ${label}`,
-        moveDownNamed: (label) => `Nach unten: ${label}`,
-
-        // Record details dialog
-        details: "Details",
-        detailsTitle: (title) => `Details: ${title}`,
-        recordPosition: (n, total) => `Datensatz ${n} von ${total}`,
-        previous: "Zurück",
-        next: "Weiter",
-        prevRecord: "Vorheriger Datensatz",
-        nextRecord: "Nächster Datensatz",
-        openRecord: "Öffnen",
-        close: "Schließen",
-
-
-        // Export dialog
-        exportTitle: "Exportieren",
-        exportFormat: "Format",
-        exportFormats: { csv: "CSV", xlsx: "Excel", json: "JSON" },
-        exportDestination: "Ziel",
-        exportDownload: "Datei",
-        exportClipboard: "Zwischenablage",
-        exportFilename: "Dateiname",
-        exportMoreOptions: "Weitere Optionen",
-        exportRows: "Zeilen",
-        exportScopePage: "Aktuelle Seite",
-        exportScopeFiltered: "Aktueller Filter",
-        exportScopeAll: "Gesamte Tabelle",
-        exportAllColumns: "Ausgeblendete Spalten einbeziehen",
-        exportLocalized: "Werte wie angezeigt (formatiert)",
-        exportHeaders: "Kopfzeile",
-        exportNames: "Spaltennamen",
-        exportNamesLabel: "Bezeichnung",
-        exportNamesKey: "Schlüssel",
-        exportMetadata: "Spalteninfos einbeziehen (Bezeichnung, Datentyp)",
-        exportDelimiter: "Trennzeichen",
-        delimiters: {
-            semicolon: "Semikolon (;)",
-            comma: "Komma (,)",
-            tab: "Tabulator",
-            pipe: "Senkrechter Strich (|)"
-        },
-        exportSubmit: "Exportieren",
-        exportCopySubmit: "Kopieren",
-        cancel: "Abbrechen",
-
-        // Saved views panel
-        viewNamePlaceholder: "Name der Ansicht",
-        save: "Speichern",
-        noSavedViews: "Noch keine Ansichten gespeichert.",
-        viewsLoading: "Gespeicherte Ansichten werden geladen…",
-        loadView: "Ansicht laden",
-        renameView: "Umbenennen",
-        renameViewNamed: (name) => `Umbenennen: ${name}`,
-        newViewName: (name) => `Neuer Name für „${name}“`,
-        deleteView: "Löschen",
-        deleteViewNamed: (name) => `Löschen: ${name}`,
-        confirmDelete: (name) => `Ansicht „${name}“ löschen?`,
-        confirmOverwrite: (name) => `Eine Ansicht „${name}“ gibt es bereits. Überschreiben?`,
-        overwrite: "Überschreiben",
-        activeView: "Aktuelle Ansicht",
-        viewModified: "geändert",
-        updateView: "Aktualisieren",
-        retry: "Erneut versuchen",
-        viewNameRequired: "Bitte einen Namen eingeben.",
-        viewNameTaken: (name) => `Eine Ansicht „${name}“ gibt es bereits.`,
-        viewNotFound: (name) => `Die Ansicht „${name}“ gibt es nicht mehr.`,
-        viewsLoadFailed: "Die gespeicherten Ansichten konnten nicht geladen werden.",
-        viewActionFailed: "Das hat nicht geklappt. Bitte erneut versuchen.",
-
-        // Accessibility: keyboard hints, accessible names, screen-reader announcements
-        tableKeyboardHint: "Pfeiltasten wechseln zwischen Zellen, Enter öffnet einen Link, Umschalt+F10 öffnet das Aktionsmenü.",
-        gridKeyboardHint: "Pfeiltasten wechseln zwischen Karten, Umschalt+F10 öffnet das Aktionsmenü.",
-        compactKeyboardHint: "Pfeiltasten wechseln zwischen Zellen, Enter öffnet die Details der Zeile, Umschalt+F10 öffnet das Aktionsmenü.",
-        actionsFor: (label) => `Aktionen: ${label}`,
-        pageN: (n) => `Seite ${n}`,
-        filterMode: "Filterart",
-        operandValue: "Wert",
-        operandFrom: "Von",
-        operandTo: "Bis",
-        resultsCount: (n) => (n === 1 ? "1 Zeile" : `${n} Zeilen`),
-        sortedBy: (list) => `Sortiert nach ${list}`,
-        sortCleared: "Sortierung entfernt",
-        ascending: "aufsteigend",
-        sortPriority: (n) => `, Sortierpriorität ${n}`,
-        descending: "absteigend",
-        copied: "In die Zwischenablage kopiert",
-        copiedValue: (value) => `In die Zwischenablage kopiert: ${value}`,
-        columnHidden: (label) => `Spalte „${label}“ ausgeblendet`,
-        pinColumnNamed: (label) => `Spalte fixieren: ${label}`,
-        unpinColumnNamed: (label) => `Fixierung aufheben: ${label}`,
-        columnPinned: (label) => `Spalte „${label}“ fixiert`,
-        columnUnpinned: (label) => `Fixierung von „${label}“ aufgehoben`,
-        columnMoved: (label, pos, total) => `Spalte „${label}“ an Position ${pos} von ${total} verschoben`,
-        columnMovedPinned: (label, pos, total) => `Spalte „${label}“ fixiert, Position ${pos} von ${total}`,
-        columnMovedUnpinned: (label, pos, total) => `Fixierung von „${label}“ aufgehoben, jetzt Position ${pos} von ${total}`,
-        columnOrderReset: "Spaltenreihenfolge zurückgesetzt",
-        pinsPaused: (label, paused) => `Spalte „${label}“ fixiert. Zu wenig Platz für alle fixierten Spalten; vorerst scrollen mit: ${paused}.`,
-        viewSaved: (name) => `Ansicht „${name}“ gespeichert`,
-        viewUpdated: (name) => `Ansicht „${name}“ aktualisiert`,
-        viewLoaded: (name) => `Ansicht „${name}“ geladen`,
-        viewRenamed: (oldName, name) => `Ansicht „${oldName}“ in „${name}“ umbenannt`,
-        viewDeleted: (name) => `Ansicht „${name}“ gelöscht`,
-        exported: (count, filename) => `${count} als „${filename}“ exportiert`,
-        exportedClipboard: (count) => `${count} in die Zwischenablage kopiert`,
-
-        // Boolean cell display
-        boolTrue: "Ja",
-        boolFalse: "Nein",
-
-        // Filter operator labels
-        operators: {
-            contains: "enthält",
-            notContains: "enthält nicht",
-            equals: "ist gleich",
-            notEquals: "ist ungleich",
-            startsWith: "beginnt mit",
-            endsWith: "endet mit",
-            regex: "RegEx",
-            empty: "ist leer",
-            notEmpty: "ist nicht leer",
-            gt: ">",
-            gte: "≥",
-            lt: "<",
-            lte: "≤",
-            between: "zwischen",
-            on: "am",
-            before: "vor",
-            after: "nach",
-            isTrue: "ist wahr",
-            isFalse: "ist falsch"
-        }
+    // Filter operator labels (keyed by operator id from filtering.js)
+    operators: {
+        contains: "contains",
+        notContains: "does not contain",
+        equals: "equals",
+        notEquals: "does not equal",
+        startsWith: "starts with",
+        endsWith: "ends with",
+        regex: "RegEx",
+        empty: "is empty",
+        notEmpty: "is not empty",
+        gt: ">",
+        gte: "≥",
+        lt: "<",
+        lte: "≤",
+        between: "between",
+        on: "on",
+        before: "before",
+        after: "after",
+        isTrue: "is true",
+        isFalse: "is false"
     }
 };
+
+// ----------------------------------------------------------------------- German
+/** @type {Translations} */
+const de = {
+    // Toolbar
+    searchPlaceholder: "Suchen…",
+    searchAriaLabel: "Tabelle durchsuchen",
+    clearFilters: "Alle Filter zurücksetzen",
+    filterCount: (n) => `Filter (${n})`,
+    showFilters: "Aktive Filter anzeigen",
+    filterSummaryTitle: "Aktive Filter",
+    searchFilter: "Suche",
+    editFilterNamed: (label, value) => `Filter bearbeiten ${label}: ${value}`,
+    removeFilterNamed: (label) => `Filter entfernen: ${label}`,
+    moreValues: (n) => `+${n} weitere`,
+    quoted: (text) => `„${text}“`,
+    range: (from, to) => `${from} und ${to}`,
+    layoutTable: "Tabelle",
+    layoutGrid: "Karten",
+    layoutCompact: "Kompakt",
+    layoutSwitch: "Darstellung",
+    showHideColumns: "Spalten ein-/ausblenden",
+    savedViews: "Gespeicherte Ansichten",
+    exportData: "Exportieren",
+
+    // Column header
+    sortHint: "Sortieren (Umschalt+Klick für Mehrspaltigkeit)",
+    filterActive: "Filter aktiv – bearbeiten",
+    filter: "Filtern",
+    copyValue: "Wert kopieren",
+
+    // Table body
+    emptyData: "Keine Daten vorhanden.",
+    noResults: "Keine Treffer für die aktuelle Filterung.",
+
+    // Footer / pagination
+    pageInfo: (start, end, total) => `${start}–${end} von ${total}`,
+    perPage: "pro Seite:",
+    rowsPerPage: "Einträge pro Seite",
+    paginationAriaLabel: "Seitennavigation",
+    firstPage: "Erste Seite",
+    prevPage: "Vorherige Seite",
+    nextPage: "Nächste Seite",
+    lastPage: "Letzte Seite",
+
+    // Context menu
+    sortAsc: "Aufsteigend sortieren",
+    sortDesc: "Absteigend sortieren",
+    addSortKey: "Als weiteres Kriterium (aufsteigend)",
+    removeSortKey: "Sortierung dieser Spalte entfernen",
+    filterByValue: (v) => `Nach „${v}“ filtern`,
+    excludeValue: (v) => `„${v}“ ausschließen`,
+    openFilter: "Filter öffnen…",
+    clearColumnFilter: "Spaltenfilter zurücksetzen",
+    copyCell: "Zelle kopieren",
+    copyRow: "Zeile kopieren",
+    showDetails: "Details anzeigen",
+    showDetailsFor: (title) => (title ? `Details anzeigen: ${title}` : "Details anzeigen"),
+    copyColumn: "Spalte kopieren",
+    hideColumn: "Spalte ausblenden",
+    pinColumn: "Spalte fixieren",
+    unpinColumn: "Fixierung aufheben",
+    moveLeft: "Nach links verschieben",
+    moveRight: "Nach rechts verschieben",
+    moveToStart: "An den Anfang verschieben",
+    moveToEnd: "Ans Ende verschieben",
+    resetColumnOrder: "Spaltenreihenfolge zurücksetzen",
+    exportMenu: "Exportieren…",
+
+    // Filter panel
+    filterPanelTitle: (label) => `Filter: ${label}`,
+    valuesTab: "Werte",
+    patternTab: "Muster",
+    reset: "Zurücksetzen",
+    apply: "Anwenden",
+    searchValues: "Werte durchsuchen…",
+    selectAll: "Alle auswählen",
+    selectAllResults: "Alle Suchergebnisse auswählen",
+    searchResultsMode: "Suchergebnisse",
+    searchResultsOnly: "Nur diese Werte",
+    searchResultsAdd: "Zum Filter hinzufügen",
+    emptyValue: "(leer)",
+    condition: "Bedingung",
+
+    // Column chooser panel
+    columnsPanel: "Spalten",
+    moveUp: "Nach oben (in der Tabelle nach links)",
+    moveDown: "Nach unten (in der Tabelle nach rechts)",
+    moveUpNamed: (label) => `Nach oben: ${label}`,
+    moveDownNamed: (label) => `Nach unten: ${label}`,
+
+    // Record details dialog
+    details: "Details",
+    detailsTitle: (title) => `Details: ${title}`,
+    recordPosition: (n, total) => `Datensatz ${n} von ${total}`,
+    previous: "Zurück",
+    next: "Weiter",
+    prevRecord: "Vorheriger Datensatz",
+    nextRecord: "Nächster Datensatz",
+    openRecord: "Öffnen",
+    close: "Schließen",
+
+
+    // Export dialog
+    exportTitle: "Exportieren",
+    exportFormat: "Format",
+    exportFormats: { csv: "CSV", xlsx: "Excel", json: "JSON" },
+    exportDestination: "Ziel",
+    exportDownload: "Datei",
+    exportClipboard: "Zwischenablage",
+    exportFilename: "Dateiname",
+    exportMoreOptions: "Weitere Optionen",
+    exportRows: "Zeilen",
+    exportScopePage: "Aktuelle Seite",
+    exportScopeFiltered: "Aktueller Filter",
+    exportScopeAll: "Gesamte Tabelle",
+    exportAllColumns: "Ausgeblendete Spalten einbeziehen",
+    exportLocalized: "Werte wie angezeigt (formatiert)",
+    exportHeaders: "Kopfzeile",
+    exportNames: "Spaltennamen",
+    exportNamesLabel: "Bezeichnung",
+    exportNamesKey: "Schlüssel",
+    exportMetadata: "Spalteninfos einbeziehen (Bezeichnung, Datentyp)",
+    exportDelimiter: "Trennzeichen",
+    delimiters: {
+        semicolon: "Semikolon (;)",
+        comma: "Komma (,)",
+        tab: "Tabulator",
+        pipe: "Senkrechter Strich (|)"
+    },
+    exportSubmit: "Exportieren",
+    exportCopySubmit: "Kopieren",
+    cancel: "Abbrechen",
+
+    // Saved views panel
+    viewNamePlaceholder: "Name der Ansicht",
+    save: "Speichern",
+    noSavedViews: "Noch keine Ansichten gespeichert.",
+    viewsLoading: "Gespeicherte Ansichten werden geladen…",
+    loadView: "Ansicht laden",
+    renameView: "Umbenennen",
+    renameViewNamed: (name) => `Umbenennen: ${name}`,
+    newViewName: (name) => `Neuer Name für „${name}“`,
+    deleteView: "Löschen",
+    deleteViewNamed: (name) => `Löschen: ${name}`,
+    confirmDelete: (name) => `Ansicht „${name}“ löschen?`,
+    confirmOverwrite: (name) => `Eine Ansicht „${name}“ gibt es bereits. Überschreiben?`,
+    overwrite: "Überschreiben",
+    activeView: "Aktuelle Ansicht",
+    viewModified: "geändert",
+    updateView: "Aktualisieren",
+    retry: "Erneut versuchen",
+    viewNameRequired: "Bitte einen Namen eingeben.",
+    viewNameTaken: (name) => `Eine Ansicht „${name}“ gibt es bereits.`,
+    viewNotFound: (name) => `Die Ansicht „${name}“ gibt es nicht mehr.`,
+    viewsLoadFailed: "Die gespeicherten Ansichten konnten nicht geladen werden.",
+    viewActionFailed: "Das hat nicht geklappt. Bitte erneut versuchen.",
+
+    // Accessibility: keyboard hints, accessible names, screen-reader announcements
+    tableKeyboardHint: "Pfeiltasten wechseln zwischen Zellen, Enter öffnet einen Link, Umschalt+F10 öffnet das Aktionsmenü.",
+    gridKeyboardHint: "Pfeiltasten wechseln zwischen Karten, Umschalt+F10 öffnet das Aktionsmenü.",
+    compactKeyboardHint: "Pfeiltasten wechseln zwischen Zellen, Enter öffnet die Details der Zeile, Umschalt+F10 öffnet das Aktionsmenü.",
+    actionsFor: (label) => `Aktionen: ${label}`,
+    pageN: (n) => `Seite ${n}`,
+    filterMode: "Filterart",
+    operandValue: "Wert",
+    operandFrom: "Von",
+    operandTo: "Bis",
+    resultsCount: (n) => (n === 1 ? "1 Zeile" : `${n} Zeilen`),
+    sortedBy: (list) => `Sortiert nach ${list}`,
+    sortCleared: "Sortierung entfernt",
+    ascending: "aufsteigend",
+    sortPriority: (n) => `, Sortierpriorität ${n}`,
+    descending: "absteigend",
+    copied: "In die Zwischenablage kopiert",
+    copiedValue: (value) => `In die Zwischenablage kopiert: ${value}`,
+    columnHidden: (label) => `Spalte „${label}“ ausgeblendet`,
+    pinColumnNamed: (label) => `Spalte fixieren: ${label}`,
+    unpinColumnNamed: (label) => `Fixierung aufheben: ${label}`,
+    columnPinned: (label) => `Spalte „${label}“ fixiert`,
+    columnUnpinned: (label) => `Fixierung von „${label}“ aufgehoben`,
+    columnMoved: (label, pos, total) => `Spalte „${label}“ an Position ${pos} von ${total} verschoben`,
+    columnMovedPinned: (label, pos, total) => `Spalte „${label}“ fixiert, Position ${pos} von ${total}`,
+    columnMovedUnpinned: (label, pos, total) => `Fixierung von „${label}“ aufgehoben, jetzt Position ${pos} von ${total}`,
+    columnOrderReset: "Spaltenreihenfolge zurückgesetzt",
+    pinsPaused: (label, paused) => `Spalte „${label}“ fixiert. Zu wenig Platz für alle fixierten Spalten; vorerst scrollen mit: ${paused}.`,
+    viewSaved: (name) => `Ansicht „${name}“ gespeichert`,
+    viewUpdated: (name) => `Ansicht „${name}“ aktualisiert`,
+    viewLoaded: (name) => `Ansicht „${name}“ geladen`,
+    viewRenamed: (oldName, name) => `Ansicht „${oldName}“ in „${name}“ umbenannt`,
+    viewDeleted: (name) => `Ansicht „${name}“ gelöscht`,
+    exported: (count, filename) => `${count} als „${filename}“ exportiert`,
+    exportedClipboard: (count) => `${count} in die Zwischenablage kopiert`,
+
+    // Boolean cell display
+    boolTrue: "Ja",
+    boolFalse: "Nein",
+
+    // Filter operator labels
+    operators: {
+        contains: "enthält",
+        notContains: "enthält nicht",
+        equals: "ist gleich",
+        notEquals: "ist ungleich",
+        startsWith: "beginnt mit",
+        endsWith: "endet mit",
+        regex: "RegEx",
+        empty: "ist leer",
+        notEmpty: "ist nicht leer",
+        gt: ">",
+        gte: "≥",
+        lt: "<",
+        lte: "≤",
+        between: "zwischen",
+        on: "am",
+        before: "vor",
+        after: "nach",
+        isTrue: "ist wahr",
+        isFalse: "ist falsch"
+    }
+};
+
+/** @typedef {typeof en} Translations */
+
+/** @type {Record<string, Translations>} */
+export const LOCALES = { en, de };
 
 /**
  * Canonical locale codes and their human-readable display names.
@@ -475,7 +523,7 @@ export const LOCALE_NAMES = {
  *   "en-US"  → LOCALES.en
  *
  * @param {string} locale  BCP-47 locale string, e.g. "de-DE" or "en-US"
- * @returns {typeof LOCALES["en"]}
+ * @returns {Translations}
  */
 export function getTranslations(locale = "en-US") {
     const key = String(locale);

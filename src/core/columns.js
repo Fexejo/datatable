@@ -3,7 +3,15 @@
 
 import { typeGroup } from "./util.js";
 
+/** @typedef {import("../types.js").Column} Column */
+/** @typedef {import("../types.js").Row} Row */
+
 // Infers column type from the first non-empty values.
+/**
+ * @param {Row[]} rows
+ * @param {string} key
+ * @returns {string}
+ */
 export function inferType(rows, key) {
     for (const row of rows) {
         const value = row?.[key];
@@ -18,6 +26,11 @@ export function inferType(rows, key) {
 
 // Builds column definitions from keys on the first row.
 // options.overrides: { [key]: PartialColumn } — per-column overrides.
+/**
+ * @param {Row[]} rows
+ * @param {{ overrides?: Record<string, Partial<Column>> }} [options]
+ * @returns {Column[]}
+ */
 export function inferColumns(rows, options = {}) {
     const overrides = options.overrides || {};
     const sample = (Array.isArray(rows) ? rows : []).find((r) => r && typeof r === "object") || {};
@@ -32,6 +45,11 @@ export function inferColumns(rows, options = {}) {
 // Fills in the defaults the component relies on. `features` switch sorting,
 // filtering and copy buttons on for all columns; a column can opt out.
 // `columnMinWidth`: default minimum width of text columns.
+/**
+ * @param {(Column & { optionsMap?: Record<string, any>|null })[]} columns
+ * @param {{ features?: import("../types.js").Features, columnMinWidth?: string }} [options]
+ * @returns {import("../types.js").NormalizedColumn[]}
+ */
 export function normalizeColumns(columns, { features = {}, columnMinWidth } = {}) {
     return columns.map((col) => {
         const type = col.type || "string";
@@ -55,7 +73,7 @@ export function normalizeColumns(columns, { features = {}, columnMinWidth } = {}
             // Floor for the column width: explicit `minWidth`, else a fixed
             // `width`, else the global default (text columns only; numbers,
             // dates and booleans stay on one line at their natural width).
-            minWidth: col.minWidth || col.width || (group === "text" ? columnMinWidth : undefined) || null,
+            minWidth: col.minWidth || col.width || (group === "text" ? columnMinWidth : undefined) || undefined,
             link,
             optionsMap
         };

@@ -16,6 +16,10 @@ export const MAX_PINNED_SHARE = 0.6;
 
 // Index of the first pin that stays sticky: the last pins whose widths add
 // up to at most `limit`.
+/**
+ * @param {number[]} widths
+ * @param {number} limit
+ */
 export function firstStickyPin(widths, limit) {
     let first = widths.length;
     let used = 0;
@@ -24,22 +28,31 @@ export function firstStickyPin(widths, limit) {
 }
 
 // Lays out the pinned columns in `viewport`; returns the keys of the paused ones.
+/**
+ * @param {HTMLElement} viewport
+ * @returns {string[]}
+ */
 export function layoutPinned(viewport) {
+    /** @type {HTMLElement|null} */
     const body = viewport.querySelector(".k-dt-body");
+    /** @type {HTMLTableElement|null} */
     const table = viewport.querySelector(".k-dt-table");
     // Read …
-    const pinned = table ? Array.from(table.tHead.rows[0].cells).filter((th) => th.classList.contains("k-dt-pinned")) : [];
+    const pinned = table?.tHead
+        ? Array.from(table.tHead.rows[0].cells).filter((th) => th.classList.contains("k-dt-pinned"))
+        : [];
     const widths = pinned.map((th) => th.getBoundingClientRect().width);
-    const first = pinned.length ? firstStickyPin(widths, body.clientWidth * MAX_PINNED_SHARE) : 0;
+    const first = body && pinned.length ? firstStickyPin(widths, body.clientWidth * MAX_PINNED_SHARE) : 0;
     const shadows = scrollShadows(body);
     // … then write.
+    /** @type {string[]} */
     const paused = [];
     let offset = 0;
     pinned.forEach((th, i) => {
         let value;
         if (i < first) {
             value = "auto";
-            paused.push(th.dataset.key);
+            paused.push(th.dataset.key ?? "");
         } else {
             value = `${offset}px`;
             offset += widths[i];
@@ -53,16 +66,22 @@ export function layoutPinned(viewport) {
 }
 
 // Shadows on the edges that have more content to scroll to.
+/** @param {HTMLElement} viewport */
 export function updateScrollShadows(viewport) {
     applyScrollShadows(viewport, scrollShadows(viewport.querySelector(".k-dt-body")));
 }
 
+/** @param {Element|null} body */
 function scrollShadows(body) {
     if (!body) return null;
     const max = body.scrollWidth - body.clientWidth;
     return { left: body.scrollLeft > 1, right: body.scrollLeft < max - 1 };
 }
 
+/**
+ * @param {HTMLElement} viewport
+ * @param {{ left: boolean, right: boolean }|null} shadows
+ */
 function applyScrollShadows(viewport, shadows) {
     if (!shadows) return;
     viewport.classList.toggle("is-overflow-left", shadows.left);

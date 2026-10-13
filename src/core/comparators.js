@@ -5,8 +5,10 @@ import { getCellValue, isEmptyValue, toBoolean, toDate, toNumber, typeGroup } fr
 
 // `localeCompare` with options builds a collator on every call; a cached
 // `Intl.Collator` is ~50× faster on large tables.
+/** @type {Map<string, Intl.Collator>} */
 const collators = new Map();
 
+/** @returns {Intl.Collator} */
 export function textCollator(locale = "en-US") {
     let collator = collators.get(locale);
     if (!collator) {
@@ -18,6 +20,11 @@ export function textCollator(locale = "en-US") {
 
 // The comparable form of a raw value: a number for numbers, dates and
 // booleans, a string for text, or null for empty / unparsable values.
+/**
+ * @param {any} value
+ * @param {string} group
+ * @returns {number|string|null}
+ */
 function sortKey(value, group) {
     if (isEmptyValue(value)) return null;
     if (group === "number") {
@@ -30,12 +37,23 @@ function sortKey(value, group) {
 }
 
 // Compares two sort keys. Empty keys always sort last.
+/**
+ * @param {number|string|null} a
+ * @param {number|string|null} b
+ * @param {string} group
+ * @param {Intl.Collator} collator
+ */
 function compareKeys(a, b, group, collator) {
     if (a === null || b === null) return a === b ? 0 : a === null ? 1 : -1;
-    return group === "text" ? collator.compare(a, b) : a - b;
+    return group === "text" ? collator.compare(String(a), String(b)) : Number(a) - Number(b);
 }
 
 // Compares two raw values by column type. Empty values always sort last.
+/**
+ * @param {any} a
+ * @param {any} b
+ * @param {string} [type]
+ */
 export function compareValues(a, b, type, locale = "en-US") {
     const group = typeGroup(type);
     return compareKeys(sortKey(a, group), sortKey(b, group), group, textCollator(locale));
@@ -45,19 +63,20 @@ export function compareValues(a, b, type, locale = "en-US") {
 // sortSpec: [{ key, direction: "asc" | "desc" }, …] — order = priority.
 // Each row's sort keys are computed once, not on every comparison.
 /**
- * @param {object[]} data
+ * @template {import("../types.js").Row} R
+ * @param {R[]} data
  * @param {import("../types.js").SortSpec[]} sortSpec
  * @param {import("../types.js").Column[]} columns
- * @returns {object[]}
+ * @returns {R[]}
  */
 export function sortData(data, sortSpec, columns, locale = "en-US") {
     if (!Array.isArray(sortSpec) || sortSpec.length === 0) return data.slice();
     const columnByKey = new Map(columns.map((c) => [c.key, c]));
     const collator = textCollator(locale);
-    const specs = sortSpec
-        .map((spec) => ({ column: columnByKey.get(spec.key), sign: spec.direction === "desc" ? -1 : 1 }))
-        .filter((spec) => spec.column)
-        .map((spec) => ({ ...spec, group: typeGroup(spec.column.type) }));
+    const specs = sortSpec.flatMap((spec) => {
+        const column = columnByKey.get(spec.key);
+        return column ? [{ column, sign: spec.direction === "desc" ? -1 : 1, group: typeGroup(column.type) }] : [];
+    });
     if (specs.length === 0) return data.slice();
 
     const entries = data.map((row) => ({
@@ -82,8 +101,14 @@ export function sortData(data, sortSpec, columns, locale = "en-US") {
 // Without `additive`, only this column is sorted.
 // With `additive` (e.g. Shift+click), the column is added as another key.
 // Per-column cycle: asc -> desc -> removed.
+/**
+ * @param {import("../types.js").SortSpec[]} sortSpec
+ * @param {string} key
+ * @returns {import("../types.js").SortSpec[]}
+ */
 export function toggleSort(sortSpec, key, { additive = false } = {}) {
     const current = sortSpec.find((s) => s.key === key);
+    /** @type {import("../types.js").SortSpec|null} */
     let next;
     if (!current) {
         next = { key, direction: "asc" };

@@ -45,7 +45,23 @@ import { buildColumnChooser } from "./panels/columnChooser.js";
 import { buildDetailsDialog } from "./panels/detailsDialog.js";
 import { buildViewsPanel } from "./panels/viewsPanel.js";
 
+/** @typedef {import("./types.js").NormalizedColumn} Column */
+/** @typedef {import("./types.js").Row} Row */
+/** @typedef {import("./types.js").Layout} Layout */
+/** @typedef {import("./types.js").Filter} Filter */
+/** @typedef {import("./types.js").SortSpec} SortSpec */
+/** @typedef {import("./types.js").TableState} TableState */
+/** @typedef {import("./types.js").ExportOptions} ExportOptions */
+/** @typedef {import("./ui/contextMenu.js").MenuItem} MenuItem */
+/**
+ * Record of a rendered cell, card, header or field (`_items`); a header has no row.
+ * @typedef {{ column: Column, row: Row|null, value: any, index?: number }} ItemRecord
+ */
+/** @typedef {{ row: Row, index: number }} RowRecord Record of a rendered table row. */
+/** @typedef {{ clientX: number, clientY: number, target: HTMLElement }} MenuPoint */
+
 // Saved view names are trimmed and must not be empty.
+/** @param {unknown} name */
 function viewName(name) {
     const result = String(name ?? "").trim();
     if (!result) throw new TypeError("A saved view needs a name");
@@ -60,6 +76,12 @@ const VALUE_HOSTS = "td.k-dt-td, dd.k-dt-pair-value, .k-dt-card-title";
 const VALUE_CONTROLS = ".k-dt-copy, .k-dt-cell-action, .k-dt-link, .k-dt-details-btn";
 
 // Target of a column link: `link.url` as a string or (row, value) => string.
+/**
+ * @param {import("./types.js").ColumnLink} link
+ * @param {Row} row
+ * @param {any} value
+ * @returns {string|null}
+ */
 function linkHref(link, row, value) {
     if (typeof link.url === "function") return link.url(row, value);
     return typeof link.url === "string" ? link.url : null;
@@ -68,6 +90,7 @@ function linkHref(link, row, value) {
 // Opt-in features default to `false` and must be enabled explicitly via
 // `config.features`. Always-on basics (pagination, context menu, copy buttons)
 // stay `true`. `multiSort` only takes effect when `sorting` is enabled.
+/** @type {Required<import("./types.js").Features>} */
 const DEFAULT_FEATURES = {
     pagination: true,
     sorting: false,
@@ -90,28 +113,58 @@ class JwDataTable extends HTMLElement {
     constructor() {
         super();
         this.shadow = this.attachShadow({ mode: "open" });
+        // Replaced by `configure()`; nothing renders before.
         this._configured = false;
+        /** @type {import("./types.js").DataTableConfig & { locale: string }} */
+        this._config = { locale: "en-US" };
+        this._t = getTranslations();
+        this._features = { ...DEFAULT_FEATURES };
+        /** @type {Row[]} */
         this._sourceData = [];
+        /** @type {Column[]} */
         this._columns = [];
-        this._state = null;
+        this._state = createState([], {}, { pageSize: DEFAULT_PAGE_SIZES[0] });
+        this._pageSizeOptions = DEFAULT_PAGE_SIZES;
+        /** @type {{ enabled: boolean, breakpoint: number, autoLayout: boolean, mobileLayout: Layout }} */
+        this._responsive = { enabled: false, breakpoint: 640, autoLayout: false, mobileLayout: "grid" };
+        this._pageCount = 1;
+        // Keys of pinned columns that don't fit (see `_layoutPinned`).
+        /** @type {string[]} */
+        this._pausedPins = [];
+        // Focus key of the body's roving tab stop.
+        /** @type {string|undefined} */
+        this._rovingKey = undefined;
+        /** @type {{ panel: HTMLElement, sync: () => void }|null} */
+        this._chooser = null;
+        /** @type {Row[]} */
         this._viewData = [];
+        /** @type {Row[]} */
         this._pageData = [];
+        this._paginationForced = false;
+        /** @type {ViewStore|null} */
         this._viewStore = null;
         // { name, signature } of the saved view last saved or loaded.
+        /** @type {{ name: string, signature: string }|null} */
         this._activeView = null;
         this._instanceId = uid("kdt");
         // Responsive / touch state
+        /** @type {MediaQueryList|null} */
         this._mql = null;
+        /** @type {((event: MediaQueryListEvent) => void)|null} */
         this._mqlHandler = null;
         this._mobileMatches = false;
         this._layoutUserSet = false;
+        /** @type {(() => void)|null} */
         this._longPress = null;   // cancels a pending long-press
+        /** @type {{ key: string|null }} */
         this._drag = { key: null };   // column being dragged by its header
         this._suppressClickUntil = 0;
         this._suppressContextUntil = 0;
+        /** @type {ResizeObserver|null} */
         this._resizeObserver = null;
         // Rendered row, cell, card, header and field elements → their record
         // { row, index, column, value }, read by the delegated event handlers.
+        /** @type {WeakMap<Element, ItemRecord|RowRecord>} */
         this._items = new WeakMap();
         this._listen();
         this._overlay = new Overlay(this.shadow, { restoreFocus: (key) => this._restoreFocus(key) });
@@ -119,7 +172,7 @@ class JwDataTable extends HTMLElement {
         // assistive tech, so the panel's own live region is used.
         this._announcer = new Announcer(() => this._overlay.liveRegion() || getAnnouncer());
         // Rebuilds body/footer only, so the focused search field is preserved.
-        this._debouncedSearch = debounce((value) => this._commit({ globalSearch: value, page: 1 }, {
+        this._debouncedSearch = debounce((/** @type {string} */ value) => this._commit({ globalSearch: value, page: 1 }, {
             update: "body",
             announce: () => this._debouncedSearchAnnounce()
         }), 200);
@@ -195,6 +248,7 @@ class JwDataTable extends HTMLElement {
         return this;
     }
 
+    /** @param {Row[]} rows */
     set data(rows) {
         this.setData(rows);
     }
@@ -204,6 +258,7 @@ class JwDataTable extends HTMLElement {
     }
 
     // Replace data at runtime; sort/filter state is preserved.
+    /** @param {Row[]} rows */
     setData(rows) {
         this._sourceData = Array.isArray(rows) ? rows.slice() : [];
         if (!this._configured) return;
@@ -235,8 +290,9 @@ class JwDataTable extends HTMLElement {
     // Builds the export and downloads it or copies it to the clipboard.
     // `options` override `config.exportDefaults`. Returns the event detail, or
     // null when a `jw-datatable:export` listener cancelled it.
-    /** @param {Partial<import("./types.js").ExportOptions>} options */
+    /** @param {Partial<ExportOptions>} options */
     exportData(options = {}) {
+        /** @type {ExportOptions} */
         const opts = { ...this._exportDefaults(), ...options };
         if (!EXPORT_FORMATS[opts.format]) opts.format = EXPORT_DEFAULTS.format;
         opts.names ??= defaultNames(opts.format);
@@ -260,7 +316,7 @@ class JwDataTable extends HTMLElement {
         if (!this._emit("export", detail, { cancelable: true })) return null;
         const count = this._t.resultsCount(rows.length);
         if (opts.destination === "clipboard") {
-            this._copyText(content, null, null, this._t.exportedClipboard(count));
+            this._copyText(/** @type {string} */ (content), null, null, this._t.exportedClipboard(count));
         } else {
             downloadFile(content, filename, opts.format);
             this._announce(this._t.exported(count, filename));
@@ -269,7 +325,7 @@ class JwDataTable extends HTMLElement {
     }
 
     openExportDialog() {
-        this._openExportDialog(this.shadow.querySelector('[data-fk="tb:export"]'));
+        this._openExportDialog(/** @type {HTMLElement|null} */ (this.shadow.querySelector('[data-fk="tb:export"]')));
     }
 
     // Saved views: the state without the current page, stored through the
@@ -280,6 +336,7 @@ class JwDataTable extends HTMLElement {
         return this._requireViewStore().list();
     }
 
+    /** @param {string} name */
     async saveView(name) {
         const store = this._requireViewStore();
         name = viewName(name);
@@ -290,6 +347,10 @@ class JwDataTable extends HTMLElement {
     }
 
     // Resolves to false when there is no view with this name.
+    /**
+     * @param {string} name
+     * @returns {Promise<boolean>}
+     */
     async loadView(name) {
         const store = this._requireViewStore();
         name = viewName(name);
@@ -303,6 +364,10 @@ class JwDataTable extends HTMLElement {
     }
 
     // Overwrites a view named `newName`; the panel asks before that.
+    /**
+     * @param {string} oldName
+     * @param {string} newName
+     */
     async renameView(oldName, newName) {
         const store = this._requireViewStore();
         oldName = viewName(oldName);
@@ -314,6 +379,7 @@ class JwDataTable extends HTMLElement {
         this._emit("viewrename", { oldName, name: newName });
     }
 
+    /** @param {string} name */
     async deleteView(name) {
         const store = this._requireViewStore();
         name = viewName(name);
@@ -368,6 +434,7 @@ class JwDataTable extends HTMLElement {
         this._state.layout = this._mobileMatches ? this._responsive.mobileLayout : "table";
     }
 
+    /** @param {boolean} matches */
     _onBreakpointChange(matches) {
         this._mobileMatches = matches;
         // Transient popups computed for the previous layout are no longer valid.
@@ -386,8 +453,9 @@ class JwDataTable extends HTMLElement {
 
     // ---- Layouts: table, cards ("grid"), compact table + details ----------
 
+    /** @returns {Layout[]} */
     _availableLayouts() {
-        return ["table", this._features.grid && "grid", this._features.compact && "compact"].filter(Boolean);
+        return /** @type {Layout[]} */ (["table", this._features.grid && "grid", this._features.compact && "compact"].filter(Boolean));
     }
 
     // The layout to render: the chosen one if its feature is on, else the table.
@@ -424,6 +492,7 @@ class JwDataTable extends HTMLElement {
         return this._state.columnOrder.join("\u0000") !== this._columns.map((c) => c.key).join("\u0000");
     }
 
+    /** @param {Column|undefined} column */
     _isPinned(column) {
         return !!column && this._features.columnPinning && this._state.pinnedColumns.includes(column.key);
     }
@@ -472,6 +541,10 @@ class JwDataTable extends HTMLElement {
     //   "body"    – rows and footer only; the toolbar (e.g. a focused search field) stays
     //   "sort"    – header sort state in place, rows and footer
     //   "columns" – header cells reused and reordered, rows; syncs an open column chooser
+    /**
+     * @param {Partial<TableState>} patch
+     * @param {{ update?: "full"|"body"|"sort"|"columns", announce?: (() => void)|null }} [options]
+     */
     _commit(patch, { update = "full", announce = null } = {}) {
         Object.assign(this._state, patch);
         this._deriveView();
@@ -505,7 +578,7 @@ class JwDataTable extends HTMLElement {
     }
 
     _renderBody() {
-        const body = el("div", { class: "k-dt-body", part: "body", onscroll: (e) => updateScrollShadows(e.currentTarget.parentElement) });
+        const body = el("div", { class: "k-dt-body", part: "body", onscroll: (e) => updateScrollShadows(/** @type {HTMLElement} */ (e.currentTarget.parentElement)) });
         if (this._config.maxHeight) body.style.maxHeight = this._config.maxHeight;
         body.appendChild(this._currentLayout() === "grid" ? this._renderGrid() : this._renderTable());
         return body;
@@ -514,16 +587,17 @@ class JwDataTable extends HTMLElement {
     _renderToolbar() {
         const t = this._t;
         const features = this._features;
+        /** @type {Record<Layout, { icon: string, label: string }>} */
         const layoutMeta = {
             table: { icon: "table", label: t.layoutTable },
             grid: { icon: "layout-grid", label: t.layoutGrid },
             compact: { icon: "rows-3", label: t.layoutCompact }
         };
-        const panels = [
-            features.columnVisibility && { fk: "tb:columns", icon: "columns-3", label: t.showHideColumns, open: (a) => this._openColumnChooser(a) },
-            this._viewStore && { fk: "tb:saved-views", icon: "bookmark", label: t.savedViews, open: (a) => this._openViewsPanel(a) },
-            features.export && { fk: "tb:export", icon: "download", label: t.exportData, open: (a) => this._openExportDialog(a) }
-        ].filter(Boolean);
+        /** @type {{ fk: string, icon: string, label: string, open: (anchor: HTMLElement) => void }[]} */
+        const panels = [];
+        if (features.columnVisibility) panels.push({ fk: "tb:columns", icon: "columns-3", label: t.showHideColumns, open: (a) => this._openColumnChooser(a) });
+        if (this._viewStore) panels.push({ fk: "tb:saved-views", icon: "bookmark", label: t.savedViews, open: (a) => this._openViewsPanel(a) });
+        if (features.export) panels.push({ fk: "tb:export", icon: "download", label: t.exportData, open: (a) => this._openExportDialog(a) });
         return buildToolbar({
             t,
             title: this._config.title,
@@ -549,7 +623,7 @@ class JwDataTable extends HTMLElement {
         const features = this._features;
         return {
             filterCount: features.filtering ? activeFilterCount(this._state, { globalSearch: features.globalSearch }) : 0,
-            onShowFilters: (anchor) => this._openFilterSummary(anchor),
+            onShowFilters: (/** @type {HTMLElement} */ anchor) => this._openFilterSummary(anchor),
             onClearFilters: () => this.clearFilters()
         };
     }
@@ -608,6 +682,7 @@ class JwDataTable extends HTMLElement {
         return this._sourceData.length === 0 ? this._config.emptyText : this._config.noResultsText;
     }
 
+    /** @param {Column[]} columns */
     _renderTbody(columns) {
         const tbody = el("tbody");
         if (this._pageData.length === 0) {
@@ -616,11 +691,12 @@ class JwDataTable extends HTMLElement {
             ]));
         } else {
             this._pageData.forEach((row, index) => tbody.appendChild(this._renderRow(row, index, columns)));
-            this._initRoving(tbody, ".k-dt-td", (event, cell) => this._onCellKey(event, cell));
+            this._initRoving(tbody, ".k-dt-td", (event, cell) => this._onCellKey(event, /** @type {HTMLTableCellElement} */ (cell)));
         }
         return tbody;
     }
 
+    /** @param {Column} column */
     _renderHeaderCell(column) {
         const th = el("th", {
             class: "k-dt-th k-dt-align-" + column.align + (column.minWidth ? " k-dt-has-min" : ""),
@@ -639,7 +715,7 @@ class JwDataTable extends HTMLElement {
             title: column.sortable ? this._t.sortHint : null,
             onclick: column.sortable
                 ? (e) => this._applySort(column.key, { additive: e.shiftKey && this._features.multiSort })
-                : null
+                : undefined
         }, [el("span", { text: column.label })]);
 
         if (column.sortable) labelBtn.appendChild(this._sortIndicator(column));
@@ -681,12 +757,14 @@ class JwDataTable extends HTMLElement {
         return th;
     }
 
+    /** @param {Column} column */
     _ariaSort(column) {
         const sort = this._state.sort.find((s) => s.key === column.key);
         return sort ? (sort.direction === "asc" ? "ascending" : "descending") : "none";
     }
 
     // Sort icon, plus rank (visual) and priority (screen readers) for multi-sort.
+    /** @param {Column} column */
     _sortIndicator(column) {
         const sortIndex = this._state.sort.findIndex((s) => s.key === column.key);
         const sort = sortIndex >= 0 ? this._state.sort[sortIndex] : null;
@@ -702,6 +780,7 @@ class JwDataTable extends HTMLElement {
     }
 
     // Shown in the header of pinned columns.
+    /** @param {Column} column */
     _unpinButton(column) {
         return el("button", {
             type: "button",
@@ -713,12 +792,19 @@ class JwDataTable extends HTMLElement {
                 // This button goes away: move focus to the column's header
                 // button first, so it stays on the same element while the
                 // column moves.
-                event.currentTarget.closest("th").querySelector("button.k-dt-th-label, .k-dt-filter-btn")?.focus();
+                /** @type {HTMLElement|null|undefined} */
+                const headerButton = event.currentTarget.closest("th")?.querySelector("button.k-dt-th-label, .k-dt-filter-btn");
+                headerButton?.focus();
                 this._togglePin(column.key, false);
             }
         }, [iconEl("pin")]);
     }
 
+    /**
+     * @param {Row} row
+     * @param {number} index
+     * @param {Column[]} columns
+     */
     _renderRow(row, index, columns) {
         const tr = el("tr", { class: "k-dt-tr" });
         if (typeof this._config.rowClass === "function") {
@@ -735,6 +821,10 @@ class JwDataTable extends HTMLElement {
     }
 
     // Last cell of a compact row: the button that opens the record's details.
+    /**
+     * @param {Row} row
+     * @param {number} index
+     */
     _renderDetailsCell(row, index) {
         const td = el("td", { class: "k-dt-td k-dt-details-col", tabIndex: -1, "data-fk": `cell:${index}:#details` });
         const button = el("button", {
@@ -753,6 +843,11 @@ class JwDataTable extends HTMLElement {
         return td;
     }
 
+    /**
+     * @param {Column} column
+     * @param {Row} row
+     * @param {number} index
+     */
     _renderCell(column, row, index) {
         const value = getCellValue(row, column);
         const fk = `cell:${index}:${column.key}`;
@@ -778,6 +873,12 @@ class JwDataTable extends HTMLElement {
 
     // Builds the display node including link logic (href / SPA / custom handler).
     // `fk`: focus-key prefix of the containing cell/card (keeps focus across re-renders).
+    /**
+     * @param {Column} column
+     * @param {Row} row
+     * @param {any} value
+     * @param {string|null} fk
+     */
     _valueNode(column, row, value, fk) {
         const display = formatValue(value, column, this._config.locale, row);
         const content = display instanceof Node ? display : document.createTextNode(display);
@@ -796,6 +897,10 @@ class JwDataTable extends HTMLElement {
     }
 
     // Copies the value of its cell or field (see `_onClick`).
+    /**
+     * @param {Column} column
+     * @param {string|null} fk
+     */
     _copyButton(column, fk) {
         return el("button", {
             type: "button",
@@ -851,6 +956,11 @@ class JwDataTable extends HTMLElement {
 
     // Label/value pairs of one record as a description list (cards, detail dialog).
     // `fk`: focus-key prefix, or null where focus keys are not needed.
+    /**
+     * @param {Column[]} columns
+     * @param {Row} row
+     * @param {string|null} fk
+     */
     _renderFields(columns, row, fk) {
         const list = el("dl", { class: "k-dt-fields" });
         columns.forEach((column) => {
@@ -889,7 +999,7 @@ class JwDataTable extends HTMLElement {
         if (!root) { this._render(); return; }
         const focusKey = this._focusKey();
 
-        root.querySelector(".k-dt-body").replaceWith(this._renderBody());
+        root.querySelector(".k-dt-body")?.replaceWith(this._renderBody());
         this._refreshFilterButtons();
         this._refreshFooter();
         this._observeLayout();
@@ -900,11 +1010,12 @@ class JwDataTable extends HTMLElement {
     // instead of a full re-render: the focused header button stays the same
     // element, so screen readers don't re-announce the whole table context.
     _refreshSort() {
+        /** @type {HTMLTableElement|null} */
         const table = this.shadow.querySelector(".k-dt-table");
-        if (!table) { this._render(); return; }   // cards: no header to keep
+        if (!table?.tHead) { this._render(); return; }   // cards: no header to keep
         const focusKey = this._focusKey();
         const columns = this._tableColumns();
-        for (const th of table.tHead.rows[0].cells) {
+        for (const th of Array.from(table.tHead.rows[0].cells)) {
             const column = columns.find((c) => c.key === th.dataset.key);
             if (!column) continue;
             th.setAttribute("aria-sort", this._ariaSort(column));
@@ -922,11 +1033,13 @@ class JwDataTable extends HTMLElement {
     // stay the same elements and screen readers don't re-announce the table.
     _refreshColumns() {
         this._syncColumnChooser();
+        /** @type {HTMLTableElement|null} */
         const table = this.shadow.querySelector(".k-dt-table");
-        if (!table) { this._render(); return; }   // cards: rebuilt as a whole
+        if (!table?.tHead) { this._render(); return; }   // cards: rebuilt as a whole
         const focusKey = this._focusKey();
         const columns = this._tableColumns();
         const headRow = table.tHead.rows[0];
+        /** @type {Map<string|undefined, HTMLTableCellElement>} */
         const existing = new Map(Array.from(headRow.cells).filter((th) => th.dataset.key).map((th) => [th.dataset.key, th]));
         const cells = columns.map((column, i) => {
             const th = existing.get(column.key) || this._renderHeaderCell(column);
@@ -934,15 +1047,16 @@ class JwDataTable extends HTMLElement {
             this._setHeaderPin(th, column, i, columns);
             return th;
         });
+        /** @type {HTMLTableCellElement|null} */
         const detailsTh = headRow.querySelector(".k-dt-details-col");
         if (detailsTh) cells.push(detailsTh);
         existing.forEach((th) => th.remove());
 
         const active = deepActiveElement();
         const anchor = cells.find((th) => th.contains(active));
-        const at = cells.indexOf(anchor);
+        const at = anchor ? cells.indexOf(anchor) : -1;
         cells.forEach((th, i) => {
-            if (i < at) headRow.insertBefore(th, anchor);
+            if (i < at) headRow.insertBefore(th, anchor ?? null);
             else if (i > at) headRow.appendChild(th);
         });
 
@@ -963,13 +1077,19 @@ class JwDataTable extends HTMLElement {
     }
 
     // Brings a reused header cell's pinned state (sticky offset, unpin button) up to date.
+    /**
+     * @param {HTMLTableCellElement} th
+     * @param {Column} column
+     * @param {number} index
+     * @param {Column[]} columns
+     */
     _setHeaderPin(th, column, index, columns) {
         th.classList.remove("k-dt-pinned", "k-dt-pinned-last");
         th.style.removeProperty("--k-dt-pin-left");
         this._pinCell(th, index, columns);
         const button = th.querySelector(".k-dt-pin-btn");
         if (this._isPinned(column)) {
-            if (!button) th.querySelector(".k-dt-th-inner").appendChild(this._unpinButton(column));
+            if (!button) th.querySelector(".k-dt-th-inner")?.appendChild(this._unpinButton(column));
         } else {
             button?.remove();
         }
@@ -991,11 +1111,19 @@ class JwDataTable extends HTMLElement {
 
     // Pinned columns that don't fit are paused (see ui/pinnedLayout.js).
     _layoutPinned() {
+        /** @type {HTMLElement|null} */
         const viewport = this.shadow.querySelector(".k-dt-viewport");
         this._pausedPins = viewport ? layoutPinned(viewport) : [];
     }
 
     // Marks the cell at `index` as pinned (sticky offset + last-pinned edge).
+    /**
+     * @template {HTMLTableCellElement} T
+     * @param {T} cell
+     * @param {number} index
+     * @param {Column[]} columns
+     * @returns {T}
+     */
     _pinCell(cell, index, columns) {
         if (!this._isPinned(columns[index])) return cell;
         cell.classList.add("k-dt-pinned");
@@ -1004,9 +1132,14 @@ class JwDataTable extends HTMLElement {
         return cell;
     }
 
+    /**
+     * @param {string} key
+     * @param {boolean} pinned
+     */
     _togglePin(key, pinned) {
         const pinnedColumns = this._state.pinnedColumns.filter((k) => k !== key);
         if (pinned) pinnedColumns.push(key);
+        /** @param {string} k */
         const labelOf = (k) => this._columns.find((c) => c.key === k)?.label ?? k;
         const label = labelOf(key);
         this._commit({ pinnedColumns }, {
@@ -1021,19 +1154,29 @@ class JwDataTable extends HTMLElement {
 
     // ---- Sorting & paging -------------------------------------------------
 
+    /**
+     * @param {string} key
+     * @param {{ additive?: boolean }} options
+     */
     _applySort(key, options) {
         this._setSort(toggleSort(this._state.sort, key, options));
     }
 
+    /**
+     * @param {string} key
+     * @param {SortSpec["direction"]|null} direction
+     */
     _setSortDirection(key, direction, additive = false) {
         const rest = additive ? this._state.sort.filter((s) => s.key !== key) : [];
         this._setSort(direction ? [...rest, { key, direction }] : rest);
     }
 
+    /** @param {SortSpec[]} sort */
     _setSort(sort) {
         this._commit({ sort, page: 1 }, { update: "sort", announce: () => this._announceSort() });
     }
 
+    /** @param {number} page */
     _goToPage(page) {
         this._commit({ page: clamp(page, 1, this._pageCount) }, { announce: () => this._announcePage() });
     }
@@ -1042,22 +1185,29 @@ class JwDataTable extends HTMLElement {
 
     // Interactive elements carry a stable `data-fk` key, so focus survives the
     // re-render that follows most interactions (sort, filter, page, …).
+    /** @returns {string|null} */
     _focusKey() {
         const active = deepActiveElement();
         if (!active || active.getRootNode() !== this.shadow) return null;
-        return active.closest("[data-fk]")?.dataset.fk ?? null;
+        /** @type {HTMLElement|null} */
+        const keyed = active.closest("[data-fk]");
+        return keyed?.dataset.fk ?? null;
     }
 
     // Focuses the element with `key`. Fallbacks: the enclosing item
     // ("cell:3:name:link" → "cell:3:name"), the current page for pager keys,
     // any element of the same kind (a removed header → first header), and
     // finally the body's roving tab stop.
+    /** @param {string|null|undefined} key */
     _restoreFocus(key) {
         if (!key) return false;
-        const usable = (node) => node && node.isConnected && !node.disabled && node.getClientRects().length > 0;
-        const find = (selector) => Array.from(this.shadow.querySelectorAll(selector)).find(usable);
+        /** @param {HTMLElement & { disabled?: boolean }} node */
+        const usable = (node) => node.isConnected && !node.disabled && node.getClientRects().length > 0;
+        /** @param {string} selector */
+        const find = (selector) => Array.from(/** @type {NodeListOf<HTMLElement>} */ (this.shadow.querySelectorAll(selector))).find(usable);
         const parts = key.split(":");
-        let target = null;
+        /** @type {HTMLElement|undefined} */
+        let target;
         for (let n = parts.length; n >= 2 && !target; n -= 1) {
             target = find(`[data-fk="${CSS.escape(parts.slice(0, n).join(":"))}"]`);
         }
@@ -1071,12 +1221,18 @@ class JwDataTable extends HTMLElement {
         return true;
     }
 
+    /** @param {string} kind */
     _hintId(kind) {
         return `${this._instanceId}-${kind}-hint`;
     }
 
     // Roving tabindex (see ui/keyboard.js); the last focused item is
     // remembered across re-renders.
+    /**
+     * @param {HTMLElement} container
+     * @param {string} selector
+     * @param {(event: KeyboardEvent, item: HTMLElement) => void} onKey
+     */
     _initRoving(container, selector, onKey) {
         initRoving(container, selector, {
             rememberedKey: this._rovingKey,
@@ -1085,9 +1241,14 @@ class JwDataTable extends HTMLElement {
         });
     }
 
+    /**
+     * @param {KeyboardEvent} event
+     * @param {HTMLTableCellElement} cell
+     */
     _onCellKey(event, cell) {
         if (event.key === "Enter") {
             // Activate the cell's link/action/details button, else the row's click.
+            /** @type {HTMLElement|null} */
             const inner = cell.querySelector(".k-dt-link, .k-dt-cell-action, .k-dt-details-btn");
             if (inner) inner.click();
             else if (this._isCompact() || this._config.onCellClick || this._config.onRowClick) cell.click();
@@ -1101,6 +1262,10 @@ class JwDataTable extends HTMLElement {
         target.focus();
     }
 
+    /**
+     * @param {KeyboardEvent} event
+     * @param {HTMLElement} card
+     */
     _onCardKey(event, card) {
         if (event.key === "Enter") {
             if (!this._config.onRowClick) return;
@@ -1108,13 +1273,16 @@ class JwDataTable extends HTMLElement {
             card.click();
             return;
         }
-        const target = listItemTarget(event, card, Array.from(card.parentElement.querySelectorAll(".k-dt-card")));
+        /** @type {HTMLElement[]} */
+        const cards = Array.from(card.parentElement?.querySelectorAll(".k-dt-card") ?? []);
+        const target = listItemTarget(event, card, cards);
         if (!target) return;
         event.preventDefault();
         target.focus();
     }
 
     // Polite screen-reader announcement (status messages, WCAG 4.1.3).
+    /** @param {string|undefined} message */
     _announce(message) {
         this._announcer.announce(message);
     }
@@ -1145,46 +1313,63 @@ class JwDataTable extends HTMLElement {
     // fields (record details) are handled here too.
     _listen() {
         const root = this.shadow;
-        root.addEventListener("click", (event) => this._onClick(event));
-        root.addEventListener("contextmenu", (event) => this._onContextMenu(event));
-        root.addEventListener("keydown", (event) => this._onContextKey(event));
-        root.addEventListener("pointerdown", (event) => this._onPointerDown(event));
-        root.addEventListener("pointerover", (event) => this._onPointerOver(event));
+        root.addEventListener("click", (event) => this._onClick(/** @type {MouseEvent} */ (event)));
+        root.addEventListener("contextmenu", (event) => this._onContextMenu(/** @type {MouseEvent} */ (event)));
+        root.addEventListener("keydown", (event) => this._onContextKey(/** @type {KeyboardEvent} */ (event)));
+        root.addEventListener("pointerdown", (event) => this._onPointerDown(/** @type {PointerEvent} */ (event)));
+        root.addEventListener("pointerover", (event) => this._onPointerOver(/** @type {PointerEvent} */ (event)));
         // Clicking a copy button must not move focus into the cell: screen
         // readers would read the whole table context instead of the message.
         root.addEventListener("mousedown", (event) => {
-            if (event.target.closest?.(".k-dt-copy")) event.preventDefault();
+            if (/** @type {Element|null} */ (event.target)?.closest?.(".k-dt-copy")) event.preventDefault();
         });
     }
 
     // The closest element matching `selector` that has a record, or null.
+    /**
+     * @param {EventTarget|null} node
+     * @param {string} selector
+     * @returns {HTMLElement|null}
+     */
     _host(node, selector) {
-        const host = node?.closest?.(selector);
+        const host = /** @type {HTMLElement|null} */ (node instanceof Element ? node.closest(selector) : null);
         return host && this._items.has(host) ? host : null;
+    }
+
+    // The record of a cell, card, header or field that `_host()` found.
+    /**
+     * @param {Element} host
+     * @returns {ItemRecord}
+     */
+    _record(host) {
+        return /** @type {ItemRecord} */ (this._items.get(host));
     }
 
     // Controls inside a value first (copy and action stop there; a link goes
     // on to the cell and row), then the cell, then the row or card.
+    /** @param {MouseEvent} event */
     _onClick(event) {
         const target = event.target;
         if (!(target instanceof Element)) return;
         const suppressed = this._shouldSuppressClick();
+        /** @type {HTMLElement|null} */
         const control = target.closest(VALUE_CONTROLS);
         const valueHost = control && this._host(control, VALUE_HOSTS);
         if (valueHost) {
-            const { column, row, value } = this._items.get(valueHost);
+            const { column, row, value } = this._record(valueHost);
             if (control.matches(".k-dt-copy")) {
                 const text = toText(value, column, this._config.locale, row);
                 this._copyText(neutralizeFormula(text), control, text);
                 return;
             }
+            if (!row) return;
             if (control.matches(".k-dt-details-btn")) {
                 this._openDetails(row, { anchor: control });
                 return;
             }
             if (suppressed) { event.preventDefault(); return; }
             if (control.matches(".k-dt-cell-action")) {
-                column.action(row, value, event);
+                column.action?.(row, value, event);
                 return;
             }
             this._followLink(event, column, row, value);
@@ -1193,12 +1378,12 @@ class JwDataTable extends HTMLElement {
 
         const cell = this._host(target, "td.k-dt-td");
         if (cell && typeof this._config.onCellClick === "function" && !this._isCompact()) {
-            const { column, row, value } = this._items.get(cell);
-            this._config.onCellClick(value, row, column);
+            const { column, row, value } = this._record(cell);
+            this._config.onCellClick(value, /** @type {Row} */ (row), column);
         }
         const record = this._host(target, "tr.k-dt-tr, .k-dt-card");
         if (!record) return;
-        const { row, index } = this._items.get(record);
+        const { row, index } = /** @type {RowRecord} */ (this._items.get(record));
         if (record.matches("tr") && this._isCompact()) {
             // Compact layout: the whole row opens the details (links and buttons
             // inside keep their own action); onRowClick moves into the dialog.
@@ -1209,8 +1394,15 @@ class JwDataTable extends HTMLElement {
     }
 
     // Links: a custom handler or SPA routing replace the browser navigation.
+    /**
+     * @param {MouseEvent} event
+     * @param {Column} column
+     * @param {Row} row
+     * @param {any} value
+     */
     _followLink(event, column, row, value) {
         const link = column.link;
+        if (!link) return;
         if (typeof link.handler === "function") {
             event.preventDefault();
             link.handler(row, value, event);
@@ -1221,12 +1413,14 @@ class JwDataTable extends HTMLElement {
     }
 
     // Truncated cells show the full text as a tooltip, only when it is cut off.
+    /** @param {PointerEvent} event */
     _onPointerOver(event) {
-        const td = event.target.closest?.("td.k-dt-truncate");
-        if (!td || td.contains(event.relatedTarget) || !this._items.has(td)) return;
+        const td = /** @type {Element|null} */ (event.target)?.closest?.("td.k-dt-truncate");
+        if (!td || td.contains(/** @type {Node|null} */ (event.relatedTarget)) || !this._items.has(td)) return;
+        /** @type {HTMLElement|null} */
         const node = td.querySelector(".k-dt-cell > :first-child");
         if (!node) return;
-        const { column, row, value } = this._items.get(td);
+        const { column, row, value } = this._record(td);
         if (node.scrollWidth > node.clientWidth) node.title = toText(value, column, this._config.locale, row);
         else node.removeAttribute("title");
     }
@@ -1236,9 +1430,10 @@ class JwDataTable extends HTMLElement {
     // Right-click (desktop). The browser's own menu is suppressed anywhere in
     // the table so only ours shows; form fields keep it (paste, spell-check, …),
     // and so do panels.
+    /** @param {MouseEvent} event */
     _onContextMenu(event) {
-        if (!this._features.contextMenu || !event.target.closest?.(".k-dt")) return;
-        if (event.composedPath()[0]?.matches?.("input, textarea, select")) return;
+        if (!this._features.contextMenu || !/** @type {Element|null} */ (event.target)?.closest?.(".k-dt")) return;
+        if (/** @type {Element|undefined} */ (event.composedPath()[0])?.matches?.("input, textarea, select")) return;
         event.preventDefault();
         const host = this._host(event.target, MENU_HOSTS);
         if (!host) return;
@@ -1252,10 +1447,11 @@ class JwDataTable extends HTMLElement {
     // Keyboard: Shift+F10 or the context-menu key on a focused cell, card or
     // header control. Browsers may follow up with a native `contextmenu`
     // event, which is suppressed.
+    /** @param {KeyboardEvent} event */
     _onContextKey(event) {
         if (!this._features.contextMenu) return;
         if (!(event.key === "ContextMenu" || (event.key === "F10" && event.shiftKey))) return;
-        const target = event.composedPath()[0];
+        const target = /** @type {Element|undefined} */ (event.composedPath()[0]);
         if (target?.matches?.("input, textarea, select")) return;
         const host = this._host(event.target, MENU_HOSTS);
         if (!host) return;
@@ -1267,6 +1463,7 @@ class JwDataTable extends HTMLElement {
     }
 
     // Touch: a long-press opens the context menu.
+    /** @param {PointerEvent} event */
     _onPointerDown(event) {
         if (!this._features.contextMenu || event.pointerType !== "touch") return;
         const host = this._host(event.target, MENU_HOSTS);
@@ -1290,8 +1487,12 @@ class JwDataTable extends HTMLElement {
     // `point`: { clientX, clientY } — where to open. `host` is the anchor for
     // a filter panel opened from the menu (not the event's target: once a
     // native event is dispatched, its target inside a shadow root is null).
+    /**
+     * @param {HTMLElement} host
+     * @param {{ clientX: number, clientY: number, target?: unknown }} point
+     */
     _openContextMenuAt(host, point) {
-        const { column, row, value } = this._items.get(host);
+        const { column, row, value } = this._record(host);
         this._openContextMenu({ clientX: point.clientX, clientY: point.clientY, target: host }, column, row, value);
     }
 
@@ -1302,7 +1503,14 @@ class JwDataTable extends HTMLElement {
         return !!this._suppressClickUntil && Date.now() < this._suppressClickUntil;
     }
 
+    /**
+     * @param {MenuPoint} event
+     * @param {Column} column
+     * @param {Row|null} row
+     * @param {any} value
+     */
     _openContextMenu(event, column, row, value) {
+        /** @type {MenuItem[]} */
         const items = [];
         // Where focus returns after the menu (or a panel opened from it) closes.
         const returnKey = this._focusKey();
@@ -1390,6 +1598,12 @@ class JwDataTable extends HTMLElement {
 
     // `onDone()`: called instead of closing after Apply/Reset and on Escape
     // (the filter summary uses it to come back).
+    /**
+     * @param {Column} column
+     * @param {HTMLElement|null} anchor
+     * @param {string|null} [returnKey]
+     * @param {{ onDone?: (() => void)|null }} [options]
+     */
     _openFilterPanel(column, anchor, returnKey, { onDone = null } = {}) {
         closeContextMenu();
         const panel = buildFilterPanel({
@@ -1412,13 +1626,14 @@ class JwDataTable extends HTMLElement {
     // column filters in display order. `id`: "search" or "column:<key>".
     _filterEntries() {
         const t = this._t;
+        /** @type {{ id: string, label: string, value: string }[]} */
         const entries = [];
         if (this._features.globalSearch && this._state.globalSearch) {
             entries.push({ id: "search", label: t.searchFilter, value: t.quoted(this._state.globalSearch) });
         }
         for (const column of this._orderedColumns()) {
             const filter = this._state.filters[column.key];
-            if (!isActiveFilter(filter)) continue;
+            if (!filter || !isActiveFilter(filter)) continue;
             entries.push({
                 id: `column:${column.key}`,
                 label: column.label,
@@ -1429,6 +1644,10 @@ class JwDataTable extends HTMLElement {
     }
 
     // `focusId`: the entry to focus (coming back from its filter panel).
+    /**
+     * @param {HTMLElement|null} anchor
+     * @param {string|null} [focusId]
+     */
     _openFilterSummary(anchor, focusId = null) {
         const summary = buildFilterSummary({
             t: this._t,
@@ -1454,6 +1673,7 @@ class JwDataTable extends HTMLElement {
 
     // The search entry goes to the search field; a column entry opens that
     // column's filter panel, which comes back to the summary when done.
+    /** @param {string} id */
     _editFilterEntry(id) {
         if (id === "search") {
             this._closeOverlay({ restoreFocus: false });
@@ -1461,6 +1681,8 @@ class JwDataTable extends HTMLElement {
             return;
         }
         const column = this._columns.find((c) => `column:${c.key}` === id);
+        if (!column) return;
+        /** @returns {HTMLElement|null} */
         const toolbarButton = () => this.shadow.querySelector('[data-fk="tb:filters"]');
         this._openFilterPanel(column, toolbarButton(), "tb:filters", {
             onDone: () => {
@@ -1472,6 +1694,7 @@ class JwDataTable extends HTMLElement {
         });
     }
 
+    /** @param {string} id */
     _removeFilterEntry(id) {
         if (id === "search") {
             this._debouncedSearch.cancel();
@@ -1482,6 +1705,10 @@ class JwDataTable extends HTMLElement {
     }
 
     // `filter`: the column's new filter, or null to remove it.
+    /**
+     * @param {string} key
+     * @param {Filter|null} filter
+     */
     _setFilter(key, filter) {
         const filters = { ...this._state.filters };
         if (filter) filters[key] = filter;
@@ -1496,6 +1723,10 @@ class JwDataTable extends HTMLElement {
     // chooser). Pinned columns form a block at the front: a column moved into
     // it gets pinned, a pinned one moved out of it gets unpinned; right at the
     // boundary it keeps its state.
+    /**
+     * @param {string} key
+     * @param {number} target
+     */
     _moveColumn(key, target, { all = false } = {}) {
         const scope = () => (all ? this._orderedColumns() : this._tableColumns());
         const moved = moveColumn(this._state, scope().map((c) => c.key), key, target, { pinning: this._features.columnPinning });
@@ -1509,14 +1740,19 @@ class JwDataTable extends HTMLElement {
                 const position = list.findIndex((c) => c.key === key) + 1;
                 const message = pinned === wasPinned ? this._t.columnMoved
                     : pinned ? this._t.columnMovedPinned : this._t.columnMovedUnpinned;
-                this._announce(message(column.label, position, list.length));
+                this._announce(message(column?.label ?? key, position, list.length));
             }
         });
     }
 
+    /**
+     * @param {Column} column
+     * @returns {MenuItem[]}
+     */
     _moveMenuItems(column) {
         const keys = this._tableColumns().map((c) => c.key);
         const i = keys.indexOf(column.key);
+        /** @type {MenuItem[]} */
         const items = [];
         if (i > 0) {
             items.push({ label: this._t.moveLeft, icon: "arrow-left", onSelect: () => this._moveColumn(column.key, i - 1) });
@@ -1531,7 +1767,7 @@ class JwDataTable extends HTMLElement {
     }
 
     _resetColumnOrder() {
-        this._commit({ columnOrder: normalizeOrder(null, this._columns.map((c) => c.key)) }, {
+        this._commit({ columnOrder: normalizeOrder(undefined, this._columns.map((c) => c.key)) }, {
             update: "columns",
             announce: () => this._announce(this._t.columnOrderReset)
         });
@@ -1550,6 +1786,7 @@ class JwDataTable extends HTMLElement {
     }
 
     // Short name of a record: the card title column, else the first visible column.
+    /** @param {Row} row */
     _recordTitle(row) {
         const key = this._config.grid?.titleColumn;
         const column = (key && this._columns.find((c) => c.key === key)) || this._visibleColumns()[0];
@@ -1559,6 +1796,10 @@ class JwDataTable extends HTMLElement {
     // Modal dialog with every field of `row` (see panels/detailsDialog.js).
     // The table follows previous/next along, so focus returns to the right
     // row when the dialog closes.
+    /**
+     * @param {Row} row
+     * @param {{ returnKey?: string|null, anchor?: HTMLElement|null }} [options]
+     */
     _openDetails(row, { returnKey = this._focusKey(), anchor = null } = {}) {
         closeContextMenu();
         const index = this._viewData.indexOf(row);
@@ -1586,19 +1827,26 @@ class JwDataTable extends HTMLElement {
 
     // Shows the page that contains `record` and points the dialog's focus
     // return at that record's row/card.
+    /** @param {Row} record */
     _followDetails(record) {
         if (this._paginated()) {
             const page = Math.floor(this._viewData.indexOf(record) / this._state.pageSize) + 1;
             if (page !== this._state.page) this._commit({ page }, { update: "body" });
         }
         const pageIndex = this._pageData.indexOf(record);
-        const retarget = (key) => key?.replace(/^(cell|card|details):\d+/, (_, kind) => `${kind}:${pageIndex}`);
+        /**
+         * @template {string|null|undefined} K
+         * @param {K} key
+         * @returns {K}
+         */
+        const retarget = (key) => /** @type {K} */ (key?.replace(/^(cell|card|details):\d+/, (_, kind) => `${kind}:${pageIndex}`));
         this._overlay.returnKey = retarget(this._overlay.returnKey);
         this._rovingKey = retarget(this._rovingKey);
     }
 
     // ---- Column visibility ------------------------------------------------
 
+    /** @param {HTMLElement|null} anchor */
     _openColumnChooser(anchor) {
         this._chooser = buildColumnChooser({
             t: this._t,
@@ -1623,6 +1871,10 @@ class JwDataTable extends HTMLElement {
         this._chooser?.sync();
     }
 
+    /**
+     * @param {string} key
+     * @param {boolean} visible
+     */
     _toggleColumn(key, visible) {
         const hiddenColumns = new Set(this._state.hiddenColumns);
         if (visible) hiddenColumns.delete(key);
@@ -1653,6 +1905,7 @@ class JwDataTable extends HTMLElement {
         return viewSignature(this._viewState());
     }
 
+    /** @param {HTMLElement|null} anchor */
     _openViewsPanel(anchor) {
         const { panel, refresh } = buildViewsPanel({
             t: this._t,
@@ -1673,11 +1926,13 @@ class JwDataTable extends HTMLElement {
 
     // ---- Export dialog ----------------------------------------------------
 
+    /** @returns {ExportOptions} */
     _exportDefaults() {
         return { ...EXPORT_DEFAULTS, ...(this._config.exportDefaults || {}) };
     }
 
     // Rows in display order; "page" without pagination is the same as "filtered".
+    /** @param {ExportOptions["scope"]} scope */
     _exportRows(scope) {
         if (scope === "page" && this._paginated()) return this._pageData;
         if (scope === "all") return sortData(this._sourceData, this._state.sort, this._columns, this._config.locale);
@@ -1688,13 +1943,18 @@ class JwDataTable extends HTMLElement {
         return this._config.exportFilename || this._config.title || "export";
     }
 
+    /**
+     * @param {HTMLElement|null} anchor
+     * @param {string|null} [returnKey]
+     */
     _openExportDialog(anchor, returnKey = this._focusKey()) {
         const t = this._t;
+        /** @type {[ExportOptions["scope"], string, number][]} */
         const scopes = [
-            this._paginated() && ["page", t.exportScopePage, this._pageData.length],
             ["filtered", t.exportScopeFiltered, this._viewData.length],
             ["all", t.exportScopeAll, this._sourceData.length]
-        ].filter(Boolean);
+        ];
+        if (this._paginated()) scopes.unshift(["page", t.exportScopePage, this._pageData.length]);
         const panel = buildExportDialog({
             t,
             defaults: this._exportDefaults(),
@@ -1716,10 +1976,17 @@ class JwDataTable extends HTMLElement {
     // Opens `panel` as a modal dialog (see ui/overlay.js); focus returns to
     // `returnKey` (default: the element focused now). `centered`: a dialog in
     // the middle of the screen instead of a popover at `anchor`.
+    /**
+     * @param {HTMLElement} panel
+     * @param {HTMLElement|null} anchor
+     * @param {string|null} [returnKey]
+     * @param {{ centered?: boolean, onEscape?: (() => void)|null }} [options]
+     */
     _showOverlay(panel, anchor, returnKey = this._focusKey(), { centered = false, onEscape = null } = {}) {
         this._overlay.show(panel, { anchor, returnKey, centered, onEscape, sheet: this._isMobile() });
     }
 
+    /** @param {{ restoreFocus?: boolean }} [options] */
     _closeOverlay(options) {
         this._overlay.close(options);
     }
@@ -1728,13 +1995,19 @@ class JwDataTable extends HTMLElement {
 
     // `button`: the copy button that was used, if any. `shownValue`: optional
     // value to include in the announcement; `message` replaces it altogether.
+    /**
+     * @param {string} text
+     * @param {HTMLElement|null} [button]
+     * @param {string|null} [shownValue]
+     * @param {string} [message]
+     */
     _copyText(text, button, shownValue, message) {
         // Decided at click time: a keyboard user has focus on the button.
         const buttonFocused = !!button && deepActiveElement() === button;
         writeClipboard(text).then(() => {
             message ??= shownValue ? this._t.copiedValue(truncate(shownValue, 60)) : this._t.copied;
             // Name + check icon stay until the button loses focus.
-            if (buttonFocused && button.isConnected) {
+            if (buttonFocused && button?.isConnected) {
                 confirmOnButton(button, message);
                 return;
             }
@@ -1745,6 +2018,7 @@ class JwDataTable extends HTMLElement {
 
     // Copied text may be pasted into a spreadsheet, which would run cells
     // starting with "=", "+", … as formulas (see `neutralizeFormula`).
+    /** @param {Row} row */
     _copyRow(row) {
         const text = this._visibleColumns()
             .map((column) => neutralizeFormula(toText(getCellValue(row, column), column, this._config.locale, row)))
@@ -1752,6 +2026,7 @@ class JwDataTable extends HTMLElement {
         this._copyText(text);
     }
 
+    /** @param {Column} column */
     _copyColumn(column) {
         const text = this._viewData
             .map((row) => neutralizeFormula(toText(getCellValue(row, column), column, this._config.locale, row)))
@@ -1762,6 +2037,10 @@ class JwDataTable extends HTMLElement {
     // ---- State serialization & events -------------------------------------
 
     // Returns false when a listener cancelled a `cancelable` event.
+    /**
+     * @param {string} name
+     * @param {object} detail
+     */
     _emit(name, detail, { cancelable = false } = {}) {
         return this.dispatchEvent(new CustomEvent("jw-datatable:" + name, { detail, bubbles: true, composed: true, cancelable }));
     }

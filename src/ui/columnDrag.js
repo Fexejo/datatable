@@ -6,6 +6,11 @@
 // `canDrag()`: drag and drop is offered (not on touch, where a long-press
 // opens the context menu). `onStep(step)`: keyboard move by -1/+1.
 // `onDrop(draggedKey, after)`: dropped on this cell, before or after it.
+/**
+ * @param {HTMLTableCellElement} th
+ * @param {{ key: string, label: string, drag: { key: string|null }, canDrag: () => boolean,
+ *     onStep: (step: number) => void, onDrop: (draggedKey: string, after: boolean) => void }} options
+ */
 export function bindColumnMove(th, { key, label, drag, canDrag, onStep, onDrop }) {
     th.addEventListener("keydown", (event) => {
         if (!event.ctrlKey || !event.shiftKey || event.altKey || event.metaKey) return;
@@ -19,6 +24,7 @@ export function bindColumnMove(th, { key, label, drag, canDrag, onStep, onDrop }
     const clearMarks = () => row()?.querySelectorAll(".is-drop-before, .is-drop-after")
         .forEach((n) => n.classList.remove("is-drop-before", "is-drop-after"));
     // Drop before or after `th`, depending on the half the pointer is over.
+    /** @param {DragEvent} event */
     const dropAfter = (event) => {
         const rect = th.getBoundingClientRect();
         return event.clientX > rect.left + rect.width / 2;
@@ -26,19 +32,21 @@ export function bindColumnMove(th, { key, label, drag, canDrag, onStep, onDrop }
     th.addEventListener("dragstart", (event) => {
         if (!canDrag()) { event.preventDefault(); return; }
         drag.key = key;
-        event.dataTransfer.effectAllowed = "move";
-        event.dataTransfer.setData("text/plain", label);
+        if (event.dataTransfer) {
+            event.dataTransfer.effectAllowed = "move";
+            event.dataTransfer.setData("text/plain", label);
+        }
         th.classList.add("is-dragging");
     });
     th.addEventListener("dragover", (event) => {
         if (!drag.key) return;
         event.preventDefault();
-        event.dataTransfer.dropEffect = "move";
+        if (event.dataTransfer) event.dataTransfer.dropEffect = "move";
         clearMarks();
         if (drag.key !== key) th.classList.add(dropAfter(event) ? "is-drop-after" : "is-drop-before");
     });
     th.addEventListener("dragleave", (event) => {
-        if (!th.contains(event.relatedTarget)) th.classList.remove("is-drop-before", "is-drop-after");
+        if (!th.contains(/** @type {Node|null} */ (event.relatedTarget))) th.classList.remove("is-drop-before", "is-drop-after");
     });
     th.addEventListener("drop", (event) => {
         if (!drag.key) return;

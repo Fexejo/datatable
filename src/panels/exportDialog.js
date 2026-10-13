@@ -9,21 +9,49 @@ import { uid } from "../core/util.js";
 // suggested file name. `scopes`: [[value, text, rowCount]] offered as "Rows".
 // `hasHiddenColumns`: offer "All columns". `onSubmit(options)`: export with
 // the chosen options; `onCancel()`.
+/** @typedef {import("../types.js").ExportOptions} ExportOptions */
+/**
+ * @param {{ t: import("../core/i18n.js").Translations, defaults: ExportOptions, baseName: string,
+ *     scopes: [value: ExportOptions["scope"], text: string, rowCount: number][], hasHiddenColumns: boolean,
+ *     onSubmit: (options: ExportOptions) => void, onCancel: () => void }} options
+ */
 export function buildExportDialog({ t, defaults, baseName, scopes, hasHiddenColumns, onSubmit, onCancel }) {
     const id = uid("kdt-exp");
-    const inputOf = (label) => label.querySelector("input");
+    /** @param {HTMLElement} label */
+    const inputOf = (label) => /** @type {HTMLInputElement} */ (label.querySelector("input"));
+    /**
+     * @param {string} text
+     * @param {HTMLElement} control
+     */
     const field = (text, control) => el("div", { class: "k-dt-field" }, [
         el("label", { class: "k-dt-field-label", for: control.id, text }),
         control
     ]);
+    /**
+     * @param {string} name
+     * @param {string} legend
+     * @param {[value: string, text: string, detail?: string][]} options
+     * @param {string} value
+     */
     const radios = (name, legend, options, value) => segmentedEl(`${id}-${name}`, legend, options, value);
-    const radioValue = (group) => group.querySelector("input:checked")?.value;
-    const setRadio = (group, value) => { group.querySelector(`input[value="${CSS.escape(value)}"]`).checked = true; };
+    // The checked one of the values offered in `group`.
+    /**
+     * @param {HTMLElement} group
+     * @returns {any}
+     */
+    const radioValue = (group) => /** @type {HTMLInputElement|null} */ (group.querySelector("input:checked"))?.value;
+    /**
+     * @param {HTMLElement} group
+     * @param {string} value
+     */
+    const setRadio = (group, value) => {
+        /** @type {HTMLInputElement} */ (group.querySelector(`input[value="${CSS.escape(value)}"]`)).checked = true;
+    };
 
     let format = EXPORT_FORMATS[defaults.format] ? defaults.format : EXPORT_DEFAULTS.format;
-    const formatGroup = radios("format", t.exportFormat,
-        Object.keys(EXPORT_FORMATS).map((key) => [key, t.exportFormats[key]]), format);
-    formatGroup.querySelector("input:checked").setAttribute("data-autofocus", "");
+    const formats = /** @type {ExportOptions["format"][]} */ (Object.keys(EXPORT_FORMATS));
+    const formatGroup = radios("format", t.exportFormat, formats.map((key) => [key, t.exportFormats[key]]), format);
+    formatGroup.querySelector("input:checked")?.setAttribute("data-autofocus", "");
     const destinationGroup = radios("destination", t.exportDestination,
         [["download", t.exportDownload], ["clipboard", t.exportClipboard]],
         defaults.destination === "clipboard" && EXPORT_FORMATS[format].text ? "clipboard" : "download");
@@ -37,6 +65,7 @@ export function buildExportDialog({ t, defaults, baseName, scopes, hasHiddenColu
     const filenameField = field(t.exportFilename, filename);
 
     // ---- More options
+    /** @type {[string, string, string][]} */
     const scopeOptions = scopes.map(([value, text, count]) => [value, text, t.resultsCount(count)]);
     const scopeGroup = radios("scope", t.exportRows, scopeOptions,
         scopes.some(([value]) => value === defaults.scope) ? defaults.scope : "filtered");
@@ -46,6 +75,7 @@ export function buildExportDialog({ t, defaults, baseName, scopes, hasHiddenColu
     const metadata = switchEl(t.exportMetadata, defaults.metadata);
     const namesGroup = radios("names", t.exportNames,
         [["label", t.exportNamesLabel], ["key", t.exportNamesKey]], defaults.names ?? defaultNames(format));
+    /** @type {Record<string, keyof typeof t.delimiters>} */
     const delimiterNames = { ";": "semicolon", ",": "comma", "\t": "tab", "|": "pipe" };
     const delimiterOptions = Object.entries(delimiterNames).map(([value, key]) => [value, t.delimiters[key]]);
     if (!delimiterNames[defaults.delimiter]) delimiterOptions.push([defaults.delimiter, defaults.delimiter]);
@@ -66,7 +96,7 @@ export function buildExportDialog({ t, defaults, baseName, scopes, hasHiddenColu
     const sync = () => {
         const clipboard = radioValue(destinationGroup) === "clipboard";
         // XLSX cannot go to the clipboard.
-        formatGroup.querySelector('[data-value="xlsx"]').hidden = clipboard;
+        /** @type {HTMLElement} */ (formatGroup.querySelector('[data-value="xlsx"]')).hidden = clipboard;
         filenameField.hidden = clipboard;
         headers.hidden = format === "json";
         metadata.hidden = format !== "json";
@@ -76,6 +106,7 @@ export function buildExportDialog({ t, defaults, baseName, scopes, hasHiddenColu
         if (!delimiterSet) delimiter.value = clipboard ? "\t" : defaults.delimiter;
         submit.textContent = clipboard ? t.exportCopySubmit : t.exportSubmit;
     };
+    /** @param {ExportOptions["format"]} next */
     const setFormat = (next) => {
         // A new format swaps the extension, unless the user typed another one.
         const oldExt = "." + EXPORT_FORMATS[format].extension;

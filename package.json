@@ -2,15 +2,17 @@
     "name": "jw-datatable-dev",
     "private": true,
     "type": "module",
-    "description": "Dev tooling only (lint). The sources need no build or install.",
+    "description": "Dev tooling only (lint, type check). The sources need no build or install.",
     "scripts": {
         "lint": "eslint .",
+        "typecheck": "tsc -p tsconfig.json",
         "test": "node tests/run.js",
-        "check": "npm run lint && npm test"
+        "check": "npm run lint && npm run typecheck && npm test"
     },
     "devDependencies": {
         "@eslint/js": "10.0.1",
         "eslint": "10.11.0",
-        "globals": "17.12.0"
+        "globals": "17.12.0",
+        "typescript": "7.0.2"
     }
 }

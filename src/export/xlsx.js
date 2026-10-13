@@ -3,6 +3,8 @@
 
 import { toDate, typeGroup } from "../core/util.js";
 
+/** @typedef {Pick<import("../types.js").Column, "type"|"format">} CellColumn */
+
 // ---- ZIP (stored, no compression) -------------------------------------------
 
 const CRC_TABLE = Array.from({ length: 256 }, (_, n) => {
@@ -11,6 +13,7 @@ const CRC_TABLE = Array.from({ length: 256 }, (_, n) => {
     return c >>> 0;
 });
 
+/** @param {Uint8Array} bytes */
 export function crc32(bytes) {
     let crc = 0xFFFFFFFF;
     for (let i = 0; i < bytes.length; i++) crc = CRC_TABLE[(crc ^ bytes[i]) & 0xFF] ^ (crc >>> 8);
@@ -18,11 +21,17 @@ export function crc32(bytes) {
 }
 
 // `files`: [{ name, data: string | Uint8Array }] → ZIP archive bytes.
+/**
+ * @param {{ name: string, data: string|Uint8Array }[]} files
+ * @returns {Uint8Array<ArrayBuffer>}
+ */
 export function zip(files, date = new Date()) {
     const encoder = new TextEncoder();
     const time = (date.getHours() << 11) | (date.getMinutes() << 5) | (date.getSeconds() >> 1);
     const day = ((Math.max(date.getFullYear(), 1980) - 1980) << 9) | ((date.getMonth() + 1) << 5) | date.getDate();
+    /** @type {Uint8Array[]} */
     const locals = [];
+    /** @type {Uint8Array[]} */
     const centrals = [];
     let offset = 0;
 
@@ -32,6 +41,10 @@ export function zip(files, date = new Date()) {
         const crc = crc32(data);
         // Fields shared by the local header and the central directory entry:
         // version, flags (UTF-8 names), method (stored), time, date, crc, sizes, name length.
+        /**
+         * @param {DataView} view
+         * @param {number} at
+         */
         const common = (view, at) => {
             view.setUint16(at, 20, true);
             view.setUint16(at + 2, 0x0800, true);
@@ -82,9 +95,11 @@ export function zip(files, date = new Date()) {
 // ---- Cells ------------------------------------------------------------------
 
 // Style ids (index into cellXfs in styles.xml).
+/** @type {Record<string, number>} */
 const STYLE = { header: 1, date: 2, datetime: 3, time: 4, currency: 5, percent: 6, integer: 7 };
 const MAX_TEXT = 32767;   // Excel's limit per cell
 
+/** @param {any} text */
 function escapeXml(text) {
     return String(text)
         // eslint-disable-next-line no-control-regex -- strips characters XML 1.0 forbids
@@ -93,6 +108,7 @@ function escapeXml(text) {
 }
 
 // A1-style column name: 0 → A, 25 → Z, 26 → AA.
+/** @param {number} index */
 export function columnLetter(index) {
     let name = "";
     for (let n = index + 1; n > 0; n = Math.floor((n - 1) / 26)) name = String.fromCharCode(65 + ((n - 1) % 26)) + name;
@@ -101,6 +117,10 @@ export function columnLetter(index) {
 
 // Excel serial date (days since 1899-12-30) from local date parts; Excel
 // has no time zones. Date-only strings ("2024-01-05") are taken as local days.
+/**
+ * @param {any} value
+ * @returns {number|null}
+ */
 export function dateSerial(value) {
     let date;
     const dateOnly = typeof value === "string" && /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
@@ -112,21 +132,41 @@ export function dateSerial(value) {
     return (utc - Date.UTC(1899, 11, 30)) / 86400000;
 }
 
+/**
+ * @param {any} value
+ * @returns {number|null}
+ */
 function timeSerial(value) {
     const match = typeof value === "string" && /^(\d{1,2}):(\d{2})(?::(\d{2}))?$/.exec(value);
     if (!match) return null;
     return (+match[1] * 3600 + +match[2] * 60 + +(match[3] || 0)) / 86400;
 }
 
+/**
+ * @param {string} ref
+ * @param {any} text
+ * @param {number} [style]
+ */
 const textCell = (ref, text, style) => {
     const value = String(text).slice(0, MAX_TEXT);
     return `<c r="${ref}" t="inlineStr"${style ? ` s="${style}"` : ""}><is><t xml:space="preserve">${escapeXml(value)}</t></is></c>`;
 };
+/**
+ * @param {string} ref
+ * @param {number} number
+ * @param {number} [style]
+ */
 const numberCell = (ref, number, style) => `<c r="${ref}"${style ? ` s="${style}"` : ""}><v>${number}</v></c>`;
 
 // Typed cell from an export value: numbers, booleans and dates keep their
 // type (by value, or by column type for strings); everything else is text.
 // `text: true` writes every value as text (formatted export).
+/**
+ * @param {string} ref
+ * @param {any} value
+ * @param {CellColumn} column
+ * @param {boolean} text
+ */
 function cell(ref, value, column, text) {
     if (value == null || value === "") return "";
     if (text) return textCell(ref, value);
@@ -149,6 +189,11 @@ function cell(ref, value, column, text) {
 }
 
 // Display width in characters, for the column widths.
+/**
+ * @param {any} value
+ * @param {CellColumn} column
+ * @param {boolean} text
+ */
 function cellWidth(value, column, text) {
     if (value == null) return 0;
     if (!text && typeGroup(column.type) === "date") return column.type === "datetime" ? 17 : column.type === "time" ? 8 : 11;
@@ -158,6 +203,7 @@ function cellWidth(value, column, text) {
 // ---- Workbook ---------------------------------------------------------------
 
 // Sheet names: max. 31 characters, none of []:*?/\ and no leading/trailing quote.
+/** @param {string|null|undefined} name */
 export function sheetName(name) {
     const clean = String(name ?? "").replace(/[[\]:*?/\\]/g, " ").replace(/^'+|'+$/g, "").trim().slice(0, 31).trim();
     return clean || "Sheet1";
@@ -183,10 +229,10 @@ const STYLES = `${XML}<styleSheet xmlns="${NS}">`
 
 /**
  * Builds an .xlsx file.
- * @param {{ sheet?: string, header?: string[]|null, columns: object[], rows: any[][], text?: boolean }} table
+ * @param {{ sheet?: string, header?: string[]|null, columns: CellColumn[], rows: any[][], text?: boolean }} table
  *   `columns`: column definitions (`type`, `format`) for typing the cells;
  *   `rows`: values per row in column order; `text`: write every value as text.
- * @returns {Uint8Array}
+ * @returns {Uint8Array<ArrayBuffer>}
  */
 export function buildXLSX({ sheet, header = null, columns, rows, text = false }, date = new Date()) {
     const lines = [];

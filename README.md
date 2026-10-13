@@ -966,26 +966,27 @@ createDataTable("#c", {
 
 ### Adding a new language
 
-Open `src/core/i18n.js` and add a new entry to the `LOCALES` object using the BCP-47 language subtag as the key:
+Open `src/core/i18n.js`, copy the `en` bundle and add it to `LOCALES` under
+the BCP-47 language subtag (and to `LOCALE_NAMES`). The English bundle is the
+reference: the type check (`npm run typecheck`) and the unit tests require
+every other bundle to have the same keys and template parameters.
 
 ```js
 // src/core/i18n.js
-export const LOCALES = {
-    en: { /* … */ },
-    de: { /* … */ },
-
-    // New: French
-    fr: {
-        searchPlaceholder: "Rechercher…",
-        clearFilters: "Effacer tous les filtres",
-        filterCount: (n) => `Filtre (${n})`,
-        // … all other keys …
-        operators: {
-            contains: "contient",
-            // …
-        }
+// ----------------------------------------------------------------------- French
+/** @type {Translations} */
+const fr = {
+    searchPlaceholder: "Rechercher…",
+    clearFilters: "Effacer tous les filtres",
+    filterCount: (n) => `Filtre (${n})`,
+    // … all other keys …
+    operators: {
+        contains: "contient",
+        // …
     }
 };
+
+export const LOCALES = { en, de, fr };
 ```
 
 `getTranslations("fr-FR")` and `getTranslations("fr-CA")` will then both resolve to the `fr` bundle automatically.

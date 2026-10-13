@@ -17,7 +17,7 @@ import { inferColumns, inferType } from "./src/core/columns.js";
 export function createDataTable(container, config = {}) {
     const host = typeof container === "string" ? document.querySelector(container) : container;
     if (!host) throw new Error("createDataTable: container not found.");
-    const table = document.createElement("jw-datatable");
+    const table = /** @type {JwDataTable} */ (document.createElement("jw-datatable"));
     host.appendChild(table);
     table.configure(config);
     return table;

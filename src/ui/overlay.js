@@ -15,25 +15,38 @@ import { uid } from "../core/util.js";
 export class Overlay {
     // `root`: the shadow root the panels go into.
     // `restoreFocus(key)`: focuses the element with that focus key.
+    /**
+     * @param {ShadowRoot} root
+     * @param {{ restoreFocus: (key: string|null) => void }} options
+     */
     constructor(root, { restoreFocus }) {
         this._root = root;
         this._restoreFocus = restoreFocus;
+        /** @type {HTMLElement|null} */
         this.panel = null;
         // Focus key to return to on close (may be re-targeted while open).
+        /** @type {string|null} */
         this.returnKey = null;
         // Focus key of the opener button (it carries `aria-expanded`).
+        /** @type {string|null} */
         this.openerKey = null;
+        /** @type {HTMLElement|null} */
         this._backdrop = null;
+        /** @type {((event: PointerEvent) => void)|null} */
         this._onOutside = null;
+        /** @type {((event: KeyboardEvent) => void)|null} */
         this._onKey = null;
-        this._escape = null;
+        /** @type {() => void} */
+        this._escape = () => this.close();
     }
 
+    /** @param {HTMLElement|null} [panel] */
     isOpen(panel = null) {
         return panel ? this.panel === panel : this.panel !== null;
     }
 
     // The open panel's live region, or null.
+    /** @returns {HTMLElement|null} */
     liveRegion() {
         return this.panel?.querySelector("[data-live]") ?? null;
     }
@@ -43,6 +56,11 @@ export class Overlay {
     // sheet (mobile).
     // `onEscape`: called instead of closing on Escape (e.g. to step back to
     // the panel this one was opened from).
+    /**
+     * @param {HTMLElement} panel
+     * @param {{ anchor?: HTMLElement|null, returnKey?: string|null, centered?: boolean, sheet?: boolean,
+     *     onEscape?: (() => void)|null }} [options]
+     */
     show(panel, { anchor = null, returnKey = null, centered = false, sheet = false, onEscape = null } = {}) {
         this.close();
         closeContextMenu();
@@ -74,9 +92,10 @@ export class Overlay {
         this.returnKey = returnKey;
         this._escape = onEscape ?? (() => this.close());
         this.openerKey = anchor?.dataset?.fk ?? null;
-        if (this.openerKey) anchor.setAttribute("aria-expanded", "true");
+        if (this.openerKey) anchor?.setAttribute("aria-expanded", "true");
 
         panel.addEventListener("keydown", (event) => this._onPanelKey(event, panel));
+        /** @type {HTMLElement|undefined} */
         const initial = panel.querySelector("[data-autofocus]") || focusables(panel)[0];
         if (initial) initial.focus();
         else { panel.tabIndex = -1; panel.focus(); }
@@ -91,10 +110,11 @@ export class Overlay {
             if (event.key === "Escape" && !event.composedPath().includes(panel)) this._escape();
         };
         // Next tick, so the opening click does not close the panel right away.
+        const { _onOutside: onOutside, _onKey: onKey } = this;
         setTimeout(() => {
             if (this.panel !== panel) return;
-            document.addEventListener("pointerdown", this._onOutside, true);
-            document.addEventListener("keydown", this._onKey, true);
+            document.addEventListener("pointerdown", onOutside, true);
+            document.addEventListener("keydown", onKey, true);
         }, 0);
     }
 
@@ -108,8 +128,8 @@ export class Overlay {
         panel.remove();
         this._backdrop?.remove();
         this._backdrop = null;
-        document.removeEventListener("pointerdown", this._onOutside, true);
-        document.removeEventListener("keydown", this._onKey, true);
+        if (this._onOutside) document.removeEventListener("pointerdown", this._onOutside, true);
+        if (this._onKey) document.removeEventListener("keydown", this._onKey, true);
         if (this.openerKey) {
             this._root.querySelector(`[data-fk="${CSS.escape(this.openerKey)}"]`)?.setAttribute("aria-expanded", "false");
         }
@@ -117,6 +137,10 @@ export class Overlay {
         if (restoreFocus && (hadFocus || focusIsLost())) this._restoreFocus(this.returnKey);
     }
 
+    /**
+     * @param {KeyboardEvent} event
+     * @param {HTMLElement} panel
+     */
     _onPanelKey(event, panel) {
         if (event.key === "Escape") {
             event.preventDefault();

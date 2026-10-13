@@ -11,9 +11,28 @@ import { uid } from "../core/util.js";
 // remove(name) } and active() → { name, modified } | null.
 // `announce(message)`, `close()`: status message, close the panel.
 // Returns { panel, refresh }: call `refresh()` once the panel is shown.
+/**
+ * @typedef {object} ViewsApi
+ * @property {() => Promise<string[]>} list
+ * @property {(name: string) => Promise<void>} save
+ * @property {(name: string) => Promise<boolean>} load
+ * @property {(oldName: string, newName: string) => Promise<void>} rename
+ * @property {(name: string) => Promise<void>} remove
+ * @property {() => { name: string, modified: boolean }|null} active
+ */
+/** @typedef {"name"|"rename"|"list"} ErrorAt */
+/**
+ * @param {{ t: import("../core/i18n.js").Translations, views: ViewsApi,
+ *     announce: (message: string) => void, close: () => void }} options
+ * @returns {{ panel: HTMLElement, refresh: () => Promise<void> }}
+ */
 export function buildViewsPanel({ t, views, announce, close }) {
     // names: null while loading; step: { kind: "overwrite"|"rename"|"delete", name };
     // error: { text, at: "name"|"rename"|"list" }.
+    /**
+     * @type {{ names: string[]|null, step: { kind: "overwrite"|"rename"|"delete", name: string }|null,
+     *     error: { text: string, at: ErrorAt }|null, busy: boolean, renameDraft: string }}
+     */
     const ui = { names: null, step: null, error: null, busy: false, renameDraft: "" };
     const errorId = uid("kdt-verr");
 
@@ -41,11 +60,13 @@ export function buildViewsPanel({ t, views, announce, close }) {
     ]);
 
     const isOpen = () => panel.isConnected;
+    /** @param {ErrorAt} at */
     const errorEl = (at) => (ui.error?.at === at
         ? el("p", { class: "k-dt-views-error", id: errorId, text: ui.error.text })
         : null);
     // Escape inside a question or the rename field steps back, not out of the panel.
-    const onEscape = (focusKey) => (e) => {
+    /** @param {string} focusKey */
+    const onEscape = (focusKey) => (/** @type {KeyboardEvent} */ e) => {
         if (e.key !== "Escape") return;
         e.preventDefault();
         e.stopPropagation();
@@ -54,6 +75,12 @@ export function buildViewsPanel({ t, views, announce, close }) {
         render(focusKey);
     };
     // A question with its answers; focus goes to Cancel (the safe answer).
+    /**
+     * @param {string} text
+     * @param {string} okText
+     * @param {() => void} onOk
+     * @param {string} cancelKey
+     */
     const question = (text, okText, onOk, cancelKey) => {
         const id = uid("kdt-vq");
         return el("div", { class: "k-dt-views-confirm", role: "group", "aria-labelledby": id, onkeydown: onEscape(cancelKey) }, [
@@ -87,6 +114,7 @@ export function buildViewsPanel({ t, views, announce, close }) {
         ]));
     };
 
+    /** @param {string} name */
     const renderItem = (name) => {
         const step = ui.step?.name === name ? ui.step.kind : null;
         if (step === "delete") {
@@ -101,7 +129,7 @@ export function buildViewsPanel({ t, views, announce, close }) {
                 "data-vk": "rename-input",
                 "aria-invalid": ui.error?.at === "rename" ? "true" : null,
                 "aria-describedby": ui.error?.at === "rename" ? errorId : null,
-                oninput: (e) => { ui.renameDraft = e.target.value; },
+                oninput: (e) => { ui.renameDraft = e.currentTarget.value; },
                 onkeydown: (e) => { if (e.key === "Enter") { e.preventDefault(); rename(name); } }
             });
             return el("li", { class: "k-dt-views-item is-step", onkeydown: onEscape(`rename:${name}`) }, [
@@ -140,6 +168,7 @@ export function buildViewsPanel({ t, views, announce, close }) {
     };
 
     const renderList = () => {
+        /** @type {(HTMLElement|null)[]} */
         const nodes = [errorEl("list")];
         if (ui.names === null && ui.error?.at === "list") {
             nodes.push(el("button", { type: "button", class: "k-dt-btn", text: t.retry, "data-vk": "retry", onclick: () => loadList("retry") }));
@@ -150,9 +179,10 @@ export function buildViewsPanel({ t, views, announce, close }) {
         } else {
             nodes.push(el("ul", { class: "k-dt-views-items", "aria-label": t.savedViews }, ui.names.map(renderItem)));
         }
-        listSection.replaceChildren(...nodes.filter(Boolean));
+        listSection.replaceChildren(...nodes.flatMap((node) => node ?? []));
     };
 
+    /** @param {string|null} [focusKey] */
     const render = (focusKey) => {
         if (!isOpen()) return;
         const focused = deepActiveElement();
@@ -165,17 +195,23 @@ export function buildViewsPanel({ t, views, announce, close }) {
             nameInput.removeAttribute("aria-invalid");
             nameInput.removeAttribute("aria-describedby");
         }
+        const step = ui.step;
         saveExtra.replaceChildren(...[
             errorEl("name"),
-            ui.step?.kind === "overwrite" && question(t.confirmOverwrite(ui.step.name), t.overwrite, () => doSave(ui.step.name), "name")
-        ].filter(Boolean));
+            step?.kind === "overwrite" ? question(t.confirmOverwrite(step.name), t.overwrite, () => doSave(step.name), "name") : null
+        ].flatMap((node) => node ?? []));
         renderList();
-        const target = focusKey && panel.querySelector(`[data-vk="${CSS.escape(focusKey)}"]`);
+        /** @type {HTMLElement|null} */
+        const target = focusKey ? panel.querySelector(`[data-vk="${CSS.escape(focusKey)}"]`) : null;
         if (target) target.focus();
         else if (!focused?.isConnected || !panel.contains(focused)) nameInput.focus();
     };
 
     // Runs an adapter action; failures stay in the panel as a message.
+    /**
+     * @param {() => Promise<unknown>} action
+     * @param {{ message: string, focus: string|(() => string), errorAt: ErrorAt, errorFocus: string }} options
+     */
     const run = async (action, { message, focus, errorAt, errorFocus }) => {
         if (ui.busy) return;
         ui.busy = true;
@@ -196,6 +232,11 @@ export function buildViewsPanel({ t, views, announce, close }) {
             panel.removeAttribute("aria-busy");
         }
     };
+    /**
+     * @param {string} text
+     * @param {ErrorAt} at
+     * @param {string} focusKey
+     */
     const fail = (text, at, focusKey) => {
         ui.error = { text, at };
         render(focusKey);
@@ -213,11 +254,13 @@ export function buildViewsPanel({ t, views, announce, close }) {
         }
         doSave(name);
     };
+    /** @param {string} name */
     const doSave = (name) => run(async () => {
         await views.save(name);
         nameInput.value = "";
     }, { message: t.viewSaved(name), focus: "name", errorAt: "name", errorFocus: "name" });
 
+    /** @param {string} oldName */
     const rename = (oldName) => {
         const newName = ui.renameDraft.trim();
         if (!newName) return fail(t.viewNameRequired, "rename", "rename-input");
@@ -228,13 +271,14 @@ export function buildViewsPanel({ t, views, announce, close }) {
         });
     };
 
+    /** @param {string} name */
     const remove = (name) => {
         const index = ui.names?.indexOf(name) ?? -1;
         run(() => views.remove(name), {
             message: t.viewDeleted(name),
             // Focus the next view, else the previous one, else the name field.
             focus: () => {
-                const next = ui.names[index] ?? ui.names[index - 1];
+                const next = ui.names?.[index] ?? ui.names?.[index - 1];
                 return next != null ? `load:${next}` : "name";
             },
             errorAt: "list",
@@ -242,6 +286,7 @@ export function buildViewsPanel({ t, views, announce, close }) {
         });
     };
 
+    /** @param {string} name */
     const load = async (name) => {
         if (ui.busy) return;
         ui.busy = true;
@@ -261,9 +306,10 @@ export function buildViewsPanel({ t, views, announce, close }) {
             panel.removeAttribute("aria-busy");
         }
         render(`load:${name}`);
-        announce(ui.error.text);
+        if (ui.error) announce(ui.error.text);
     };
 
+    /** @param {string} [focusKey] */
     const loadList = async (focusKey) => {
         ui.names = null;
         ui.error = null;
