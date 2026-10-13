@@ -201,6 +201,19 @@ test("pagination turned off comes back on above 5000 cells, with a console warni
     }
 });
 
+test("a filter panel opened from the context menu sits at the right-clicked header or cell", () => {
+    const table = mount({ features: { filtering: true } });
+    for (const target of [$(table, 'th[data-key="fee"]'), $$(table, "tbody tr")[3].children[2]]) {
+        rightClick(target);
+        Array.from($$(table, '[role="menuitem"]')).find((i) => i.textContent.includes("Open filter…")).click();
+        const panel = $(table, '[role="dialog"]').getBoundingClientRect();
+        const anchor = target.getBoundingClientRect();
+        assert.ok(Math.abs(panel.left - anchor.left) < 2, `left ${panel.left} at ${anchor.left}`);
+        assert.ok(Math.abs(panel.top - (anchor.bottom + 4)) < 2, `top ${panel.top} below ${anchor.bottom}`);
+        table.shadowRoot.querySelector(".k-dt-backdrop").click();
+    }
+});
+
 test("state referring to unknown columns is dropped", () => {
     const table = mount({
         features: { sorting: true, filtering: true },

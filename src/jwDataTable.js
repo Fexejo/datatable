@@ -1287,11 +1287,12 @@ class JwDataTable extends HTMLElement {
         this._longPress = null;
     }
 
-    // `point`: { clientX, clientY, target } — where to open, and the anchor
-    // for a filter panel opened from the menu.
+    // `point`: { clientX, clientY } — where to open. `host` is the anchor for
+    // a filter panel opened from the menu (not the event's target: once a
+    // native event is dispatched, its target inside a shadow root is null).
     _openContextMenuAt(host, point) {
         const { column, row, value } = this._items.get(host);
-        this._openContextMenu(point, column, row, value);
+        this._openContextMenu({ clientX: point.clientX, clientY: point.clientY, target: host }, column, row, value);
     }
 
     // True briefly after a long-press so the synthetic click does not also
