@@ -619,7 +619,8 @@ class JwDataTable extends HTMLElement {
         this._pageData = this._features.pagination ? this._viewData.slice(start, start + pageSize) : this._viewData;
     }
 
-    _deriveAndRenderBody() {
+    // Full update after a state change: derive, render, notify.
+    _rerender() {
         this._deriveView();
         this._render();
         this._emitChange();
@@ -904,12 +905,16 @@ class JwDataTable extends HTMLElement {
         return wrap;
     }
 
+    // No data at all, or nothing left after filtering.
+    _emptyMessage() {
+        return this._sourceData.length === 0 ? this._config.emptyText : this._config.noResultsText;
+    }
+
     _renderTbody(columns) {
         const tbody = el("tbody");
         if (this._pageData.length === 0) {
-            const message = this._sourceData.length === 0 ? this._config.emptyText : this._config.noResultsText;
             tbody.appendChild(el("tr", {}, [
-                el("td", { class: "k-dt-empty", colSpan: (columns.length + (this._isCompact() ? 1 : 0)) || 1 }, [message])
+                el("td", { class: "k-dt-empty", colSpan: (columns.length + (this._isCompact() ? 1 : 0)) || 1 }, [this._emptyMessage()])
             ]));
         } else {
             this._pageData.forEach((row, index) => tbody.appendChild(this._renderRow(row, index, columns)));
@@ -1228,8 +1233,7 @@ class JwDataTable extends HTMLElement {
         grid.style.gridTemplateColumns = `repeat(auto-fill, minmax(${min}, 1fr))`;
 
         if (this._pageData.length === 0) {
-            const message = this._sourceData.length === 0 ? this._config.emptyText : this._config.noResultsText;
-            grid.appendChild(el("div", { class: "k-dt-empty", text: message }));
+            grid.appendChild(el("div", { class: "k-dt-empty", text: this._emptyMessage() }));
             return grid;
         }
 
@@ -1279,11 +1283,16 @@ class JwDataTable extends HTMLElement {
         return list;
     }
 
-    _renderFooter() {
+    // 1-based first and last row of the current page, and the row total.
+    _pageRange() {
         const total = this._viewData.length;
+        const { page, pageSize } = this._state;
+        return { start: total === 0 ? 0 : (page - 1) * pageSize + 1, end: Math.min(page * pageSize, total), total };
+    }
+
+    _renderFooter() {
+        const { start, end, total } = this._pageRange();
         const pageSize = this._state.pageSize;
-        const start = total === 0 ? 0 : (this._state.page - 1) * pageSize + 1;
-        const end = Math.min(this._state.page * pageSize, total);
 
         const footer = el("div", { class: "k-dt-footer", part: "footer" });
 
@@ -1300,7 +1309,7 @@ class JwDataTable extends HTMLElement {
                 onchange: (e) => {
                     this._state.pageSize = Number(e.target.value);
                     this._state.page = 1;
-                    this._deriveAndRenderBody();
+                    this._rerender();
                     this._announcePage();
                 }
             }, this._pageSizeOptions.map((size) =>
@@ -1362,7 +1371,7 @@ class JwDataTable extends HTMLElement {
 
     _goToPage(page) {
         this._state.page = clamp(page, 1, this._pageCount);
-        this._deriveAndRenderBody();
+        this._rerender();
         this._announcePage();
     }
 
@@ -1520,9 +1529,7 @@ class JwDataTable extends HTMLElement {
     }
 
     _announcePage() {
-        const total = this._viewData.length;
-        const start = total === 0 ? 0 : (this._state.page - 1) * this._state.pageSize + 1;
-        const end = Math.min(this._state.page * this._state.pageSize, total);
+        const { start, end, total } = this._pageRange();
         this._announce(this._t.pageInfo(start, end, total));
     }
 
@@ -1945,7 +1952,7 @@ class JwDataTable extends HTMLElement {
             this._state.filters[key] = filter;
         }
         this._state.page = 1;
-        this._deriveAndRenderBody();
+        this._rerender();
         this._announceResults();
     }
 

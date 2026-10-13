@@ -31,10 +31,6 @@ export function isEmptyValue(value) {
 export function toDate(value) {
     if (value == null || value === "") return null;
     if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value;
-    if (typeof value === "number") {
-        const d = new Date(value);
-        return Number.isNaN(d.getTime()) ? null : d;
-    }
     const d = new Date(value);
     return Number.isNaN(d.getTime()) ? null : d;
 }

@@ -148,20 +148,23 @@ function patternSubject(value, column, locale, row) {
 // Applies all active column filters (AND) and optional global search. Returns a new array.
 export function applyFilters(data, filters, columns, { locale = "en-US", globalSearch = "" } = {}) {
     const columnByKey = new Map(columns.map((c) => [c.key, c]));
-    const activeFilters = Object.entries(filters || {}).filter(([, f]) => isActiveFilter(f));
+    const activeFilters = Object.entries(filters || {})
+        .filter(([key, filter]) => columnByKey.has(key) && isActiveFilter(filter))
+        .map(([key, filter]) => ({
+            column: columnByKey.get(key),
+            filter,
+            values: filter.kind === "value" ? new Set(filter.values.map(String)) : null
+        }));
     const search = String(globalSearch || "").trim().toLowerCase();
     const searchableColumns = columns.filter((c) => c.searchable !== false);
 
     if (activeFilters.length === 0 && !search) return data.slice();
 
     return data.filter((row) => {
-        for (const [key, filter] of activeFilters) {
-            const column = columnByKey.get(key);
-            if (!column) continue;
+        for (const { column, filter, values } of activeFilters) {
             const value = getCellValue(row, column);
-            if (filter.kind === "value") {
-                const set = filter._set || (filter._set = new Set(filter.values.map((v) => String(v))));
-                if (!set.has(String(value))) return false;
+            if (values) {
+                if (!values.has(String(value))) return false;
             } else if (!matchesPattern(patternSubject(value, column, locale, row), filter, column.type)) {
                 return false;
             }
