@@ -90,7 +90,7 @@ test("renders a semantic table with column headers and one page of rows", () => 
 
 test("formats values by type and locale", () => {
     const table = mount({ locale: "de-DE", data: [{ id: 1234, name: "A", fee: 9.9, active: true, joined: "2021-03-02T12:00:00" }] });
-    const cells = $$(table, "tbody td").map((td) => td.textContent.trim().replace(/[  ]/g, " "));
+    const cells = $$(table, "tbody td").map((td) => td.textContent.trim().replace(/[\u00a0\u202f]/g, " "));
     assert.deepEqual(cells, ["1.234", "A", "9,90 €", "Ja", "02.03.2021"]);
 });
 

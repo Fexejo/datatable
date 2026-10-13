@@ -1,0 +1,16 @@
+{
+    "name": "jw-datatable-dev",
+    "private": true,
+    "type": "module",
+    "description": "Dev tooling only (lint). The sources need no build or install.",
+    "scripts": {
+        "lint": "eslint .",
+        "test": "node tests/run.js",
+        "check": "npm run lint && npm test"
+    },
+    "devDependencies": {
+        "@eslint/js": "10.0.1",
+        "eslint": "10.11.0",
+        "globals": "17.12.0"
+    }
+}

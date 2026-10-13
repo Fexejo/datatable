@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { formatValue, toText } from "../../src/core/formatters.js";
 
 // Intl output can contain narrow no-break spaces; normalize for comparisons.
-const norm = (s) => String(s).replace(/[  ]/g, " ");
+const norm = (s) => String(s).replace(/[\u00a0\u202f]/g, " ");
 
 test("numbers and currency follow the locale", () => {
     assert.equal(formatValue(1234.5, { type: "number" }, "en-US"), "1,234.5");

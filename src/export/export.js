@@ -165,6 +165,7 @@ export function timestamp(date = new Date()) {
 
 // Removes characters that are not allowed in file names.
 export function sanitizeFilename(name) {
+    // eslint-disable-next-line no-control-regex -- control characters are invalid in file names
     return String(name ?? "").replace(/[\\/:*?"<>|\u0000-\u001f]+/g, "_").trim();
 }
 

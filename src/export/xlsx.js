@@ -87,7 +87,8 @@ const MAX_TEXT = 32767;   // Excel's limit per cell
 
 function escapeXml(text) {
     return String(text)
-        .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F￾￿]/g, "")
+        // eslint-disable-next-line no-control-regex -- strips characters XML 1.0 forbids
+        .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\uFFFE\uFFFF]/g, "")
         .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
 
