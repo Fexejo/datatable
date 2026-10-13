@@ -7,16 +7,23 @@ import { clamp } from "../core/util.js";
 // whose focus key is `rememberedKey` keeps the tab stop across re-renders;
 // `onFocus(key)` reports the newly focused item. `onKey(event, item)` gets
 // keydowns on the items themselves (links/buttons inside keep their keys).
+// Only the current tab stop is tracked, so a focus move costs the same on any
+// number of items.
 export function initRoving(container, selector, { rememberedKey, onFocus, onKey }) {
-    const items = Array.from(container.querySelectorAll(selector));
-    if (!items.length) return;
-    const remembered = rememberedKey && items.find((i) => i.dataset.fk === rememberedKey);
-    (remembered || items[0]).tabIndex = 0;
+    const remembered = rememberedKey
+        && container.querySelector(`${selector}[data-fk="${CSS.escape(rememberedKey)}"]`);
+    let current = remembered || container.querySelector(selector);
+    if (!current) return;
+    current.tabIndex = 0;
 
     container.addEventListener("focusin", (event) => {
         const item = event.target.closest(selector);
         if (!item || !container.contains(item)) return;
-        items.forEach((i) => { i.tabIndex = i === item ? 0 : -1; });
+        if (item !== current) {
+            current.tabIndex = -1;
+            item.tabIndex = 0;
+            current = item;
+        }
         onFocus(item.dataset.fk);
     });
     container.addEventListener("keydown", (event) => {
