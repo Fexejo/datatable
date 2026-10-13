@@ -7,9 +7,10 @@ internals: "Architecture").
 
 ## Rules
 
-- No npm, no build for the sources: no `package.json`, no dependencies; relative
-  imports with `.js`. Exception: `tools/build.js` (esbuild) and semantic-release
-  run via `npx` with pinned versions, in CI only.
+- No build for the sources and no runtime dependencies; relative imports with
+  `.js`. npm only for dev tools (`package.json`: exact-pinned devDependencies
+  ESLint, TypeScript, axe-core), locally and in CI. `tools/build.js` (esbuild)
+  and semantic-release run via `npx` with pinned versions, in CI only.
 - Never edit or commit `dist/`; CI builds it on release.
 - Conventional Commits (`fix`, `perf`, `feat`, `feat!`, `docs`, `test`,
   `refactor`, `chore`, `ci`); semantic-release derives the version. One topic per commit.
@@ -32,7 +33,9 @@ internals: "Architecture").
   events are delegated (records in `_items`). Details: README "Architecture".
 - DOM via `el()` from `src/ui/dom.js`. CSS prefix `k-dt-` (context menu `k-ctx-`),
   tokens `--k-*` with fallbacks, events `jw-datatable:<name>` (bubbles, composed),
-  private members `_name`. JSDoc types in `src/types.js`.
+  private members `_name`. JSDoc types on every function (public ones in
+  `src/types.js`); `npm run typecheck` (tsc `strict`) must pass, prefer
+  narrowing over casts.
 
 ## Icons (Lucide)
 
@@ -47,7 +50,9 @@ from i18n. Ask the user which icon to use; remove unused ones.
 ## Test
 
 ```bash
-node tests/run.js                 # all tests; must pass after every change
+npm ci                            # dev tools: ESLint, TypeScript, axe-core
+npm run check                     # lint + typecheck + all tests; must pass after every change
+node tests/run.js                 # all tests
 node tests/run.js --unit|--browser
 node tests/run.js --filter "context menu"
 node tools/build.js 0.0.0-dev && node tests/run.js --browser --dist; rm -rf dist
@@ -57,6 +62,7 @@ python3 -m http.server 8000       # /demo.html, /tests/browser/
 - New logic in `src/core`/`src/export` → `tests/unit/<module>.test.js`. New UI
   behavior → `tests/browser/datatable.test.js` incl. keyboard and ARIA; real keys
   and viewport only via `input.press()` / `input.viewport()` with `{ cdp: true }`.
+  A new layout, panel or popup state → an `axe: …` test (`assertNoAxeViolations()`).
 - Console errors/warnings of the page fail the run.
 - Chromium: `CHROME_BIN`, `PATH`, else the Playwright cache (the only one here).
 - Screenshot: `"$CHROME" --no-sandbox --window-size=1280,900 --virtual-time-budget=3000

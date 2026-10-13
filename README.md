@@ -75,6 +75,7 @@ written in Vanilla JS (ES modules, Shadow DOM). No external dependencies.
 | `tests/` | Unit and browser tests |
 | `dist/jw-datatable.min.js` | Single-file bundle for consuming projects (built by CI) |
 | `tools/build.js` | Builds the bundle (used by CI) |
+| `package.json`, `eslint.config.js`, `tsconfig.json` | Dev tools only: ESLint, type check, axe-core (see [Development & tests](#development--tests)) |
 | `.github/workflows/release.yml`, `.releaserc.json` | CI tests + automated releases |
 
 All modules are plain ES modules; the sources run without a build step. See
@@ -1133,6 +1134,11 @@ focus in place.
   on white). When overriding `--k-*` tokens, keep ≥ 4.5:1 for text and ≥ 3:1
   for UI components and focus indicators.
 
+**Checked automatically:** the browser tests run [axe-core](https://github.com/dequelabs/axe-core)
+(WCAG 2.0–2.2 A/AA and best practices) over the table, cards, compact layout,
+empty states, every panel, the context menu, the details dialog and the mobile
+layout. Keyboard behavior, focus and names have their own tests.
+
 **Not covered by the component:** content you render yourself via `formatter`,
 `action` or `config.styles` — keep it accessible (names, contrast).
 
@@ -1164,11 +1170,16 @@ python3 -m http.server 8000
 
 ## Development & tests
 
-No npm, no build. Tests need only **Node.js ≥ 22** and, for browser tests,
-a Chromium-based browser. JSDoc types in `src/types.js` give editors
-IntelliSense without a type checker.
+The sources need no build and have no runtime dependencies. npm installs only
+the dev tools, pinned to exact versions in `package.json`: ESLint, TypeScript
+(type check only) and axe-core (accessibility checks in the browser tests).
+Needs **Node.js ≥ 22** and, for browser tests, a Chromium-based browser.
 
 ```bash
+npm ci                            # dev tools (once, and after package.json changes)
+npm run check                     # lint + type check + all tests, as in CI
+npm run lint                      # ESLint (eslint.config.js)
+npm run typecheck                 # tsc --strict over the JSDoc types (tsconfig.json), emits nothing
 node tests/run.js                 # all tests
 node tests/run.js --unit          # unit tests only (node:test)
 node tests/run.js --browser       # browser tests only (headless Chromium)
@@ -1181,6 +1192,14 @@ node tests/run.js --filter "sort" # only tests whose name contains "sort"
 | `tests/browser/datatable.test.js` | Component tests in a real browser (rendering, sorting, pagination, context menu, accessibility, keyboard, responsive) |
 | `tests/browser/harness.js` | Tiny in-browser test harness (`test`, `assert`, `waitFor`, `input.press`, `input.viewport`) |
 | `tests/run.js` | Runner: starts a static server and headless Chromium, drives it via the DevTools protocol |
+
+**Types:** `datatable.js` and `src/` carry JSDoc types throughout (public ones
+in `src/types.js`); `npm run typecheck` checks them with `strict`. Editors
+show the same types as IntelliSense.
+
+**Accessibility checks:** the browser tests named `axe: …` run axe-core over
+each layout and panel (`assertNoAxeViolations()`); a new UI state belongs there
+too.
 
 **Browser lookup:** `CHROME_BIN` env var → `chromium` / `google-chrome` on
 `PATH` → Playwright's browser cache (`~/.cache/ms-playwright`).
@@ -1253,8 +1272,9 @@ Releases are fully automated with GitHub Actions
 (`.github/workflows/release.yml`) and
 [semantic-release](https://semantic-release.gitbook.io/):
 
-1. Every push and pull request runs all tests against the sources, builds a
-   dev bundle and runs the browser tests against it.
+1. Every push and pull request runs ESLint, the type check and all tests
+   against the sources, builds a dev bundle and runs the browser tests
+   against it.
 2. On `main`, semantic-release derives the next version from the commit
    messages since the last tag. If a release is due, it builds
    `dist/jw-datatable.min.js` with that version, runs the browser tests
