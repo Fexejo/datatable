@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Test runner — Node only, no npm packages.
+// Test runner — Node only; the browser tests load axe-core from node_modules (npm ci).
 //
 //   node tests/run.js            unit + browser tests
 //   node tests/run.js --unit     unit tests only (node:test)
