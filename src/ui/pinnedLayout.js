@@ -1,9 +1,14 @@
 // Pinned columns and horizontal scroll shadows of the table viewport.
 //
 // Pinned cells are `position: sticky`; each one's `left` is the summed width
-// of the sticky columns before it (`--k-dt-pin-<index>` on the table). When
+// of the sticky columns before it (`--k-dt-pin-<index>` on the viewport). When
 // they don't all fit, the most recently pinned ones (the last ones) stay
 // sticky and older ones are paused (`left: auto`, they scroll along).
+//
+// With thousands of rows, every layout of the table is expensive:
+// `layoutPinned` reads all measurements first (one layout), then writes only
+// values that changed. The offsets sit on the viewport, which outlives a re-rendered body,
+// so a new table usually inherits the right values and needs no restyle.
 
 // Pinned columns may cover at most this share of the visible width (the rest
 // of the table must stay usable).
@@ -22,34 +27,44 @@ export function firstStickyPin(widths, limit) {
 export function layoutPinned(viewport) {
     const body = viewport.querySelector(".k-dt-body");
     const table = viewport.querySelector(".k-dt-table");
+    // Read …
+    const pinned = table ? Array.from(table.tHead.rows[0].cells).filter((th) => th.classList.contains("k-dt-pinned")) : [];
+    const widths = pinned.map((th) => th.getBoundingClientRect().width);
+    const first = pinned.length ? firstStickyPin(widths, body.clientWidth * MAX_PINNED_SHARE) : 0;
+    const shadows = scrollShadows(body);
+    // … then write.
     const paused = [];
-    let sticky = 0;
-    if (table) {
-        const pinned = Array.from(table.tHead.rows[0].cells).filter((th) => th.classList.contains("k-dt-pinned"));
-        const widths = pinned.map((th) => th.getBoundingClientRect().width);
-        const first = firstStickyPin(widths, body.clientWidth * MAX_PINNED_SHARE);
-        let offset = 0;
-        pinned.forEach((th, i) => {
-            if (i < first) {
-                table.style.setProperty(`--k-dt-pin-${i}`, "auto");
-                paused.push(th.dataset.key);
-            } else {
-                table.style.setProperty(`--k-dt-pin-${i}`, `${offset}px`);
-                offset += widths[i];
-            }
-        });
-        sticky = pinned.length - first;
-    }
-    viewport.classList.toggle("has-pins", sticky > 0);
-    updateScrollShadows(viewport);
+    let offset = 0;
+    pinned.forEach((th, i) => {
+        let value;
+        if (i < first) {
+            value = "auto";
+            paused.push(th.dataset.key);
+        } else {
+            value = `${offset}px`;
+            offset += widths[i];
+        }
+        const name = `--k-dt-pin-${i}`;
+        if (viewport.style.getPropertyValue(name) !== value) viewport.style.setProperty(name, value);
+    });
+    viewport.classList.toggle("has-pins", pinned.length - first > 0);
+    applyScrollShadows(viewport, shadows);
     return paused;
 }
 
 // Shadows on the edges that have more content to scroll to.
 export function updateScrollShadows(viewport) {
-    const body = viewport.querySelector(".k-dt-body");
-    if (!body) return;
+    applyScrollShadows(viewport, scrollShadows(viewport.querySelector(".k-dt-body")));
+}
+
+function scrollShadows(body) {
+    if (!body) return null;
     const max = body.scrollWidth - body.clientWidth;
-    viewport.classList.toggle("is-overflow-left", body.scrollLeft > 1);
-    viewport.classList.toggle("is-overflow-right", body.scrollLeft < max - 1);
+    return { left: body.scrollLeft > 1, right: body.scrollLeft < max - 1 };
+}
+
+function applyScrollShadows(viewport, shadows) {
+    if (!shadows) return;
+    viewport.classList.toggle("is-overflow-left", shadows.left);
+    viewport.classList.toggle("is-overflow-right", shadows.right);
 }
