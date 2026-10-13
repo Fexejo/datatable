@@ -53,7 +53,8 @@ written in Vanilla JS (ES modules, Shadow DOM). No external dependencies.
 21. [Accessibility](#accessibility)
 22. [Demo](#demo)
 23. [Development & tests](#development--tests)
-24. [Releases & build](#releases--build)
+24. [Architecture](#architecture)
+25. [Releases & build](#releases--build)
 
 ---
 
@@ -61,18 +62,22 @@ written in Vanilla JS (ES modules, Shadow DOM). No external dependencies.
 
 | Path | Role |
 |------|------|
-| `datatable.js` | **Public API** – registers `<jw-datatable>` and exports `createDataTable()` |
-| `src/jwDataTable.js` | The Web Component (state, rendering, interaction) |
-| `src/core/` | DOM-free logic: formatting, sorting, filtering, column inference, translations (`i18n.js`), saved-view storage, shared helpers |
+| `datatable.js` | **Public API** – registers `<jw-datatable>`, exports `createDataTable()` and the classes below |
+| `src/jwDataTable.js` | The Web Component: owns the state, renders table and cards, handles events, opens panels |
+| `src/core/` | DOM-free logic, unit-tested in Node: state (`state.js`), sorting, filtering, formatting, pagination, columns, translations (`i18n.js`), saved-view storage |
 | `src/export/` | CSV / XLSX / JSON export and the XLSX writer |
-| `src/ui/` | Styles, [Lucide](https://lucide.dev) icons (see [Icons](#icons)), context menu |
+| `src/panels/` | Filter panel, export dialog, column chooser, record details, saved views |
+| `src/render/` | Toolbar and footer (pager) |
+| `src/ui/` | DOM building blocks: `el()`, overlay (modal panels), live-region announcer, context menu, clipboard, keyboard navigation, column drag, pinned layout, styles, [Lucide](https://lucide.dev) icons |
+| `src/types.js` | JSDoc types of the config, columns, state and adapters (no runtime code) |
 | `demo.html` | Runnable demo |
-| `tests/` | Unit and browser tests (not needed in consuming projects) |
+| `tests/` | Unit and browser tests |
 | `dist/jw-datatable.min.js` | Single-file bundle for consuming projects (built by CI) |
 | `tools/build.js` | Builds the bundle (used by CI) |
 | `.github/workflows/release.yml`, `.releaserc.json` | CI tests + automated releases |
 
-All modules are plain ES modules with no build step.
+All modules are plain ES modules; the sources run without a build step. See
+[Architecture](#architecture) for how they fit together.
 
 ---
 
@@ -156,7 +161,7 @@ table.configure({ /* … */ });
 | `id` | `string` | `"default"` | Id for the saved-views storage namespace |
 | `title` | `string` | — | Toolbar title |
 | `locale` | `string` | `"en-US"` | BCP-47 locale — drives number/date formatting, sort, **and UI language** (see [i18n](#i18n--localization)) |
-| `features` | `object` | all on | Toggle features (see below) |
+| `features` | `object` | see [Features](#enabling--disabling-features) | Feature switches; most are off by default |
 | `pagination` | `object` | — | `{ pageSize, pageSizeOptions }` |
 | `initial` | `object` | — | `{ sort, filters, globalSearch, page, pageSize, layout, hiddenColumns, pinnedColumns, columnOrder }` |
 | `defaultLayout` | `"table" \| "grid" \| "compact"` | `"table"` | Initial layout (pins the layout — disables auto-switching) |
@@ -301,8 +306,9 @@ A floor against squeezed columns is described in
 }
 ```
 
-`null`, `undefined`, and `""` are treated as empty (`column.emptyText`, default `""`)
-and sort to the end.
+`null`, `undefined`, `""` and `NaN` are treated as empty (shown as
+`column.emptyText`, default `""`). Empty values — and numbers or dates that
+cannot be parsed — sort to the end in both directions.
 
 ---
 
@@ -609,8 +615,8 @@ with a BOM so Excel detects UTF-8.
 become typed cells: numbers (currency `#,##0.00`, percent `0.00%`, integer
 `#,##0`), booleans, and dates/times of `date` / `datetime` / `time` columns
 as Excel dates (`"2024-01-05"` strings count as local days). Cells are never
-written as formulas. The file is built by `xlsx.js` without dependencies (an
-uncompressed ZIP).
+written as formulas. The file is built by `src/export/xlsx.js` without
+dependencies (an uncompressed ZIP).
 
 **JSON** is an array of objects (one per row), or with column info an object
 `{ columns, data }`; raw values keep their types, empty values become `null`.
@@ -773,7 +779,8 @@ stored before the column configuration changed.
 
 ## Theming & styling
 
-The component uses global design tokens (`--k-*` from `main.css`) with fallbacks and supports dark mode (`[data-theme="dark"]`). Three ways to customize:
+The component reads global design tokens (`--k-*`) with built-in fallbacks
+and supports dark mode (`[data-theme="dark"]`). Three ways to customize:
 
 **1. CSS variables** on `:root` or a parent:
 
@@ -836,8 +843,9 @@ own `aria-label` from the i18n bundle.
 2. `curl -sSL https://cdn.jsdelivr.net/npm/lucide-static@latest/icons/<name>.svg`
 3. Copy only the inner markup of `<svg>` (paths, circles, …) as one line into
    `ICONS` in `src/ui/icons.js`, keyed by the Lucide name.
-4. Use it via `createIcon("<name>")` (returns an `SVGSVGElement`), or the
-   `iconEl()` helper in `jwDataTable.js` / `icon:` in context-menu items.
+4. Use it via `iconEl("<name>")` from `src/ui/dom.js` (or `createIcon()`,
+   which returns the bare `SVGSVGElement`), or `icon:` in context-menu items.
+   `tests/unit/icons.test.js` fails on missing or unused icons.
 
 ---
 
@@ -1043,20 +1051,27 @@ table.
 visually hidden `<div data-jw-datatable-announcer>` appended to `<body>` and
 shared by all tables — live regions inside shadow roots are not reliably
 announced by screen readers. While a panel (modal dialog) is open, messages go
-to a live region inside the panel instead. Messages: number of results after
-search/filter, sort order, page range, “Copied to clipboard: <value>”, hidden
-column, pinned/unpinned column (including when there is not enough room to keep
-pinned columns in place), record shown in the details dialog, saved/updated/loaded/renamed/deleted view and errors of the saved views panel, finished export (rows and file name, or rows copied to the clipboard). Repeated identical messages are announced again.
-All texts come from `i18n.js`.
+to a live region inside the panel instead. Repeated identical messages are
+announced again. Messages:
+
+- number of results after search/filter, sort order, page range;
+- “Copied to clipboard: <value>”, finished export (rows and file name, or rows
+  copied to the clipboard);
+- hidden, pinned/unpinned and moved columns (including when there is not
+  enough room to keep pinned columns in place);
+- the record shown in the details dialog;
+- saved/updated/loaded/renamed/deleted views and errors of the saved views panel.
+
+All texts come from `src/core/i18n.js`.
 
 The result count of the global search is announced once typing pauses (1 s),
 not after every keystroke.
 
 **Copy confirmation.** With the keyboard, focus stays on the copy button and
 the button itself is renamed to “Copied to clipboard: <value>” and shows a
-check icon until it loses focus. Screen readers announce name changes of the focused element regardless
-of their live-region settings (e.g. NVDA “Report dynamic content changes”),
-and nothing is announced twice. A mouse click does not move focus (so the table
+check icon until it loses focus. Screen readers announce name changes of the
+focused element regardless of their live-region settings (e.g. NVDA “Report
+dynamic content changes”), and nothing is announced twice. A mouse click does not move focus (so the table
 context is not read out); the confirmation then goes to the live region and the
 check icon shows for about a second.
 Copying also works without the async Clipboard API (plain HTTP) and keeps
@@ -1104,7 +1119,8 @@ python3 -m http.server 8000
 ## Development & tests
 
 No npm, no build. Tests need only **Node.js ≥ 22** and, for browser tests,
-a Chromium-based browser.
+a Chromium-based browser. JSDoc types in `src/types.js` give editors
+IntelliSense without a type checker.
 
 ```bash
 node tests/run.js                 # all tests
@@ -1115,7 +1131,7 @@ node tests/run.js --filter "sort" # only tests whose name contains "sort"
 
 | Path | Content |
 |------|---------|
-| `tests/unit/*.test.js` | `node:test` tests for the DOM-free modules (formatting, sorting, filtering, export incl. XLSX, i18n, icons, …) |
+| `tests/unit/*.test.js` | `node:test` tests for the DOM-free modules (state, sorting, filtering, formatting, pagination, export incl. XLSX, i18n, icons, …) |
 | `tests/browser/datatable.test.js` | Component tests in a real browser (rendering, sorting, pagination, context menu, accessibility, keyboard, responsive) |
 | `tests/browser/harness.js` | Tiny in-browser test harness (`test`, `assert`, `waitFor`, `input.press`, `input.viewport`) |
 | `tests/run.js` | Runner: starts a static server and headless Chromium, drives it via the DevTools protocol |
@@ -1148,6 +1164,43 @@ keyboard and screen-reader semantics (roles, names, states, focus).
 
 ---
 
+## Architecture
+
+How the sources fit together, for maintainers.
+
+**Layers.** `src/core/` and `src/export/` are DOM-free (except the download in
+`export.js`) and tested in Node. `src/ui/`, `src/render/` and `src/panels/`
+build DOM; panels and render modules get plain data and callbacks, never the
+component itself. `src/jwDataTable.js` wires everything together.
+
+**State flow.** The component holds one state object (shape in
+`src/core/state.js`, types in `src/types.js`). Every change — from the UI or
+`setState()` — goes through `_commit(patch, { update, announce })`: apply the
+patch, derive the filtered/sorted/paged rows (`deriveRows`), refresh the DOM,
+emit `jw-datatable:change`, then announce. `update` picks the smallest refresh:
+`"full"` (re-render the table root), `"body"` (rows and footer, keeps a focused
+search field), `"sort"` / `"columns"` (update the header in place, so the
+focused header button stays the same element). `_render()` only replaces the
+`.k-dt` root; open panels and the context menu stay.
+
+**Events.** Rows, cells, cards and headers have no listeners of their own.
+Click, context menu, `Shift+F10`, long-press and the truncation tooltip are
+handled once on the shadow root; the handlers look up the element's record
+(`{ row, index, column, value }`) in a `WeakMap` filled while rendering.
+
+**Focus.** Interactive elements carry a stable `data-fk` key so focus survives
+re-renders (`_restoreFocus` falls back to the closest equivalent). Table body
+and card grid use roving tabindex (`src/ui/keyboard.js`). Panels open through
+`_showOverlay()` (`src/ui/overlay.js`: modal dialog, focus trap, focus return).
+Status messages go through `_announce()` to the shared live region under
+`<body>`, or the open panel's own region.
+
+**Styles.** `src/ui/styles.js` is one CSS string (Mobile First, breakpoint
+640px), parsed once into a constructed stylesheet shared by all tables. Class
+prefix `k-dt-` (context menu `k-ctx-`), design tokens `--k-*` with fallbacks.
+
+---
+
 ## Releases & build
 
 Releases are fully automated with GitHub Actions
@@ -1167,7 +1220,7 @@ Releases are fully automated with GitHub Actions
 
 | Commit | Release |
 |--------|---------|
-| `fix: …` | patch (1.0.**1**) |
+| `fix: …`, `perf: …` | patch (1.0.**1**) |
 | `feat: …` | minor (1.**1**.0) |
 | `feat!: …` or footer `BREAKING CHANGE: …` | major (**2**.0.0) |
 | `docs:`, `test:`, `refactor:`, `chore:`, `ci:`, `style:` | no release |
@@ -1183,7 +1236,7 @@ node tests/run.js --browser --dist     # browser tests against the bundle
 Don't commit a locally built `dist/` — CI owns it.
 
 The build minifies the CSS and icon markup, then bundles and minifies all
-modules with esbuild into one ES module (≈ 70 KB, ≈ 20 KB gzipped).
+modules with esbuild into one ES module (≈ 130 KB, ≈ 38 KB gzipped).
 
 **Repository setup:** Actions need write access (*Settings → Actions →
 General → Workflow permissions → Read and write*). If `main` is protected
