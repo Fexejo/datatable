@@ -46,7 +46,24 @@ const ICONS = {
  * @returns {SVGSVGElement}
  */
 export function createIcon(name, { label } = {}) {
-    const svg = document.createElementNS(SVG_NS, "svg");
+    const svg = iconTemplate(name).cloneNode(true);
+    if (label) {
+        svg.setAttribute("role", "img");
+        svg.setAttribute("aria-label", label);
+    } else {
+        svg.setAttribute("aria-hidden", "true");
+    }
+    return svg;
+}
+
+// Parsed once per name and cloned afterwards: a large table shows an icon in
+// every copyable cell, and cloning is much cheaper than parsing the markup.
+const templates = new Map();
+
+function iconTemplate(name) {
+    let svg = templates.get(name);
+    if (svg) return svg;
+    svg = document.createElementNS(SVG_NS, "svg");
     svg.setAttribute("viewBox", "0 0 24 24");
     svg.setAttribute("fill", "none");
     svg.setAttribute("stroke", "currentColor");
@@ -54,15 +71,13 @@ export function createIcon(name, { label } = {}) {
     svg.setAttribute("stroke-linecap", "round");
     svg.setAttribute("stroke-linejoin", "round");
     svg.setAttribute("focusable", "false");
-    if (label) {
-        svg.setAttribute("role", "img");
-        svg.setAttribute("aria-label", label);
-    } else {
-        svg.setAttribute("aria-hidden", "true");
-    }
     const body = ICONS[name];
-    if (body == null) console.warn(`jw-datatable: unknown icon "${name}"`);
-    else svg.innerHTML = body;
+    if (body == null) {
+        console.warn(`jw-datatable: unknown icon "${name}"`);
+        return svg;
+    }
+    svg.innerHTML = body;
+    templates.set(name, svg);
     return svg;
 }
 
