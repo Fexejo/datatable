@@ -514,6 +514,20 @@ test("Enter in the value filter search applies only the matches", async () => {
     assert.equal(deepActiveElement(), $(table, '[data-fk="filter:name"]'), "focus back on the filter button");
 }, { cdp: true });
 
+test("Enter in a pattern operand applies the condition", async () => {
+    const table = mount({ features: { filtering: true } });
+    await openNameFilter(table);
+    $(table, '[role="tab"]:last-child').click();
+    $(table, ".k-dt-overlay .k-dt-operands input").focus();
+    await type("ann");
+    await input.press("Enter");
+
+    assert.equal($(table, '[role="dialog"]'), null, "dialog closed");
+    assert.equal(table.getState().filters.name?.kind, "pattern");
+    assert.equal(table.getState().filters.name?.operand, "ann");
+    assert.equal(deepActiveElement(), $(table, '[data-fk="filter:name"]'), "focus back on the filter button");
+}, { cdp: true });
+
 test("value search checks the matches and restores the selection when cleared", async () => {
     const table = mount({ features: { filtering: true } });
     table.setState({ filters: { name: { kind: "value", values: ["Ben"] } } });

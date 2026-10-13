@@ -987,6 +987,7 @@ or touch also works with the keyboard alone.
 | Details dialog | `Shift+F10` on a cell/card → “Show details”; `Enter` on “Previous” / “Next” | Opens with focus on the dialog heading; focus stays on the pressed button (moves to the other one at the first/last record); closing returns focus to the shown record |
 | Filter panel tabs | `←` `→`, `Home` / `End` | Switch between “Values” and “Pattern” |
 | Filter panel, “Values” tab | `Enter` in the search field or on a search-result option | Apply (same as the “Apply” button); the search-result options are radio buttons (`↑` `↓`) |
+| Filter panel, “Pattern” tab | `Enter` in a value field | Apply (same as the “Apply” button) |
 | Saved views panel | `Enter` in the name field or the rename field, `Esc` in a question or the rename field | Save / rename; `Esc` cancels the question or the rename (the panel stays open, focus returns to the button that started it). Questions open with focus on “Cancel”; after deleting, focus moves to the next view |
 | Export dialog | `←` `→` (or `↑` `↓`) in a segmented control, `Space` on a switch or “More options”, `Enter` in the file name or on an option | Select an option, toggle a switch, export (same as the “Export” button); focus starts on the selected format and returns to the opener afterwards |
 

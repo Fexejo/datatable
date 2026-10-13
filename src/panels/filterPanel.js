@@ -71,13 +71,15 @@ export function buildFilterPanel({ t, column, filter, values, onApply }) {
         applyButton
     ]));
 
-    // Enter in the value search or on a search-result option applies, like a click on "Apply".
-    bodyValue.el.addEventListener("keydown", (e) => {
-        if (e.key !== "Enter" || e.isComposing) return;
-        if (e.target !== bodyValue.focusTarget && e.target.type !== "radio") return;
+    // Enter in the value search, on a search-result option or in a pattern operand applies,
+    // like a click on "Apply".
+    const applyOnEnter = (isTarget) => (e) => {
+        if (e.key !== "Enter" || e.isComposing || !isTarget(e.target)) return;
         e.preventDefault();
         applyButton.click();
-    });
+    };
+    bodyValue.el.addEventListener("keydown", applyOnEnter((t) => t === bodyValue.focusTarget || t.type === "radio"));
+    bodyPattern.el.addEventListener("keydown", applyOnEnter((t) => t.tagName === "INPUT"));
     return panel;
 }
 
