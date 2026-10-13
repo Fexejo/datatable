@@ -1127,7 +1127,8 @@ focus in place.
 - Visible focus indicator (`:focus-visible` outline) on every interactive
   element, including cells, cards and menu items; copy buttons that are hidden
   until hover become visible on keyboard focus.
-- Touch targets ≥ 44px on touch layouts.
+- Touch targets ≥ 44px on touch layouts; on desktop at least 24px or spaced
+  apart (WCAG 2.5.8), e.g. the filter and unpin buttons in a header cell.
 - Default colors meet contrast requirements (muted text fallback `#666`, 5.7:1
   on white). When overriding `--k-*` tokens, keep ≥ 4.5:1 for text and ≥ 3:1
   for UI components and focus indicators.

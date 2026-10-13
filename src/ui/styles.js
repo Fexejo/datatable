@@ -853,7 +853,8 @@ span.k-dt-th-label { cursor: default; }
 
     .k-dt-table { font-size: 0.92rem; }
     .k-dt-th, .k-dt-td { --k-dt-cell-px: var(--k-space-l, 12px); padding: var(--k-space-s, 8px) var(--k-dt-cell-px); }
-    .k-dt-filter-btn, .k-dt-pin-btn { padding: 2px; }
+    /* At least 24px (WCAG 2.5.8): filter and unpin button sit side by side. */
+    .k-dt-filter-btn, .k-dt-pin-btn { padding: 2px; min-width: 24px; min-height: 24px; }
     .k-dt-pin-toggle { min-width: 32px; min-height: 32px; }
     .k-dt-details-btn { width: 32px; height: 32px; }
 
