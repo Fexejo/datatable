@@ -116,3 +116,43 @@ test("describeFilter: values in display format, pattern with operator and operan
     const linked = { key: "name", type: "string", formatter: () => "ignored" };
     assert.equal(describeFilter({ kind: "pattern", operator: "equals", operand: "x" }, linked, en), "equals “x”");
 });
+
+test("every pattern operator, per type family", () => {
+    /** @type {[string, any, string, any, any, boolean][]} */
+    const cases = [
+        // [type, value, operator, operand, operand2, expected]
+        ["string", "Anna", "notContains", "x", undefined, true],
+        ["string", "Anna", "notContains", "nn", undefined, false],
+        ["string", "Anna", "endsWith", "NA", undefined, true],
+        ["string", "Anna", "notEquals", "anna", undefined, false],
+        ["string", "", "empty", undefined, undefined, true],
+        ["string", "x", "notEmpty", undefined, undefined, true],
+        ["string", "Anna", "unknown", "x", undefined, true],
+        ["number", 5, "equals", "5", undefined, true],
+        ["number", 5, "notEquals", 5, undefined, false],
+        ["number", 5, "gt", 4, undefined, true],
+        ["number", 5, "lt", 5, undefined, false],
+        ["number", 5, "lte", 5, undefined, true],
+        ["number", null, "notEmpty", undefined, undefined, false],
+        ["number", 5, "unknown", 1, undefined, true],
+        ["date", "2021-03-02", "before", "2021-03-03", undefined, true],
+        ["date", "2021-03-02", "before", "", undefined, false],
+        ["date", "2021-03-02", "between", "2021-04-01", "2021-03-01", true],
+        ["date", "2021-03-02", "between", "2021-04-01", "", false],
+        ["date", "", "empty", undefined, undefined, true],
+        ["date", "2021-03-02", "unknown", "x", undefined, true],
+        ["boolean", false, "isFalse", undefined, undefined, true],
+        ["boolean", "yes", "isFalse", undefined, undefined, false],
+        ["boolean", true, "unknown", undefined, undefined, true]
+    ];
+    for (const [type, value, operator, operand, operand2, expected] of cases) {
+        assert.equal(matchesPattern(value, { kind: "pattern", operator, operand, operand2 }, type), expected,
+            `${type} ${JSON.stringify(value)} ${operator} ${JSON.stringify(operand)}`);
+    }
+});
+
+test("isActiveFilter rejects unknown kinds and missing operands", () => {
+    assert.equal(isActiveFilter(/** @type {any} */ ({ kind: "other" })), false);
+    assert.equal(isActiveFilter({ kind: "pattern", operator: "between", operand: 1, arity: 2 }), false, "second operand missing");
+    assert.equal(isActiveFilter({ kind: "pattern", operator: "", operand: 1 }), false, "no operator");
+});

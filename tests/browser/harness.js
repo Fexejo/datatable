@@ -216,14 +216,16 @@ export const input = {
         await nextFrame();
     },
     /**
-     * Holds a finger on the center of `element` for `ms`, then lifts it.
+     * Holds a finger on the center of `element` for `ms`, then lifts it;
+     * `move` slides it that many pixels right right after touching down.
      * @param {Element} element
      */
-    async longPress(element, ms = 600) {
+    async longPress(element, ms = 600, { move = 0 } = {}) {
         element.scrollIntoView({ block: "center" });
         const r = element.getBoundingClientRect();
         const point = { x: r.left + r.width / 2, y: r.top + r.height / 2 };
         await cdp("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [point] });
+        if (move) await cdp("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ ...point, x: point.x + move }] });
         await sleep(ms);
         await cdp("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
         await nextFrame();

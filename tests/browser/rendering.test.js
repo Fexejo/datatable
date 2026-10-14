@@ -335,6 +335,33 @@ test("cards list their fields as label/value pairs (dl/dt/dd)", () => {
     assert.equal(card.querySelector("dl > div > dd").textContent.trim(), "1");
 });
 
+test("cards without data show the empty text", () => {
+    const table = mount({ data: [], features: { grid: true }, defaultLayout: "grid" });
+    assert.equal($(table, ".k-dt-grid .k-dt-empty").textContent, "No data.");
+    assert.equal($(table, ".k-dt-card"), null);
+});
+
+test("showing a column can force the pager in without a full re-render", () => {
+    const warn = console.warn;
+    /** @type {string[]} */
+    const warnings = [];
+    console.warn = (...args) => warnings.push(args.join(" "));
+    try {
+        // 500 rows × 10 columns = 5000 cells: still without pagination.
+        const table = mount({ columns: WIDE, data: wideRows(500), features: { pagination: false, columnVisibility: true },
+            initial: { hiddenColumns: ["c0", "c1"] } });
+        assert.ok(!$(table, ".k-dt-footer"));
+        const tableElement = $(table, "table");
+        $(table, '[data-fk="tb:columns"]').click();
+        $(table, ".k-dt-overlay .k-dt-switch input").click();   // show c0
+        assert.ok($(table, ".k-dt-footer"), "pager added");
+        assert.equal($(table, "table"), tableElement, "table updated in place");
+        assert.equal(warnings.length, 1);
+    } finally {
+        console.warn = warn;
+    }
+});
+
 // ---- In-place column updates & row layout ---------------------------------------
 
 test("pinning keeps the table and the focused header button (no re-announced table)", async () => {

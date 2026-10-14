@@ -66,3 +66,11 @@ test("ViewStore accepts sync adapters and turns throws into rejections", async (
     assert.equal(await store.get("sync"), null);
     await assert.rejects(store.rename("sync", "x"), /nope/);
 });
+
+test("LocalStorageAdapter treats unreadable storage as empty", async () => {
+    backing.set("ns::views", "{not json");
+    backing.set("ns::view::A", "{not json");
+    const adapter = new LocalStorageAdapter("ns");
+    assert.deepEqual(adapter.list(), []);
+    assert.equal(adapter.get("A"), null);
+});

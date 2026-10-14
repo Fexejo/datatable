@@ -1189,7 +1189,7 @@ Needs **Node.js ≥ 22** and, for browser tests, a Chromium-based browser.
 ```bash
 npm ci                            # dev tools (once, and after package.json changes)
 npm run check                     # lint + type check + all tests with coverage, as in CI
-npm run coverage                  # all tests + line coverage per file (fails below 97%)
+npm run coverage                  # all tests + line coverage per file (fails below 99%)
 npm run lint                      # ESLint (eslint.config.js)
 npm run typecheck                 # tsc --strict: sources (tsconfig.json), tests + tools (tsconfig.tests.json)
 node tests/run.js                 # all tests

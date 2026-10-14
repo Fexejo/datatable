@@ -86,6 +86,12 @@ test("value search checks the matches and restores the selection when cleared", 
 
     valueBox(table, "Emma").click();
     assert.ok(!toggleAll.querySelector("input").checked, "select all follows the boxes");
+    toggleAll.querySelector("input").click();
+    assert.ok(visibleValues(table).every((v) => valueBox(table, v).checked), "select all checks the results again");
+    toggleAll.querySelector("input").click();
+    assert.ok(!visibleValues(table).some((v) => valueBox(table, v).checked), "and clears them");
+    assert.ok(valueBox(table, "Ben").checked, "values hidden by the search keep their state");
+    toggleAll.querySelector("input").click();
 
     const field = $(table, '.k-dt-overlay input[type="search"]');
     field.value = "";

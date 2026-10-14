@@ -219,6 +219,22 @@ test("saved views panel: adapter failures are shown and can be retried", async (
     assert.equal(vk(table, "name").value, "New", "typed name kept");
 });
 
+test("saved views panel: a view deleted elsewhere or failing to load stays in the panel", async () => {
+    const adapter = memoryAdapter({ A: { sort: SORT_DESC }, B: {} });
+    const table = mountViews(adapter);
+    await openViews(table);
+    adapter.saved.delete("A");   // e.g. deleted in another tab
+    vk(table, "load:A").click();
+    await announced(table, "The view “A” no longer exists.");
+    assert.deepEqual(viewNames(table), ["B"], "list refreshed");
+    assert.ok($(table, ".k-dt-overlay"), "panel stays open");
+
+    adapter.get = () => Promise.reject(new Error("offline"));
+    vk(table, "load:B").click();
+    await announced(table, "That did not work. Please try again.");
+    assert.equal(deepActiveElement(), vk(table, "load:B"), "focus stays on the view");
+});
+
 test("German saved views panel", async () => {
     const table = mountViews(memoryAdapter({ A: {} }), { locale: "de-DE" });
     const panel = await openViews(table);

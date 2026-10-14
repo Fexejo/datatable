@@ -40,7 +40,7 @@ jobs:
         run: npm run typecheck
 
       # ubuntu-latest ships Google Chrome; tests/run.js finds it on PATH.
-      - name: Tests against sources (with line coverage, minimum 97%)
+      - name: Tests against sources (with line coverage, minimum 99%)
         run: npm run coverage
 
       - name: Build bundle (dev version)

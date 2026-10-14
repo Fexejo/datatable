@@ -95,3 +95,14 @@ test("buildSheet: labels as header, formatted values as text", () => {
     const text = unzip(buildSheet([{ n: 1234.5 }], columns, { localized: true, locale: "de-DE", headers: false }))["xl/worksheets/sheet1.xml"];
     assert.match(text, /<c r="A1" t="inlineStr"><is><t xml:space="preserve">1.234,5<\/t>/);
 });
+
+test("time columns: clock strings and dates become time serials", () => {
+    const sheet = unzip(buildXLSX({
+        columns: [{ type: "time" }, { type: "time" }, { type: "datetime" }],
+        rows: [["06:00", new Date(2024, 0, 5, 18, 0), "2024-01-05T12:00:00"], ["late", null, ""]]
+    }))["xl/worksheets/sheet1.xml"];
+    assert.match(sheet, /<c r="A1" s="4"><v>0.25<\/v><\/c>/, "06:00 is a quarter day");
+    assert.match(sheet, /<c r="B1" s="4"><v>45296.75<\/v><\/c>/, "a Date keeps its day and time");
+    assert.match(sheet, /<c r="C1" s="3"><v>45296.5<\/v><\/c>/, "datetime style");
+    assert.match(sheet, /<c r="A2" t="inlineStr"><is><t xml:space="preserve">late<\/t>/, "unparsable time stays text");
+});

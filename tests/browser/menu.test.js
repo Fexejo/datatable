@@ -1,7 +1,7 @@
 // Context menu: pointer, keyboard and touch.
 
 import { test, assert, nextFrame, sleep, deepActiveElement, input } from "./harness.js";
-import { DATA, mount, $, $$, columnTexts, rightClick } from "./helpers.js";
+import { DATA, mount, $, $$, columnTexts, rightClick, announced } from "./helpers.js";
 
 // ---- Context menu ---------------------------------------------------------
 
@@ -100,4 +100,32 @@ test("touch: a long-press opens the context menu without clicking the row; a tap
     await input.longPress(cell, 600);
     assert.ok($(table, '[role="menu"]'), "long-press opens the menu");
     assert.equal(clicked, 1, "the release after a long-press does not click the row");
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+    await input.longPress(cell, 600, { move: 30 });
+    assert.equal($(table, '[role="menu"]'), null, "moving the finger (scrolling) cancels the long-press");
 }, { cdp: true });
+
+test("a press outside closes the context menu; near the bottom it opens upwards", async () => {
+    const table = mount();
+    rightClick($(table, '[data-fk="cell:1:name"]'));
+    assert.ok($(table, '[role="menu"]'));
+    await sleep(10);   // outside presses count from the next tick on
+    document.body.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, composed: true }));
+    assert.equal($(table, '[role="menu"]'), null, "closed");
+
+    const cell = $(table, '[data-fk="cell:1:name"]');
+    cell.dispatchEvent(new MouseEvent("contextmenu", {
+        bubbles: true, composed: true, cancelable: true, clientX: 20, clientY: innerHeight - 10
+    }));
+    const menu = $(table, '[role="menu"]').getBoundingClientRect();
+    assert.ok(menu.bottom <= innerHeight, "menu fits in the viewport");
+    assert.ok(menu.top < innerHeight - 10, "moved up above the pointer");
+});
+
+test("hiding a column from the context menu is announced", async () => {
+    const table = mount({ features: { columnVisibility: true } });
+    rightClick($(table, '[data-fk="cell:1:fee"]'));
+    $$(table, '[role="menuitem"]').find((item) => item.textContent === "Hide column").click();
+    await announced(table, "Column “Fee” hidden");
+    assert.ok(!$$(table, "thead th").some((th) => th.dataset.key === "fee"));
+});

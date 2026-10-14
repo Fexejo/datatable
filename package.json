@@ -7,7 +7,7 @@
         "lint": "eslint .",
         "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.tests.json",
         "test": "node tests/run.js",
-        "coverage": "node tests/run.js --coverage --coverage-min 97",
+        "coverage": "node tests/run.js --coverage --coverage-min 99",
         "check": "npm run lint && npm run typecheck && npm run coverage"
     },
     "devDependencies": {

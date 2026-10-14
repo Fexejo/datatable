@@ -31,3 +31,9 @@ test("normalizeColumns fills defaults and follows the features", () => {
     const [copyOff] = normalizeColumns([{ key: "x", copyable: true }], { features: { copyButtons: false } });
     assert.equal(copyOff.copyable, false);
 });
+
+test("normalizeColumns maps enum options to labels (value as fallback)", () => {
+    const [status] = normalizeColumns([{ key: "s", type: "enum", options: [{ value: "a", label: "Active" }, { value: "b" }] }]);
+    assert.deepEqual(status.optionsMap, { a: "Active", b: "b" });
+    assert.equal(normalizeColumns([{ key: "x" }])[0].optionsMap, null);
+});

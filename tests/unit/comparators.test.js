@@ -45,8 +45,18 @@ test("multi-column sort uses secondary key", () => {
     assert.deepEqual(sorted.map((r) => `${r.name}${r.fee}`), ["a2", "a1", "b1"]);
 });
 
-test("toggleSort is exported", () => {
-    assert.equal(typeof toggleSort, "function");
+test("toggleSort cycles asc → desc → off; additive keeps the other keys", () => {
+    /** @type {import("../../src/types.js").SortSpec[]} */
+    let sort = [];
+    sort = toggleSort(sort, "a");
+    assert.deepEqual(sort, [{ key: "a", direction: "asc" }]);
+    sort = toggleSort(sort, "a");
+    assert.deepEqual(sort, [{ key: "a", direction: "desc" }]);
+    sort = toggleSort(sort, "b", { additive: true });
+    assert.deepEqual(sort, [{ key: "a", direction: "desc" }, { key: "b", direction: "asc" }]);
+    assert.deepEqual(toggleSort(sort, "a", { additive: true }), [{ key: "b", direction: "asc" }], "third click removes only a");
+    assert.deepEqual(toggleSort(sort, "a"), [], "without additive the other keys go too");
+    assert.deepEqual(toggleSort(sort, "c"), [{ key: "c", direction: "asc" }]);
 });
 
 test("sortData keeps empty and unparsable values last in both directions", () => {

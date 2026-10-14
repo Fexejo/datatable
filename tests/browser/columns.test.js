@@ -141,7 +141,11 @@ const dragTo = (/** @type {HTMLElement} */ table, /** @type {string} */ fromKey,
     const source = th(fromKey);
     fire(source, "dragstart");
     fire(th(toKey), "dragover", at);
-    const marked = th(toKey).classList.contains(after ? "is-drop-after" : "is-drop-before");
+    // Leaving to another element clears the mark; dragging over again sets it.
+    fire(th(toKey), "dragleave", { relatedTarget: document.body });
+    const cleared = !th(toKey).matches(".is-drop-before, .is-drop-after");
+    fire(th(toKey), "dragover", at);
+    const marked = cleared && th(toKey).classList.contains(after ? "is-drop-after" : "is-drop-before");
     fire(th(toKey), "drop", at);
     fire(source, "dragend");
     return marked;

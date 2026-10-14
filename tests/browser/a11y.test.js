@@ -2,6 +2,7 @@
 
 import { test, assert, sleep, waitFor, deepActiveElement, accessibleName, input } from "./harness.js";
 import { COLUMNS, ALL_FEATURES, mount, $, $$, columnTexts, rightClick, statusText, announced, hasIcon, status, root } from "./helpers.js";
+import { createIcon } from "../../src/ui/icons.js";
 
 // ---- Accessibility --------------------------------------------------------
 
@@ -17,6 +18,21 @@ test("icons are decorative SVGs hidden from assistive tech", () => {
     assert.ok(svgs.length > 0, "renders icons");
     assert.ok(svgs.every((s) => s.getAttribute("aria-hidden") === "true"), "aria-hidden on all icons");
     assert.ok(svgs.every((s) => !s.querySelector("title")), "no <title> inside icons");
+});
+
+test("an unknown icon name warns and renders an empty decorative SVG", () => {
+    const warn = console.warn;
+    /** @type {string[]} */
+    const warnings = [];
+    console.warn = (...args) => warnings.push(args.join(" "));
+    try {
+        const svg = createIcon("no-such-icon");
+        assert.equal(svg.childElementCount, 0);
+        assert.equal(svg.getAttribute("aria-hidden"), "true");
+        assert.deepEqual(warnings, ['jw-datatable: unknown icon "no-such-icon"']);
+    } finally {
+        console.warn = warn;
+    }
 });
 
 test("form controls have accessible names", () => {
@@ -100,6 +116,16 @@ test("table body is a single tab stop with arrow-key navigation", async () => {
     assert.equal(deepActiveElement()?.dataset.fk, "cell:9:joined");
     await input.press("Home", ["Control"]);
     assert.equal(deepActiveElement()?.dataset.fk, "cell:0:id");
+    await input.press("ArrowLeft");
+    assert.equal(deepActiveElement()?.dataset.fk, "cell:0:id", "stops at the first column");
+    await input.press("ArrowDown");
+    await input.press("ArrowRight");
+    await input.press("ArrowUp");
+    assert.equal(deepActiveElement()?.dataset.fk, "cell:0:name");
+    await input.press("ArrowLeft");
+    assert.equal(deepActiveElement()?.dataset.fk, "cell:0:id");
+    await input.press("Enter");
+    assert.equal(deepActiveElement()?.dataset.fk, "cell:0:id", "Enter on a plain cell does nothing");
     assert.equal($$(table, "tbody td").filter((td) => td.tabIndex === 0).length, 1);
     assert.ok($(table, "table").getAttribute("aria-describedby"), "keyboard hint");
 }, { cdp: true });
@@ -199,6 +225,26 @@ test("cards: single tab stop, arrow navigation, Enter triggers onRowClick", asyn
     assert.equal(deepActiveElement()?.dataset.fk, "card:2");
     await input.press("Enter");
     assert.equal(clicked, 3);
+    await input.press("End");
+    assert.equal(deepActiveElement()?.dataset.fk, "card:9");
+    await input.press("ArrowLeft");
+    assert.equal(deepActiveElement()?.dataset.fk, "card:8");
+    await input.press("Home");
+    await input.press("ArrowUp");
+    assert.equal(deepActiveElement()?.dataset.fk, "card:0", "stops at the first card");
+    await input.press("x");
+    assert.equal(deepActiveElement()?.dataset.fk, "card:0", "other keys do not move");
+}, { cdp: true });
+
+test("cards without onRowClick ignore Enter", async () => {
+    const table = mount({ features: { grid: true }, defaultLayout: "grid" });
+    const card = $(table, '[data-fk="card:0"]');
+    assert.ok(!card.classList.contains("k-dt-clickable"));
+    let clicks = 0;
+    card.addEventListener("click", () => { clicks += 1; });
+    card.focus();
+    await input.press("Enter");
+    assert.equal(clicks, 0);
 }, { cdp: true });
 
 // ---- Announcements ---------------------------------------------------------
@@ -272,6 +318,30 @@ test("mouse click on a copy button keeps focus and only announces the copy", asy
     assert.ok(hasIcon(button, "check"), "check icon after copying");
     await waitFor(() => hasIcon(button, "copy"), { timeout: 2500, message: "icon reverts after a moment" });
 }, { cdp: true });
+
+test("copying works without the Clipboard API (fallback) and keeps focus", async () => {
+    const table = mount({ features: { globalSearch: true } });
+    Object.defineProperty(navigator, "clipboard", { configurable: true, value: undefined });
+    const execCommand = document.execCommand;
+    /** @type {string[]} */
+    const copied = [];
+    document.execCommand = (command) => {
+        copied.push(`${command}:${/** @type {HTMLTextAreaElement} */ (document.activeElement).value}`);
+        return true;
+    };
+    try {
+        const search = $(table, "input[type=search]");
+        search.focus();
+        $(table, '[data-fk="cell:1:name:copy"]').click();
+        await announced(table, "Copied to clipboard: Ben");
+        assert.deepEqual(copied, ["copy:Ben"]);
+        assert.equal(deepActiveElement(), search, "focus back where it was");
+        assert.equal(document.querySelector("body > textarea"), null, "helper removed");
+    } finally {
+        document.execCommand = execCommand;
+        delete /** @type {any} */ (navigator).clipboard;
+    }
+});
 
 test("keyboard copy confirms on the focused button (no live region), every time", async () => {
     const table = mount();
