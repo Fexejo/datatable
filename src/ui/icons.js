@@ -38,22 +38,14 @@ const ICONS = {
 
 /**
  * Creates a Lucide icon as an SVG element (stroke style, `currentColor`).
- * Decorative by default (hidden from assistive tech) — the surrounding control
- * carries the accessible name. Pass `label` only for a standalone, meaningful icon.
+ * Decorative: hidden from assistive tech, the surrounding control carries the
+ * accessible name.
  *
  * @param {string} name Lucide icon name (key of ICONS).
- * @param {{ label?: string }} [options]
  * @returns {SVGSVGElement}
  */
-export function createIcon(name, { label } = {}) {
-    const svg = /** @type {SVGSVGElement} */ (iconTemplate(name).cloneNode(true));
-    if (label) {
-        svg.setAttribute("role", "img");
-        svg.setAttribute("aria-label", label);
-    } else {
-        svg.setAttribute("aria-hidden", "true");
-    }
-    return svg;
+export function createIcon(name) {
+    return /** @type {SVGSVGElement} */ (iconTemplate(name).cloneNode(true));
 }
 
 // Parsed once per name and cloned afterwards: a large table shows an icon in
@@ -73,6 +65,7 @@ function iconTemplate(name) {
     svg.setAttribute("stroke-linecap", "round");
     svg.setAttribute("stroke-linejoin", "round");
     svg.setAttribute("focusable", "false");
+    svg.setAttribute("aria-hidden", "true");
     const body = ICONS[name];
     if (body == null) {
         console.warn(`jw-datatable: unknown icon "${name}"`);
