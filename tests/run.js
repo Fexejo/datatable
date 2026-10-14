@@ -122,7 +122,7 @@ function launchChrome(bin, profileDir) {
 
 // Only these CDP methods may be triggered from the test page.
 const ALLOWED_FROM_PAGE = new Set([
-    "Input.dispatchKeyEvent", "Input.dispatchMouseEvent",
+    "Input.dispatchKeyEvent", "Input.dispatchMouseEvent", "Input.dispatchTouchEvent",
     "Emulation.setDeviceMetricsOverride", "Emulation.clearDeviceMetricsOverride"
 ]);
 

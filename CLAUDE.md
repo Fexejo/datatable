@@ -61,7 +61,8 @@ python3 -m http.server 8000       # /demo.html, /tests/browser/
 
 - New logic in `src/core`/`src/export` → `tests/unit/<module>.test.js`. New UI
   behavior → `tests/browser/datatable.test.js` incl. keyboard and ARIA; real keys
-  and viewport only via `input.press()` / `input.viewport()` with `{ cdp: true }`.
+  touch and viewport only via `input.press()` / `input.longPress()` /
+  `input.viewport()` with `{ cdp: true }`.
   A new layout, panel or popup state → an `axe: …` test (`assertNoAxeViolations()`).
 - Console errors/warnings of the page fail the run.
 - Chromium: `CHROME_BIN`, `PATH`, else the Playwright cache (the only one here).

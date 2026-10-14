@@ -1198,7 +1198,7 @@ node tests/run.js --filter "sort" # only tests whose name contains "sort"
 |------|---------|
 | `tests/unit/*.test.js` | `node:test` tests for the DOM-free modules (state, sorting, filtering, formatting, pagination, export incl. XLSX, i18n, icons, …) |
 | `tests/browser/datatable.test.js` | Component tests in a real browser (rendering, sorting, pagination, context menu, accessibility, keyboard, responsive) |
-| `tests/browser/harness.js` | Tiny in-browser test harness (`test`, `assert`, `waitFor`, `input.press`, `input.viewport`) |
+| `tests/browser/harness.js` | Tiny in-browser test harness (`test`, `assert`, `waitFor`, `input.press`, `input.longPress`, `input.viewport`) |
 | `tests/run.js` | Runner: starts a static server and headless Chromium, drives it via the DevTools protocol |
 
 **Types:** `datatable.js` and `src/` carry JSDoc types throughout (public ones

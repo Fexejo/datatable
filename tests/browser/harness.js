@@ -3,8 +3,9 @@
 // Works in two modes:
 // - Manually: open tests/browser/index.html over HTTP; results render on the page.
 // - Automated: tests/run.js drives headless Chromium and reads `window.__testResults`.
-//   It also exposes a `__cdpSend` binding so tests can send *trusted* keyboard
-//   input and change the viewport (`cdp: true` tests are skipped without it).
+//   It also exposes a `__cdpSend` binding so tests can send *trusted* keyboard,
+//   mouse and touch input and change the viewport (`cdp: true` tests are
+//   skipped without it).
 
 const tests = [];
 
@@ -156,6 +157,16 @@ export const input = {
         await cdp("Input.dispatchMouseEvent", { type: "mouseMoved", ...base });
         await cdp("Input.dispatchMouseEvent", { type: "mousePressed", ...base });
         await cdp("Input.dispatchMouseEvent", { type: "mouseReleased", ...base });
+        await nextFrame();
+    },
+    /** Holds a finger on the center of `element` for `ms`, then lifts it. */
+    async longPress(element, ms = 600) {
+        element.scrollIntoView({ block: "center" });
+        const r = element.getBoundingClientRect();
+        const point = { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+        await cdp("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [point] });
+        await sleep(ms);
+        await cdp("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
         await nextFrame();
     },
     /** Emulates a viewport size (e.g. mobile); `null` resets. */

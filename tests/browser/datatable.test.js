@@ -103,6 +103,30 @@ test("setData replaces rows and fires jw-datatable:datachange", () => {
     assert.equal(detail?.data?.length, 3);
 });
 
+test("the data property replaces rows; refresh() re-renders changed rows", () => {
+    const table = mount();
+    const rows = DATA.slice(0, 2).map((row) => ({ ...row }));
+    table.data = rows;
+    assert.equal($$(table, "tbody tr").length, 2);
+    assert.deepEqual(table.data, rows, "getter returns the rows");
+    table.data[0].name = "Zoe";
+    assert.equal(columnTexts(table, 1)[0], "Anna", "no re-render before refresh()");
+    table.refresh();
+    assert.equal(columnTexts(table, 1)[0], "Zoe");
+});
+
+test("rowClass and cellClass add classes per row and cell", () => {
+    const columns = COLUMNS.map((c) => c.key === "fee" ? { ...c, cellClass: (value) => (value > 100 ? "is-high fee" : "") } : c);
+    const table = mount({ columns, rowClass: (row, index) => (row.active ? `active row-${index}` : null) });
+    const rows = $$(table, "tbody tr");
+    assert.ok(rows[1].classList.contains("active") && rows[1].classList.contains("row-1"), "row classes split on spaces");
+    assert.ok(!rows[0].classList.contains("active"), "falsy result adds nothing");
+    const fees = $$(table, '[data-fk$=":fee"]');
+    const high = fees.filter((td) => td.classList.contains("is-high"));
+    assert.ok(high.length > 0 && high.every((td) => td.classList.contains("fee")), "cell classes");
+    assert.ok(high.length < fees.length, "only matching cells");
+});
+
 // ---- Sorting --------------------------------------------------------------
 
 test("clicking a sortable header cycles aria-sort and orders rows", () => {
@@ -376,6 +400,18 @@ test("switches to card layout below the breakpoint", async () => {
     await waitFor(() => $(table, "table"), { message: "expected the table on desktop" });
 }, { cdp: true });
 
+test("touch: a long-press opens the context menu without clicking the row; a tap does not", async () => {
+    let clicked = 0;
+    const table = mount({ onRowClick: () => { clicked += 1; } });
+    const cell = $(table, '[data-fk="cell:1:name"]');
+    await input.longPress(cell, 100);
+    assert.equal($(table, '[role="menu"]'), null, "short tap: no menu");
+    assert.equal(clicked, 1, "short tap clicks the row");
+    await input.longPress(cell, 600);
+    assert.ok($(table, '[role="menu"]'), "long-press opens the menu");
+    assert.equal(clicked, 1, "the release after a long-press does not click the row");
+}, { cdp: true });
+
 // ---- Focus management -----------------------------------------------------
 
 // Active live region: the open panel's own region, else the shared one in <body>.
@@ -531,6 +567,10 @@ test("Shift+F10 on a cell opens the menu; arrows, Home/End navigate; Escape retu
     assert.equal(deepActiveElement(), items.at(-1));
     await input.press("ArrowDown");
     assert.equal(deepActiveElement(), items[0], "wraps around");
+    await input.press("ArrowUp");
+    assert.equal(deepActiveElement(), items.at(-1), "wraps around upwards");
+    await input.press("Home");
+    assert.equal(deepActiveElement(), items[0]);
     await input.press("Escape");
     assert.equal($(table, '[role="menu"]'), null, "closed");
     assert.equal(deepActiveElement()?.dataset.fk, "cell:1:name", "focus back on the cell");
