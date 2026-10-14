@@ -26,7 +26,7 @@ import {
     EXPORT_DEFAULTS, EXPORT_FORMATS, buildExport, exportColumns, defaultNames,
     defaultFilename, withExtension, downloadFile, neutralizeFormula
 } from "./export/export.js";
-import { el, deepActiveElement, focusIsLost } from "./ui/dom.js";
+import { el, deepActiveElement, focusIsLost, reorderAroundFocus } from "./ui/dom.js";
 import { applyStyles } from "./ui/stylesheet.js";
 import { Announcer, getAnnouncer } from "./ui/announcer.js";
 import { Overlay } from "./ui/overlay.js";
@@ -776,14 +776,7 @@ class JwDataTable extends HTMLElement {
         const detailsTh = headRow.querySelector(".k-dt-details-col");
         if (detailsTh) cells.push(detailsTh);
         existing.forEach((th) => th.remove());
-
-        const active = deepActiveElement();
-        const anchor = cells.find((th) => th.contains(active));
-        const at = anchor ? cells.indexOf(anchor) : -1;
-        cells.forEach((th, i) => {
-            if (i < at) headRow.insertBefore(th, anchor ?? null);
-            else if (i > at) headRow.appendChild(th);
-        });
+        reorderAroundFocus(headRow, cells);
 
         table.tBodies[0].replaceWith(buildTbody(view));
         // The column count decides the page sizes offered (and may force pagination).

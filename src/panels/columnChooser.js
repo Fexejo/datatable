@@ -1,7 +1,7 @@
 // Column chooser: a visibility switch per column, plus pin and move buttons
 // when those features are on. Top of the list = left in the table.
 
-import { el, iconEl, switchEl, deepActiveElement } from "../ui/dom.js";
+import { el, iconEl, switchEl, deepActiveElement, reorderAroundFocus } from "../ui/dom.js";
 
 /** @typedef {import("../types.js").NormalizedColumn} Column */
 
@@ -62,19 +62,14 @@ export function buildColumnChooser({ t, columns, isHidden, isPinned, pinning, re
         list
     ]);
 
-    // Rows are moved around the focused one (moving it would drop focus).
+    // Rows are moved around the focused one (see `reorderAroundFocus`).
     const sync = () => {
         if (!list.isConnected) return;
         const children = /** @type {HTMLElement[]} */ (Array.from(list.children));
         const rows = new Map(children.map((row) => [row.dataset.key, row]));
         const ordered = columns().flatMap((c) => rows.get(c.key) ?? []);
         const active = /** @type {(HTMLElement & { disabled?: boolean })|null} */ (deepActiveElement());
-        const anchor = ordered.find((row) => row.contains(active));
-        const at = anchor ? ordered.indexOf(anchor) : -1;
-        ordered.forEach((row, i) => {
-            if (i < at) list.insertBefore(row, anchor ?? null);
-            else if (i > at) list.appendChild(row);
-        });
+        const anchor = reorderAroundFocus(list, ordered);
         const byKey = new Map(columns().map((c) => [c.key, c]));
         ordered.forEach((row, i) => {
             row.querySelector(".k-dt-pin-toggle")?.setAttribute("aria-pressed", String(isPinned(byKey.get(row.dataset.key ?? ""))));

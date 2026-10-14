@@ -112,6 +112,26 @@ export function focusIsLost() {
     return !active || active === document.body || !active.isConnected;
 }
 
+// Puts `nodes` (new or existing children) into `container` in this order
+// without moving the one that contains the focus: moving a focused element
+// drops focus. Returns that node, if any.
+/**
+ * @template {Element} T
+ * @param {Element} container
+ * @param {T[]} nodes
+ * @returns {T|undefined}
+ */
+export function reorderAroundFocus(container, nodes) {
+    const active = deepActiveElement();
+    const anchor = nodes.find((node) => node.contains(active));
+    const at = anchor ? nodes.indexOf(anchor) : -1;
+    nodes.forEach((node, i) => {
+        if (i < at) container.insertBefore(node, anchor ?? null);
+        else if (i > at) container.appendChild(node);
+    });
+    return anchor;
+}
+
 // Visible, enabled elements in `container` that take focus with Tab.
 /**
  * @param {ParentNode} container
