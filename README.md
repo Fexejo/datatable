@@ -76,6 +76,7 @@ written in Vanilla JS (ES modules, Shadow DOM). No external dependencies.
 | `dist/jw-datatable.min.js` | Single-file bundle for consuming projects (built by CI) |
 | `tools/build.js` | Builds the bundle (used by CI) |
 | `package.json`, `eslint.config.js`, `tsconfig.json` | Dev tools only: ESLint, type check, axe-core (see [Development & tests](#development--tests)) |
+| `.github/dependabot.yml` | Weekly update PRs for the dev tools and the GitHub Actions |
 | `.github/workflows/release.yml`, `.releaserc.json` | CI tests + automated releases |
 
 All modules are plain ES modules; the sources run without a build step. See
@@ -1181,6 +1182,8 @@ python3 -m http.server 8000
 The sources need no build and have no runtime dependencies. npm installs only
 the dev tools, pinned to exact versions in `package.json`: ESLint, TypeScript
 (type check only) and axe-core (accessibility checks in the browser tests).
+Dependabot proposes updates weekly, only for versions at least two weeks old;
+GitHub Actions are pinned by commit SHA.
 Needs **Node.js ≥ 22** and, for browser tests, a Chromium-based browser.
 
 ```bash
