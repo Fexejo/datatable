@@ -4,6 +4,7 @@
 import { el, iconEl, segmentedEl, switchEl } from "../ui/dom.js";
 import { EXPORT_DEFAULTS, EXPORT_FORMATS, defaultFilename, defaultNames } from "../export/export.js";
 import { uid } from "../core/util.js";
+import { formatCount } from "../core/formatters.js";
 
 // `defaults`: export options (see EXPORT_DEFAULTS). `baseName`: start of the
 // suggested file name. `scopes`: [[value, text, rowCount]] offered as "Rows".
@@ -11,11 +12,11 @@ import { uid } from "../core/util.js";
 // the chosen options; `onCancel()`.
 /** @typedef {import("../types.js").ExportOptions} ExportOptions */
 /**
- * @param {{ t: import("../core/i18n.js").Translations, defaults: ExportOptions, baseName: string,
+ * @param {{ t: import("../core/i18n.js").Translations, locale: string, defaults: ExportOptions, baseName: string,
  *     scopes: [value: ExportOptions["scope"], text: string, rowCount: number][], hasHiddenColumns: boolean,
  *     onSubmit: (options: ExportOptions) => void, onCancel: () => void }} options
  */
-export function buildExportDialog({ t, defaults, baseName, scopes, hasHiddenColumns, onSubmit, onCancel }) {
+export function buildExportDialog({ t, locale, defaults, baseName, scopes, hasHiddenColumns, onSubmit, onCancel }) {
     const id = uid("jwdt-exp");
     /** @param {HTMLElement} label */
     const inputOf = (label) => /** @type {HTMLInputElement} */ (label.querySelector("input"));
@@ -66,7 +67,7 @@ export function buildExportDialog({ t, defaults, baseName, scopes, hasHiddenColu
 
     // ---- More options
     /** @type {[string, string, string][]} */
-    const scopeOptions = scopes.map(([value, text, count]) => [value, text, t.resultsCount(count)]);
+    const scopeOptions = scopes.map(([value, text, count]) => [value, text, t.resultsCount(count, formatCount(count, locale))]);
     const scopeGroup = radios("scope", t.exportRows, scopeOptions,
         scopes.some(([value]) => value === defaults.scope) ? defaults.scope : "filtered");
     const allColumns = hasHiddenColumns ? switchEl(t.exportAllColumns, defaults.allColumns) : null;

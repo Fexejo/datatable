@@ -59,6 +59,16 @@ function numberOptions(fmt) {
     return options;
 }
 
+// A whole number with the locale's thousands separator ("1,000" / "1.000"),
+// for counts in the UI (pagination).
+/**
+ * @param {number} n
+ * @param {string} [locale]
+ */
+export function formatCount(n, locale = "en-US") {
+    return numberFormatter(locale, { maximumFractionDigits: 0 }).format(n);
+}
+
 /** @type {Record<string, Intl.DateTimeFormatOptions>} */
 const DATE_DEFAULTS = {
     date: { year: "numeric", month: "2-digit", day: "2-digit" },

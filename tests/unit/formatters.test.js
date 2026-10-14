@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { formatValue, toText } from "../../src/core/formatters.js";
+import { formatCount, formatValue, toText } from "../../src/core/formatters.js";
 
 // Intl output can contain narrow no-break spaces; normalize for comparisons.
 const norm = (/** @type {unknown} */ s) => String(s).replace(/[\u00a0\u202f]/g, " ");
@@ -45,4 +45,10 @@ test("custom formatter gets ctx; toText falls back to textContent", () => {
     // The formatter returns a node-like object (only `textContent`).
     const column = /** @type {any} */ ({ key: "s", formatter: (/** @type {string} */ v, /** @type {{ locale: string }} */ ctx) => ({ textContent: `${v}/${ctx.locale}` }) });
     assert.equal(toText("ok", column, "de-DE"), "ok/de-DE");
+});
+
+test("counts get the locale's thousands separator", () => {
+    assert.equal(formatCount(1234567), "1,234,567");
+    assert.equal(formatCount(1000, "de-DE"), "1.000");
+    assert.equal(formatCount(25, "de-DE"), "25");
 });

@@ -1,7 +1,7 @@
 // Rendering: public API, table, sorting, pagination, search, layouts, responsive, widths, cards.
 
 import { test, assert, nextFrame, waitFor, deepActiveElement, accessibleName, input } from "./harness.js";
-import { ENTRY, api, createDataTable, DATA, COLUMNS, mount, $, $$, columnTexts, rightClick, headerKeys, menuItem, root } from "./helpers.js";
+import { ENTRY, api, createDataTable, DATA, COLUMNS, mount, $, $$, columnTexts, rightClick, headerKeys, menuItem, root, announced } from "./helpers.js";
 
 // ---- Public API -----------------------------------------------------------
 
@@ -121,6 +121,23 @@ const WIDE = Array.from({ length: 12 }, (_, i) => ({ key: `c${i}`, label: `C${i}
 const wideRows = (/** @type {number} */ count) => Array.from({ length: count }, (_, r) =>
     Object.fromEntries(WIDE.map((c, i) => [c.key, r * 100 + i])));
 const pageSizes = (/** @type {HTMLElement} */ table) => $$(table, '[data-fk="pagesize"] option').map((o) => Number(o.value));
+
+test("footer and row counts have thousands separators", async () => {
+    const data = Array.from({ length: 12000 }, (_, i) => ({ id: i }));
+    const table = mount({ columns: [{ key: "id", label: "ID", type: "integer" }], data, locale: "de-DE",
+        pagination: { pageSize: 10, pageSizeOptions: [10, 1000] } });
+    assert.equal($(table, ".jw-dt-info > span").textContent, "1–10 von 12.000");
+    assert.deepEqual($$(table, '[data-fk="pagesize"] option').map((o) => [o.value, o.textContent]),
+        [["10", "10"], ["1000", "1.000"]]);
+    const last = $(table, '[data-fk="page:n:1200"]');
+    assert.equal(last.textContent, "1.200");
+    assert.equal(last.getAttribute("aria-label"), "Seite 1.200");
+    table.clearFilters();
+    await announced(table, "12.000 Zeilen");
+
+    $(table, '[data-fk="page:chevron-right"]').click();
+    await announced(table, "11–20 von 12.000");
+});
 
 test("page sizes are offered while a page stays within 5000 rendered cells", () => {
     const table = mount({ columns: WIDE, data: wideRows(30), features: { grid: true } });

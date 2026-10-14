@@ -50,7 +50,8 @@ const en = {
     noResults: "No rows match the current filters.",
 
     // Footer / pagination
-    /** @param {number} start @param {number} end @param {number} total */
+    // Counts arrive formatted (thousands separator, `formatCount`).
+    /** @param {string} start @param {string} end @param {string} total */
     pageInfo: (start, end, total) => `${start}–${end} of ${total}`,
     perPage: "per page:",
     rowsPerPage: "Rows per page",
@@ -196,14 +197,15 @@ const en = {
     compactKeyboardHint: "Arrow keys move between cells, Enter opens the details of the row, Shift+F10 opens the actions menu.",
     /** @param {string} label */
     actionsFor: (label) => `Actions: ${label}`,
-    /** @param {number} n */
+    /** @param {string} n formatted page number */
     pageN: (n) => `Page ${n}`,
     filterMode: "Filter type",
     operandValue: "Value",
     operandFrom: "From",
     operandTo: "To",
-    /** @param {number} n */
-    resultsCount: (n) => (n === 1 ? "1 row" : `${n} rows`),
+    // `shown`: `n` formatted (thousands separator, `formatCount`).
+    /** @param {number} n @param {string} shown */
+    resultsCount: (n, shown) => (n === 1 ? "1 row" : `${shown} rows`),
     /** @param {string} list */
     sortedBy: (list) => `Sorted by ${list}`,
     sortCleared: "Sorting removed",
@@ -444,7 +446,7 @@ const de = {
     operandValue: "Wert",
     operandFrom: "Von",
     operandTo: "Bis",
-    resultsCount: (n) => (n === 1 ? "1 Zeile" : `${n} Zeilen`),
+    resultsCount: (n, shown) => (n === 1 ? "1 Zeile" : `${shown} Zeilen`),
     sortedBy: (list) => `Sortiert nach ${list}`,
     sortCleared: "Sortierung entfernt",
     ascending: "aufsteigend",

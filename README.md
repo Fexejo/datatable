@@ -5,7 +5,7 @@ written in Vanilla JS (ES modules, Shadow DOM). No external dependencies.
 
 **Features**
 
-- **Pagination** – first/previous/next/last, page numbers, configurable page size
+- **Pagination** – first/previous/next/last, page numbers, configurable page size; numbers with the locale's thousands separator
 - **Sorting** – ascending/descending, multi-column (Shift+click), context menu
 - **Filters** – value filter (pick values) and pattern filter (type-specific operators); a toolbar summary lists the active filters with their values
 - **Quick filters** – right-click a cell → “Filter by value” / “Exclude value”
@@ -1093,7 +1093,9 @@ table.
 - Pagination is a `navigation` landmark named “Pagination: <title>” (just
   “Pagination” without a `title`), so several tables on one page have distinct
   landmarks; give each a `title`. Page buttons are named “Page n”, the current
-  one has `aria-current="page"`.
+  one has `aria-current="page"`. Row counts (results after filtering or
+  searching, exports) carry the locale's thousands separator, like the footer
+  (“1,000 rows”).
 - Actions menu: `role="menu"` / `menuitem`, named “Actions: <column>”.
 - Panels are modal dialogs (`role="dialog"`, `aria-modal`, named by their
   heading); opener buttons carry `aria-haspopup="dialog"` and `aria-expanded`.

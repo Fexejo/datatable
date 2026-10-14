@@ -12,11 +12,11 @@
 
 import { getTranslations } from "./core/i18n.js";
 import { getCellValue, clamp, debounce, uid, truncate } from "./core/util.js";
-import { toText } from "./core/formatters.js";
+import { formatCount, toText } from "./core/formatters.js";
 import { sortData, toggleSort } from "./core/comparators.js";
 import { distinctValues, isActiveFilter, describeFilter } from "./core/filtering.js";
 import { normalizeColumns } from "./core/columns.js";
-import { DEFAULT_PAGE_SIZES, MAX_PAGE_CELLS, exceedsCellLimit, pageRange, pageSizeChoices } from "./core/pagination.js";
+import { DEFAULT_PAGE_SIZES, MAX_PAGE_CELLS, exceedsCellLimit, pageSizeChoices } from "./core/pagination.js";
 import {
     createState, mergeState, serializeState, viewSignature, activeFilterCount,
     normalizeOrder, orderedColumns, moveColumn, deriveRows
@@ -35,7 +35,7 @@ import { writeClipboard, confirmOnButton, flashCopied } from "./ui/clipboard.js"
 import { waitForLongPress } from "./ui/longPress.js";
 import { layoutPinned, updateScrollShadows } from "./ui/pinnedLayout.js";
 import { buildToolbar, buildFilterButtons } from "./render/toolbar.js";
-import { buildFooter } from "./render/footer.js";
+import { buildFooter, pageInfoText } from "./render/footer.js";
 import { buildFilterPanel } from "./panels/filterPanel.js";
 import { buildFilterSummary } from "./panels/filterSummary.js";
 import { buildExportDialog } from "./panels/exportDialog.js";
@@ -300,7 +300,7 @@ class JwDataTable extends HTMLElement {
             options: { ...opts, filename }
         };
         if (!this._emit("export", detail, { cancelable: true })) return null;
-        const count = this._t.resultsCount(rows.length);
+        const count = this._t.resultsCount(rows.length, formatCount(rows.length, this._config.locale));
         if (opts.destination === "clipboard") {
             this._copyText(/** @type {string} */ (content), null, null, this._t.exportedClipboard(count));
         } else {
@@ -703,6 +703,7 @@ class JwDataTable extends HTMLElement {
     _renderFooter() {
         return buildFooter({
             t: this._t,
+            locale: this._config.locale,
             title: this._config.title,
             page: this._state.page,
             pageCount: this._pageCount,
@@ -917,12 +918,12 @@ class JwDataTable extends HTMLElement {
 
     _announceResults() {
         const total = this._viewData.length;
-        this._announce(total === 0 ? this._config.noResultsText : this._t.resultsCount(total));
+        this._announce(total === 0 ? this._config.noResultsText : this._t.resultsCount(total, formatCount(total, this._config.locale)));
     }
 
     _announcePage() {
-        const { start, end, total } = pageRange(this._state.page, this._state.pageSize, this._viewData.length);
-        this._announce(this._t.pageInfo(start, end, total));
+        this._announce(pageInfoText(this._t, this._config.locale, this._state.page, this._state.pageSize,
+            this._viewData.length));
     }
 
     _announceSort() {
@@ -1534,6 +1535,7 @@ class JwDataTable extends HTMLElement {
         if (this._paginated()) scopes.unshift(["page", t.exportScopePage, this._pageData.length]);
         const panel = buildExportDialog({
             t,
+            locale: this._config.locale,
             defaults: this._exportDefaults(),
             baseName: this._exportBaseName(),
             scopes,
