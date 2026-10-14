@@ -3,14 +3,14 @@
 // the parts are rebuilt in place and focus moves to the element with that
 // `data-vk`. The name field is never rebuilt, so typing survives the list
 // loading.
+//
+// `buildViewsPanel` holds the panel state and the actions; the functions
+// below it build the parts from that state.
 
 import { el, iconEl, deepActiveElement } from "../ui/dom.js";
 import { uid } from "../core/util.js";
 
-// `views`: async { list(), save(name), load(name) → found?, rename(old, new),
-// remove(name) } and active() → { name, modified } | null.
-// `announce(message)`, `close()`: status message, close the panel.
-// Returns { panel, refresh }: call `refresh()` once the panel is shown.
+/** @typedef {import("../core/i18n.js").Translations} Translations */
 /**
  * @typedef {object} ViewsApi
  * @property {() => Promise<string[]>} list
@@ -22,17 +22,34 @@ import { uid } from "../core/util.js";
  */
 /** @typedef {"name"|"rename"|"list"} ErrorAt */
 /**
- * @param {{ t: import("../core/i18n.js").Translations, views: ViewsApi,
- *     announce: (message: string) => void, close: () => void }} options
+ * names: null while loading; step: the open question or rename field.
+ * @typedef {{ names: string[]|null, step: { kind: "overwrite"|"rename"|"delete", name: string }|null,
+ *     error: { text: string, at: ErrorAt }|null, busy: boolean, renameDraft: string }} PanelState
+ */
+/**
+ * What the parts can trigger.
+ * @typedef {object} Actions
+ * @property {(name: string) => void} load
+ * @property {(name: string) => void} update      Save the active view again.
+ * @property {(name: string) => void} startRename
+ * @property {(name: string) => void} startDelete
+ * @property {(draft: string) => void} setDraft
+ * @property {(name: string) => void} rename
+ * @property {(name: string) => void} remove
+ * @property {(focusKey: string, clearError?: boolean) => void} cancelStep
+ * @property {() => void} retry
+ */
+
+// `views`: async { list(), save(name), load(name) → found?, rename(old, new),
+// remove(name) } and active() → { name, modified } | null.
+// `announce(message)`, `close()`: status message, close the panel.
+// Returns { panel, refresh }: call `refresh()` once the panel is shown.
+/**
+ * @param {{ t: Translations, views: ViewsApi, announce: (message: string) => void, close: () => void }} options
  * @returns {{ panel: HTMLElement, refresh: () => Promise<void> }}
  */
 export function buildViewsPanel({ t, views, announce, close }) {
-    // names: null while loading; step: { kind: "overwrite"|"rename"|"delete", name };
-    // error: { text, at: "name"|"rename"|"list" }.
-    /**
-     * @type {{ names: string[]|null, step: { kind: "overwrite"|"rename"|"delete", name: string }|null,
-     *     error: { text: string, at: ErrorAt }|null, busy: boolean, renameDraft: string }}
-     */
+    /** @type {PanelState} */
     const ui = { names: null, step: null, error: null, busy: false, renameDraft: "" };
     const errorId = uid("kdt-verr");
 
@@ -58,137 +75,34 @@ export function buildViewsPanel({ t, views, announce, close }) {
         saveExtra,
         listSection
     ]);
-
     const isOpen = () => panel.isConnected;
-    /** @param {ErrorAt} at */
-    const errorEl = (at) => (ui.error?.at === at
-        ? el("p", { class: "k-dt-views-error", id: errorId, text: ui.error.text })
-        : null);
-    // Escape inside a question or the rename field steps back, not out of the panel.
-    /** @param {string} focusKey */
-    const onEscape = (focusKey) => (/** @type {KeyboardEvent} */ e) => {
-        if (e.key !== "Escape") return;
-        e.preventDefault();
-        e.stopPropagation();
-        ui.step = null;
-        ui.error = null;
-        render(focusKey);
-    };
-    // A question with its answers; focus goes to Cancel (the safe answer).
-    /**
-     * @param {string} text
-     * @param {string} okText
-     * @param {() => void} onOk
-     * @param {string} cancelKey
-     */
-    const question = (text, okText, onOk, cancelKey) => {
-        const id = uid("kdt-vq");
-        return el("div", { class: "k-dt-views-confirm", role: "group", "aria-labelledby": id, onkeydown: onEscape(cancelKey) }, [
-            el("p", { class: "k-dt-views-question", id, text }),
-            el("div", { class: "k-dt-panel-actions" }, [
-                el("button", { type: "button", class: "k-dt-btn k-dt-btn-primary", text: okText, "aria-describedby": id, onclick: onOk }),
-                el("button", {
-                    type: "button", class: "k-dt-btn", text: t.cancel, "data-vk": "step-cancel", "aria-describedby": id,
-                    onclick: () => { ui.step = null; render(cancelKey); }
-                })
-            ])
-        ]);
-    };
 
-    const renderActive = () => {
-        const active = views.active();
-        if (!active) { activeSection.replaceChildren(); return; }
-        const id = uid("kdt-vact");
-        activeSection.replaceChildren(el("div", { class: "k-dt-views-active" }, [
-            el("p", { id }, [
-                `${t.activeView}: `,
-                el("strong", { text: active.name }),
-                active.modified && el("span", { class: "k-dt-views-badge", text: ` (${t.viewModified})` })
-            ]),
-            active.modified && el("button", {
-                type: "button", class: "k-dt-btn", text: t.updateView, "data-vk": "update", "aria-describedby": id,
-                onclick: () => run(() => views.save(active.name), {
-                    message: t.viewUpdated(active.name), focus: `load:${active.name}`, errorAt: "list", errorFocus: "update"
-                })
-            })
-        ]));
-    };
-
-    /** @param {string} name */
-    const renderItem = (name) => {
-        const step = ui.step?.name === name ? ui.step.kind : null;
-        if (step === "delete") {
-            return el("li", { class: "k-dt-views-item is-step" }, [question(t.confirmDelete(name), t.deleteView, () => remove(name), `delete:${name}`)]);
-        }
-        if (step === "rename") {
-            const input = el("input", {
-                type: "text",
-                class: "k-dt-input",
-                value: ui.renameDraft,
-                "aria-label": t.newViewName(name),
-                "data-vk": "rename-input",
-                "aria-invalid": ui.error?.at === "rename" ? "true" : null,
-                "aria-describedby": ui.error?.at === "rename" ? errorId : null,
-                oninput: (e) => { ui.renameDraft = e.currentTarget.value; },
-                onkeydown: (e) => { if (e.key === "Enter") { e.preventDefault(); rename(name); } }
-            });
-            return el("li", { class: "k-dt-views-item is-step", onkeydown: onEscape(`rename:${name}`) }, [
-                input,
-                errorEl("rename"),
-                el("div", { class: "k-dt-panel-actions" }, [
-                    el("button", { type: "button", class: "k-dt-btn k-dt-btn-primary", text: t.renameView, onclick: () => rename(name) }),
-                    el("button", {
-                        type: "button", class: "k-dt-btn", text: t.cancel,
-                        onclick: () => { ui.step = null; ui.error = null; render(`rename:${name}`); }
-                    })
-                ])
-            ]);
-        }
-        const isActive = views.active()?.name === name;
-        return el("li", { class: "k-dt-views-item" }, [
-            el("button", {
-                type: "button",
-                class: "k-dt-views-load",
-                title: t.loadView,
-                "data-vk": `load:${name}`,
-                "aria-current": isActive ? "true" : null,
-                onclick: () => load(name)
-            }, [isActive ? iconEl("check") : el("span", { class: "k-dt-ic" }), el("span", { class: "k-dt-views-name", text: name })]),
-            el("button", {
-                type: "button", class: "k-dt-icon-btn", title: t.renameView,
-                "aria-label": t.renameViewNamed(name), "data-vk": `rename:${name}`,
-                onclick: () => { ui.step = { kind: "rename", name }; ui.error = null; ui.renameDraft = name; render("rename-input"); }
-            }, [iconEl("pencil")]),
-            el("button", {
-                type: "button", class: "k-dt-icon-btn", title: t.deleteView,
-                "aria-label": t.deleteViewNamed(name), "data-vk": `delete:${name}`,
-                onclick: () => { ui.step = { kind: "delete", name }; ui.error = null; render("step-cancel"); }
-            }, [iconEl("trash")])
-        ]);
-    };
-
-    const renderList = () => {
-        /** @type {(HTMLElement|null)[]} */
-        const nodes = [errorEl("list")];
-        if (ui.names === null && ui.error?.at === "list") {
-            nodes.push(el("button", { type: "button", class: "k-dt-btn", text: t.retry, "data-vk": "retry", onclick: () => loadList("retry") }));
-        } else if (ui.names === null) {
-            nodes.push(el("p", { class: "k-dt-views-empty", text: t.viewsLoading }));
-        } else if (ui.names.length === 0) {
-            nodes.push(el("p", { class: "k-dt-views-empty", text: t.noSavedViews }));
-        } else {
-            nodes.push(el("ul", { class: "k-dt-views-items", "aria-label": t.savedViews }, ui.names.map(renderItem)));
-        }
-        listSection.replaceChildren(...nodes.flatMap((node) => node ?? []));
+    /** @type {Actions} */
+    const actions = {
+        load: (name) => load(name),
+        update: (name) => run(() => views.save(name), {
+            message: t.viewUpdated(name), focus: `load:${name}`, errorAt: "list", errorFocus: "update"
+        }),
+        startRename: (name) => { ui.step = { kind: "rename", name }; ui.error = null; ui.renameDraft = name; render("rename-input"); },
+        startDelete: (name) => { ui.step = { kind: "delete", name }; ui.error = null; render("step-cancel"); },
+        setDraft: (draft) => { ui.renameDraft = draft; },
+        rename: (name) => rename(name),
+        remove: (name) => remove(name),
+        cancelStep: (focusKey, clearError = true) => {
+            ui.step = null;
+            if (clearError) ui.error = null;
+            render(focusKey);
+        },
+        retry: () => loadList("retry")
     };
 
     /** @param {string|null} [focusKey] */
     const render = (focusKey) => {
         if (!isOpen()) return;
         const focused = deepActiveElement();
-        renderActive();
-        const nameError = ui.error?.at === "name";
-        if (nameError) {
+        const active = views.active();
+        activeSection.replaceChildren(...(active ? [activeView(t, active, actions)] : []));
+        if (ui.error?.at === "name") {
             nameInput.setAttribute("aria-invalid", "true");
             nameInput.setAttribute("aria-describedby", errorId);
         } else {
@@ -197,10 +111,12 @@ export function buildViewsPanel({ t, views, announce, close }) {
         }
         const step = ui.step;
         saveExtra.replaceChildren(...[
-            errorEl("name"),
-            step?.kind === "overwrite" ? question(t.confirmOverwrite(step.name), t.overwrite, () => doSave(step.name), "name") : null
+            errorText(ui, "name", errorId),
+            step?.kind === "overwrite"
+                ? question(t, t.confirmOverwrite(step.name), t.overwrite, () => doSave(step.name), "name", actions)
+                : null
         ].flatMap((node) => node ?? []));
-        renderList();
+        listSection.replaceChildren(...listContent(t, ui, errorId, active?.name, actions));
         /** @type {HTMLElement|null} */
         const target = focusKey ? panel.querySelector(`[data-vk="${CSS.escape(focusKey)}"]`) : null;
         if (target) target.focus();
@@ -243,6 +159,7 @@ export function buildViewsPanel({ t, views, announce, close }) {
         announce(text);
     };
 
+    // Saving under an existing name asks first.
     const save = () => {
         const name = nameInput.value.trim();
         if (!name) return fail(t.viewNameRequired, "name", "name");
@@ -264,7 +181,7 @@ export function buildViewsPanel({ t, views, announce, close }) {
     const rename = (oldName) => {
         const newName = ui.renameDraft.trim();
         if (!newName) return fail(t.viewNameRequired, "rename", "rename-input");
-        if (newName === oldName) { ui.step = null; ui.error = null; render(`rename:${oldName}`); return; }
+        if (newName === oldName) { actions.cancelStep(`rename:${oldName}`); return; }
         if (ui.names?.includes(newName)) return fail(t.viewNameTaken(newName), "rename", "rename-input");
         run(() => views.rename(oldName, newName), {
             message: t.viewRenamed(oldName, newName), focus: `load:${newName}`, errorAt: "rename", errorFocus: "rename-input"
@@ -286,6 +203,7 @@ export function buildViewsPanel({ t, views, announce, close }) {
         });
     };
 
+    // A loaded view closes the panel; a vanished one refreshes the list.
     /** @param {string} name */
     const load = async (name) => {
         if (ui.busy) return;
@@ -327,4 +245,169 @@ export function buildViewsPanel({ t, views, announce, close }) {
     };
 
     return { panel, refresh: () => loadList() };
+}
+
+// ---- Parts ------------------------------------------------------------------
+
+// The error message, when it belongs at `at`.
+/**
+ * @param {PanelState} ui
+ * @param {ErrorAt} at
+ * @param {string} errorId
+ */
+function errorText(ui, at, errorId) {
+    return ui.error?.at === at ? el("p", { class: "k-dt-views-error", id: errorId, text: ui.error.text }) : null;
+}
+
+// Escape inside a question or the rename field steps back, not out of the panel.
+/**
+ * @param {Actions} actions
+ * @param {string} focusKey
+ */
+function stepBackOnEscape(actions, focusKey) {
+    return (/** @type {KeyboardEvent} */ e) => {
+        if (e.key !== "Escape") return;
+        e.preventDefault();
+        e.stopPropagation();
+        actions.cancelStep(focusKey);
+    };
+}
+
+// A question with its answers; focus goes to Cancel (the safe answer).
+/**
+ * @param {Translations} t
+ * @param {string} text
+ * @param {string} okText
+ * @param {() => void} onOk
+ * @param {string} cancelKey Focus key after cancelling.
+ * @param {Actions} actions
+ */
+function question(t, text, okText, onOk, cancelKey, actions) {
+    const id = uid("kdt-vq");
+    return el("div", { class: "k-dt-views-confirm", role: "group", "aria-labelledby": id, onkeydown: stepBackOnEscape(actions, cancelKey) }, [
+        el("p", { class: "k-dt-views-question", id, text }),
+        el("div", { class: "k-dt-panel-actions" }, [
+            el("button", { type: "button", class: "k-dt-btn k-dt-btn-primary", text: okText, "aria-describedby": id, onclick: onOk }),
+            el("button", {
+                type: "button", class: "k-dt-btn", text: t.cancel, "data-vk": "step-cancel", "aria-describedby": id,
+                // A failed action's message stays until the next attempt.
+                onclick: () => actions.cancelStep(cancelKey, false)
+            })
+        ])
+    ]);
+}
+
+// The view last saved or loaded; "Update" when the table differs from it.
+/**
+ * @param {Translations} t
+ * @param {{ name: string, modified: boolean }} active
+ * @param {Actions} actions
+ */
+function activeView(t, active, actions) {
+    const id = uid("kdt-vact");
+    return el("div", { class: "k-dt-views-active" }, [
+        el("p", { id }, [
+            `${t.activeView}: `,
+            el("strong", { text: active.name }),
+            active.modified && el("span", { class: "k-dt-views-badge", text: ` (${t.viewModified})` })
+        ]),
+        active.modified && el("button", {
+            type: "button", class: "k-dt-btn", text: t.updateView, "data-vk": "update", "aria-describedby": id,
+            onclick: () => actions.update(active.name)
+        })
+    ]);
+}
+
+// The list (or its loading, empty or error state).
+/**
+ * @param {Translations} t
+ * @param {PanelState} ui
+ * @param {string} errorId
+ * @param {string|undefined} activeName
+ * @param {Actions} actions
+ * @returns {HTMLElement[]}
+ */
+function listContent(t, ui, errorId, activeName, actions) {
+    const error = errorText(ui, "list", errorId);
+    /** @type {HTMLElement} */
+    let content;
+    if (ui.names === null && ui.error?.at === "list") {
+        content = el("button", { type: "button", class: "k-dt-btn", text: t.retry, "data-vk": "retry", onclick: () => actions.retry() });
+    } else if (ui.names === null) {
+        content = el("p", { class: "k-dt-views-empty", text: t.viewsLoading });
+    } else if (ui.names.length === 0) {
+        content = el("p", { class: "k-dt-views-empty", text: t.noSavedViews });
+    } else {
+        content = el("ul", { class: "k-dt-views-items", "aria-label": t.savedViews }, ui.names.map((name) => {
+            const step = ui.step?.name === name ? ui.step.kind : null;
+            if (step === "delete") {
+                return el("li", { class: "k-dt-views-item is-step" }, [
+                    question(t, t.confirmDelete(name), t.deleteView, () => actions.remove(name), `delete:${name}`, actions)
+                ]);
+            }
+            if (step === "rename") return renameItem(t, ui, errorId, name, actions);
+            return viewItem(t, name, name === activeName, actions);
+        }));
+    }
+    return error ? [error, content] : [content];
+}
+
+// A view: load it (the name), rename or delete it.
+/**
+ * @param {Translations} t
+ * @param {string} name
+ * @param {boolean} isActive
+ * @param {Actions} actions
+ */
+function viewItem(t, name, isActive, actions) {
+    return el("li", { class: "k-dt-views-item" }, [
+        el("button", {
+            type: "button",
+            class: "k-dt-views-load",
+            title: t.loadView,
+            "data-vk": `load:${name}`,
+            "aria-current": isActive ? "true" : null,
+            onclick: () => actions.load(name)
+        }, [isActive ? iconEl("check") : el("span", { class: "k-dt-ic" }), el("span", { class: "k-dt-views-name", text: name })]),
+        el("button", {
+            type: "button", class: "k-dt-icon-btn", title: t.renameView,
+            "aria-label": t.renameViewNamed(name), "data-vk": `rename:${name}`,
+            onclick: () => actions.startRename(name)
+        }, [iconEl("pencil")]),
+        el("button", {
+            type: "button", class: "k-dt-icon-btn", title: t.deleteView,
+            "aria-label": t.deleteViewNamed(name), "data-vk": `delete:${name}`,
+            onclick: () => actions.startDelete(name)
+        }, [iconEl("trash")])
+    ]);
+}
+
+// A view being renamed: the name field (with its error) and the answers.
+/**
+ * @param {Translations} t
+ * @param {PanelState} ui
+ * @param {string} errorId
+ * @param {string} name
+ * @param {Actions} actions
+ */
+function renameItem(t, ui, errorId, name, actions) {
+    const invalid = ui.error?.at === "rename";
+    return el("li", { class: "k-dt-views-item is-step", onkeydown: stepBackOnEscape(actions, `rename:${name}`) }, [
+        el("input", {
+            type: "text",
+            class: "k-dt-input",
+            value: ui.renameDraft,
+            "aria-label": t.newViewName(name),
+            "data-vk": "rename-input",
+            "aria-invalid": invalid ? "true" : null,
+            "aria-describedby": invalid ? errorId : null,
+            oninput: (e) => actions.setDraft(e.currentTarget.value),
+            onkeydown: (e) => { if (e.key === "Enter") { e.preventDefault(); actions.rename(name); } }
+        }),
+        errorText(ui, "rename", errorId),
+        el("div", { class: "k-dt-panel-actions" }, [
+            el("button", { type: "button", class: "k-dt-btn k-dt-btn-primary", text: t.renameView, onclick: () => actions.rename(name) }),
+            el("button", { type: "button", class: "k-dt-btn", text: t.cancel, onclick: () => actions.cancelStep(`rename:${name}`) })
+        ])
+    ]);
 }
