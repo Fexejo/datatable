@@ -119,3 +119,22 @@ export function typeGroup(type = "string") {
     if (TYPE_GROUPS.boolean.includes(type)) return "boolean";
     return "text";
 }
+
+// URL schemes a link may use; anything else (javascript:, data:, vbscript:, …)
+// could run code in the page when clicked.
+const SAFE_URL_SCHEMES = new Set(["http", "https", "mailto", "tel"]);
+
+// `url` when it is relative or uses a safe scheme, else null. Browsers ignore
+// whitespace and control characters inside a scheme ("java\tscript:"), so
+// they are removed before the check.
+/**
+ * @param {unknown} url
+ * @returns {string|null}
+ */
+export function safeUrl(url) {
+    if (typeof url !== "string") return null;
+    const trimmed = url.trim();
+    // eslint-disable-next-line no-control-regex -- see above
+    const scheme = /^([^/?#]*?):/.exec(trimmed.replace(/[\u0000- ]/g, ""))?.[1];
+    return scheme === undefined || SAFE_URL_SCHEMES.has(scheme.toLowerCase()) ? trimmed : null;
+}

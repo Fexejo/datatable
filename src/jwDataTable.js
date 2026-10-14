@@ -11,7 +11,7 @@
 // ui/. The public API is `datatable.js`.
 
 import { getTranslations } from "./core/i18n.js";
-import { getCellValue, clamp, debounce, uid, typeGroup } from "./core/util.js";
+import { getCellValue, clamp, debounce, uid, typeGroup, safeUrl } from "./core/util.js";
 import { formatValue, toText } from "./core/formatters.js";
 import { sortData, toggleSort } from "./core/comparators.js";
 import { distinctValues, isActiveFilter, describeFilter } from "./core/filtering.js";
@@ -75,7 +75,8 @@ const VALUE_HOSTS = "td.k-dt-td, dd.k-dt-pair-value, .k-dt-card-title";
 // Controls inside a value host, handled by `_onClick`.
 const VALUE_CONTROLS = ".k-dt-copy, .k-dt-cell-action, .k-dt-link, .k-dt-details-btn";
 
-// Target of a column link: `link.url` as a string or (row, value) => string.
+// Target of a column link: `link.url` as a string or (row, value) => string;
+// null when it uses an unsafe scheme (see `safeUrl`).
 /**
  * @param {import("./types.js").ColumnLink} link
  * @param {Row} row
@@ -83,8 +84,8 @@ const VALUE_CONTROLS = ".k-dt-copy, .k-dt-cell-action, .k-dt-link, .k-dt-details
  * @returns {string|null}
  */
 function linkHref(link, row, value) {
-    if (typeof link.url === "function") return link.url(row, value);
-    return typeof link.url === "string" ? link.url : null;
+    const url = typeof link.url === "function" ? link.url(row, value) : link.url;
+    return safeUrl(url);
 }
 
 // Opt-in features default to `false` and must be enabled explicitly via
@@ -886,9 +887,11 @@ class JwDataTable extends HTMLElement {
         if (typeof display === "string" && !display.trim()) return el("span", { class: "k-dt-value" }, [content]);
 
         // Clicks are handled in `_onClick`.
+        // A link whose only purpose is an unsafe URL is shown as plain text.
         const link = column.link;
-        if (link && (link.url || link.spa || typeof link.handler === "function")) {
-            return el("a", { class: "k-dt-link", href: linkHref(link, row, value) || "#", "data-fk": fk ? `${fk}:link` : null }, [content]);
+        const href = link ? linkHref(link, row, value) : null;
+        if (link && ((link.url && href !== null) || link.spa || typeof link.handler === "function")) {
+            return el("a", { class: "k-dt-link", href: href || "#", "data-fk": fk ? `${fk}:link` : null }, [content]);
         }
         if (typeof column.action === "function") {
             return el("button", { type: "button", class: "k-dt-cell-action", "data-fk": fk ? `${fk}:action` : null }, [content]);

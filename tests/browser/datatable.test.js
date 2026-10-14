@@ -480,6 +480,27 @@ test("empty values get no link or action button", () => {
     assert.equal($(table, '[data-fk="cell:1:fee:action"]'), null, "empty value: no button");
 });
 
+test("links with an unsafe URL scheme render as text; SPA links get a safe href", () => {
+    const evil = "javascript:alert(1)";
+    const data = [{ id: 1, name: "Anna", site: "https://example.org" }, { id: 2, name: "Ben", site: evil }];
+    const table = mount({
+        data,
+        columns: [
+            { key: "name", label: "Name", link: { spa: true, url: (row) => row.site } },
+            { key: "site", label: "Site", link: (row) => row.site }
+        ]
+    });
+    assert.equal($(table, '[data-fk="cell:0:site:link"]').getAttribute("href"), "https://example.org");
+    assert.equal($(table, '[data-fk="cell:1:site:link"]'), null, "unsafe URL: no link");
+    assert.equal($(table, '[data-fk="cell:1:site"] .k-dt-value').textContent, evil, "value still shown");
+    const spa = $(table, '[data-fk="cell:1:name:link"]');
+    assert.equal(spa.getAttribute("href"), "#", "SPA link keeps working without the unsafe href");
+    let detail = null;
+    table.addEventListener("jw-datatable:navigate", (e) => { detail = e.detail; });
+    spa.click();
+    assert.equal(detail.href, null, "navigate carries no unsafe href");
+});
+
 test("cards: single tab stop, arrow navigation, Enter triggers onRowClick", async () => {
     let clicked = null;
     const table = mount({ features: { grid: true }, defaultLayout: "grid", onRowClick: (row) => { clicked = row.id; } });

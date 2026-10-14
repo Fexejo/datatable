@@ -358,6 +358,12 @@ table.addEventListener("jw-datatable:navigate", (e) => {
 Empty values (nothing to display) get neither a link nor a button, so there
 is no focus stop without a name.
 
+**Only safe URLs:** a link URL must be relative or use `http:`, `https:`,
+`mailto:` or `tel:`. Any other scheme (`javascript:`, `data:`, …) could run
+code when clicked — e.g. a URL built from row data — so such a value is shown
+as plain text; SPA and handler links keep working with `href="#"`, and the
+`navigate` event then carries `href: null`.
+
 ---
 
 ## Enabling / disabling features
@@ -755,7 +761,7 @@ All events are `composed` and `bubbles`.
 
 | Event | `detail` | When |
 |-------|----------|------|
-| `jw-datatable:navigate` | `{ href, row, column, value }` | SPA link clicked (`link.spa`) |
+| `jw-datatable:navigate` | `{ href, row, column, value }` | SPA link clicked (`link.spa`); `href` is null for an unsafe URL |
 | `jw-datatable:change` | `{ state }` | State changed (sort, filter, page, …) |
 | `jw-datatable:datachange` | `{ data }` | Data replaced via `setData()` |
 | `jw-datatable:export` | `{ format, destination, filename, content, rowCount, columns, options }` | Before an export is downloaded or copied; `content` is a string (CSV, JSON) or `Uint8Array` (XLSX); **cancelable** (`preventDefault()` skips download/copy and announcement) |
