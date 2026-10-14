@@ -35,6 +35,14 @@ export const ALL_FEATURES = {
     columnVisibility: true, columnReorder: true, savedViews: true, export: true
 };
 
+/** @typedef {import("../../src/jwDataTable.js").JwDataTable} JwDataTable */
+
+// Mounts a table into #fixture: the test data plus `config` (which may also
+// carry options a test expects the table to ignore).
+/**
+ * @param {Partial<import("../../src/types.js").DataTableConfig> & Record<string, any>} [config]
+ * @returns {JwDataTable}
+ */
 export function mount(config = {}) {
     // The shared announcer outlives tests; start each test with a clean slate.
     const announcer = document.querySelector("[data-jw-datatable-announcer]");
@@ -49,13 +57,38 @@ export function mount(config = {}) {
     });
 }
 
-export const $ = (table, sel) => table.shadowRoot.querySelector(sel);
+// The table's (open) shadow root.
+/**
+ * @param {HTMLElement} table
+ * @returns {ShadowRoot}
+ */
+export const root = (table) => /** @type {ShadowRoot} */ (table.shadowRoot);
 
-export const $$ = (table, sel) => Array.from(table.shadowRoot.querySelectorAll(sel));
+// Query helpers inside a table's shadow root (typed `any`, see harness.js).
+/**
+ * @param {HTMLElement} table
+ * @param {string} sel
+ * @returns {any}
+ */
+export const $ = (table, sel) => table.shadowRoot?.querySelector(sel);
 
+/**
+ * @param {HTMLElement} table
+ * @param {string} sel
+ * @returns {any[]}
+ */
+export const $$ = (table, sel) => Array.from(table.shadowRoot?.querySelectorAll(sel) ?? []);
+
+/**
+ * Texts of column `index` in the body rows.
+ * @param {HTMLElement} table
+ * @param {number} index
+ * @returns {string[]}
+ */
 export const columnTexts = (table, index) =>
     $$(table, "tbody tr").map((tr) => tr.children[index].querySelector(".k-dt-cell").textContent.trim());
 
+/** @param {Element} node */
 export function rightClick(node) {
     const r = node.getBoundingClientRect();
     node.dispatchEvent(new MouseEvent("contextmenu", {
@@ -64,24 +97,41 @@ export function rightClick(node) {
 }
 
 // Active live region: the open panel's own region, else the shared one in <body>.
-export const status = (table) => $(table, ".k-dt-overlay [data-live]")
+export const status = (/** @type {HTMLElement} */ table) => $(table, ".k-dt-overlay [data-live]")
     || document.querySelector("body > [data-jw-datatable-announcer]");
 
 // Announcements may carry an invisible alternating suffix (see _announce).
-export const statusText = (table) => (status(table)?.textContent ?? "").replace(/\u00a0$/, "");
+export const statusText = (/** @type {HTMLElement} */ table) => (status(table)?.textContent ?? "").replace(/\u00a0$/, "");
 
+/**
+ * Waits for `text` in the active live region.
+ * @param {HTMLElement} table
+ * @param {string} text
+ */
 export const announced = (table, text) => waitFor(() => statusText(table) === text, {
     message: `expected announcement "${text}", got "${statusText(table)}"`
 });
 
 // Identifies the Lucide icon inside `node` (same serialized markup as a fresh one).
-export const hasIcon = (node, name) => node.querySelector("svg")?.innerHTML === createIcon(name).innerHTML;
+export const hasIcon = (/** @type {Element} */ node, /** @type {string} */ name) => node.querySelector("svg")?.innerHTML === createIcon(name).innerHTML;
 
 // In-memory adapter; `fail` makes the named methods reject.
+/**
+ * @param {Record<string, any>} [views]
+ * @param {{ fail?: string[] }} [options]
+ */
 export function memoryAdapter(views = {}, { fail = [] } = {}) {
+    /** @type {Map<string, any>} */
     const saved = new Map(Object.entries(views));
+    /** @type {any[][]} */
     const calls = [];
-    const step = (method, fn) => (...args) => {
+    /**
+     * @template {any[]} A
+     * @template R
+     * @param {string} method
+     * @param {(...args: A) => R} fn
+     */
+    const step = (method, fn) => (/** @type {A} */ ...args) => {
         calls.push([method, ...args]);
         return fail.includes(method) ? Promise.reject(new Error(`${method} failed`)) : fn(...args);
     };
@@ -89,19 +139,25 @@ export function memoryAdapter(views = {}, { fail = [] } = {}) {
         saved,
         calls,
         list: step("list", () => [...saved.keys()]),
-        get: step("get", (n) => saved.get(n) ?? null),
-        save: step("save", (n, d) => { saved.set(n, d); }),
-        rename: step("rename", (from, to) => { saved.set(to, saved.get(from)); saved.delete(from); }),
-        delete: step("delete", (n) => { saved.delete(n); })
+        get: step("get", (/** @type {string} */ n) => saved.get(n) ?? null),
+        save: step("save", (/** @type {string} */ n, /** @type {object} */ d) => { saved.set(n, d); }),
+        rename: step("rename", (/** @type {string} */ from, /** @type {string} */ to) => { saved.set(to, saved.get(from)); saved.delete(from); }),
+        delete: step("delete", (/** @type {string} */ n) => { saved.delete(n); })
     };
 }
 
+/** @type {import("../../src/types.js").SortSpec[]} */
 export const SORT_DESC = [{ key: "name", direction: "desc" }];
 
+/**
+ * @param {import("../../src/types.js").ViewStorageAdapter} adapter
+ * @param {Partial<import("../../src/types.js").DataTableConfig> & Record<string, any>} [config]
+ */
 export const mountViews = (adapter, config = {}) => mount({ features: { savedViews: true, sorting: true }, storage: { adapter }, ...config });
 
-export const headerKeys = (table) => $$(table, "thead th").map((th) => th.dataset.key);
+export const headerKeys = (/** @type {HTMLElement} */ table) => $$(table, "thead th").map((th) => th.dataset.key);
 
-export const menuItem = (table, text) => $$(table, '[role="menuitem"]').find((i) => i.textContent.trim() === text);
+export const menuItem = (/** @type {HTMLElement} */ table, /** @type {string} */ text) => $$(table, '[role="menuitem"]').find((i) => i.textContent.trim() === text);
 
+/** @type {Partial<import("../../src/types.js").DataTableConfig>} */
 export const COMPACT = { features: { compact: true }, defaultLayout: "compact" };

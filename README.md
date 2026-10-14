@@ -75,7 +75,7 @@ written in Vanilla JS (ES modules, Shadow DOM). No external dependencies.
 | `tests/` | Unit and browser tests |
 | `dist/jw-datatable.min.js` | Single-file bundle for consuming projects (built by CI) |
 | `tools/build.js` | Builds the bundle (used by CI) |
-| `package.json`, `eslint.config.js`, `tsconfig.json` | Dev tools only: ESLint, type check, axe-core (see [Development & tests](#development--tests)) |
+| `package.json`, `eslint.config.js`, `tsconfig.json`, `tsconfig.tests.json` | Dev tools only: ESLint, type check, axe-core (see [Development & tests](#development--tests)) |
 | `.github/dependabot.yml` | Weekly update PRs for the dev tools and the GitHub Actions |
 | `.github/workflows/release.yml`, `.releaserc.json` | CI tests + automated releases |
 
@@ -1191,7 +1191,7 @@ npm ci                            # dev tools (once, and after package.json chan
 npm run check                     # lint + type check + all tests with coverage, as in CI
 npm run coverage                  # all tests + line coverage per file (fails below 97%)
 npm run lint                      # ESLint (eslint.config.js)
-npm run typecheck                 # tsc --strict over the JSDoc types (tsconfig.json), emits nothing
+npm run typecheck                 # tsc --strict: sources (tsconfig.json), tests + tools (tsconfig.tests.json)
 node tests/run.js                 # all tests
 node tests/run.js --unit          # unit tests only (node:test)
 node tests/run.js --browser       # browser tests only (headless Chromium)
@@ -1208,8 +1208,10 @@ node tests/run.js --filter "sort" # only tests whose name contains "sort"
 | `tests/coverage.js` | Line coverage from V8 data of both runs (`--coverage`, `--coverage-min <percent>`) |
 
 **Types:** `datatable.js` and `src/` carry JSDoc types throughout (public ones
-in `src/types.js`); `npm run typecheck` checks them with `strict`. Editors
-show the same types as IntelliSense.
+in `src/types.js`); `npm run typecheck` checks them with `strict` — the sources
+without Node types, tests and tools with them. In tests, DOM lookups (`$`,
+`$$`, `deepActiveElement()`) are typed `any`: a missing element fails the test
+anyway. Editors show the same types as IntelliSense.
 
 **Accessibility checks:** the browser tests named `axe: …` run axe-core over
 each layout and panel (`assertNoAxeViolations()`); a new UI state belongs there

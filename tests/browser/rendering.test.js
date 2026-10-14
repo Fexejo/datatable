@@ -1,7 +1,7 @@
 // Rendering: public API, table, sorting, pagination, search, layouts, responsive, widths, cards.
 
 import { test, assert, nextFrame, waitFor, deepActiveElement, accessibleName, input } from "./harness.js";
-import { ENTRY, api, createDataTable, DATA, COLUMNS, mount, $, $$, columnTexts, rightClick, headerKeys, menuItem } from "./helpers.js";
+import { ENTRY, api, createDataTable, DATA, COLUMNS, mount, $, $$, columnTexts, rightClick, headerKeys, menuItem, root } from "./helpers.js";
 
 // ---- Public API -----------------------------------------------------------
 
@@ -18,11 +18,11 @@ test("tables share one parsed stylesheet; config.styles adds a per-table sheet",
     const a = mount();
     const b = mount({ styles: ".k-dt-title { color: rgb(1, 2, 3); }", title: "B" });
     a.after(b);
-    const [shared] = a.shadowRoot.adoptedStyleSheets;
-    assert.equal(a.shadowRoot.adoptedStyleSheets.length, 1);
-    assert.equal(b.shadowRoot.adoptedStyleSheets[0], shared, "same sheet object");
+    const [shared] = root(a).adoptedStyleSheets;
+    assert.equal(root(a).adoptedStyleSheets.length, 1);
+    assert.equal(root(b).adoptedStyleSheets[0], shared, "same sheet object");
     assert.equal(getComputedStyle($(b, ".k-dt-title")).color, "rgb(1, 2, 3)");
-    assert.equal(a.shadowRoot.querySelector("style"), null, "no <style> element per render");
+    assert.equal(root(a).querySelector("style"), null, "no <style> element per render");
     b.remove();
 });
 
@@ -44,8 +44,9 @@ test("formats values by type and locale", () => {
 
 test("setData replaces rows and fires jw-datatable:datachange", () => {
     const table = mount();
+    /** @type {any} */
     let detail = null;
-    table.addEventListener("jw-datatable:datachange", (e) => { detail = e.detail; });
+    table.addEventListener("jw-datatable:datachange", (/** @type {any} */ e) => { detail = e.detail; });
     table.setData(DATA.slice(0, 3));
     assert.equal($$(table, "tbody tr").length, 3);
     assert.equal(detail?.data?.length, 3);
@@ -53,7 +54,7 @@ test("setData replaces rows and fires jw-datatable:datachange", () => {
 
 test("the data property replaces rows; refresh() re-renders changed rows", () => {
     const table = mount();
-    const rows = DATA.slice(0, 2).map((row) => ({ ...row }));
+    const rows = DATA.slice(0, 2).map((/** @type {any} */ row) => ({ ...row }));
     table.data = rows;
     assert.equal($$(table, "tbody tr").length, 2);
     assert.deepEqual(table.data, rows, "getter returns the rows");
@@ -64,7 +65,7 @@ test("the data property replaces rows; refresh() re-renders changed rows", () =>
 });
 
 test("rowClass and cellClass add classes per row and cell", () => {
-    const columns = COLUMNS.map((c) => c.key === "fee" ? { ...c, cellClass: (value) => (value > 100 ? "is-high fee" : "") } : c);
+    const columns = COLUMNS.map((c) => c.key === "fee" ? { ...c, cellClass: (/** @type {number} */ value) => (value > 100 ? "is-high fee" : "") } : c);
     const table = mount({ columns, rowClass: (row, index) => (row.active ? `active row-${index}` : null) });
     const rows = $$(table, "tbody tr");
     assert.ok(rows[1].classList.contains("active") && rows[1].classList.contains("row-1"), "row classes split on spaces");
@@ -105,8 +106,9 @@ test("pagination moves pages and marks the current page", () => {
     assert.ok(buttons()[0].disabled && buttons()[1].disabled, "first/prev disabled on page 1");
     assert.equal(nav().querySelector('[aria-current="page"]').textContent, "1");
 
+    /** @type {any} */
     let changed = null;
-    table.addEventListener("jw-datatable:change", (e) => { changed = e.detail.state; });
+    table.addEventListener("jw-datatable:change", (/** @type {any} */ e) => { changed = e.detail.state; });
     buttons().at(-2).click(); // next
     assert.equal(nav().querySelector('[aria-current="page"]').textContent, "2");
     assert.equal(columnTexts(table, 0)[0], "11");
@@ -116,9 +118,9 @@ test("pagination moves pages and marks the current page", () => {
 
 // 12 columns: a page of 500 rows would be 6000 cells.
 const WIDE = Array.from({ length: 12 }, (_, i) => ({ key: `c${i}`, label: `C${i}`, type: "integer" }));
-const wideRows = (count) => Array.from({ length: count }, (_, r) =>
+const wideRows = (/** @type {number} */ count) => Array.from({ length: count }, (_, r) =>
     Object.fromEntries(WIDE.map((c, i) => [c.key, r * 100 + i])));
-const pageSizes = (table) => $$(table, '[data-fk="pagesize"] option').map((o) => Number(o.value));
+const pageSizes = (/** @type {HTMLElement} */ table) => $$(table, '[data-fk="pagesize"] option').map((o) => Number(o.value));
 
 test("page sizes are offered while a page stays within 5000 rendered cells", () => {
     const table = mount({ columns: WIDE, data: wideRows(30), features: { grid: true } });
@@ -152,6 +154,7 @@ test("showing more columns keeps the page size in use; only the choice goes", ()
 
 test("pagination turned off comes back on above 5000 cells, with a console warning", () => {
     const warn = console.warn;
+    /** @type {any[]} */
     const warnings = [];
     console.warn = (...args) => warnings.push(args.join(" "));
     try {
@@ -182,7 +185,7 @@ test("a filter panel opened from the context menu sits at the right-clicked head
         const anchor = target.getBoundingClientRect();
         assert.ok(Math.abs(panel.left - anchor.left) < 2, `left ${panel.left} at ${anchor.left}`);
         assert.ok(Math.abs(panel.top - (anchor.bottom + 4)) < 2, `top ${panel.top} below ${anchor.bottom}`);
-        table.shadowRoot.querySelector(".k-dt-backdrop").click();
+        $(table, ".k-dt-backdrop").click();
     }
 });
 
@@ -255,7 +258,7 @@ test("cellOverflow ellipsis: single line, tooltip only when cut off, full text o
     const data = [{ ...DATA[0], name: LONG }, { ...DATA[1] }];
     const columns = COLUMNS.map((c) => c.key === "name" ? { ...c, maxWidth: "80px" } : c);
     const table = mount({ data, columns, cellOverflow: "ellipsis" });
-    const value = (row) => $(table, `[data-fk="cell:${row}:name"] .k-dt-cell > :first-child`);
+    const value = (/** @type {any} */ row) => $(table, `[data-fk="cell:${row}:name"] .k-dt-cell > :first-child`);
     const style = getComputedStyle(value(0));
     assert.equal(style.whiteSpace, "nowrap");
     assert.equal(style.textOverflow, "ellipsis");
@@ -274,7 +277,7 @@ test("cell overflow defaults to wrapping; columns can override the table setting
     const data = [{ ...DATA[0], name: LONG }];
     let table = mount({ data });
     assert.equal($$(table, ".k-dt-truncate").length, 0);
-    const columns = COLUMNS.map((c) => c.key === "name" ? { ...c, overflow: "wrap" } : c);
+    const columns = COLUMNS.map((c) => c.key === "name" ? { ...c, overflow: /** @type {const} */ ("wrap") } : c);
     table = mount({ data, columns, cellOverflow: "ellipsis" });
     assert.ok(!$(table, '[data-fk="cell:0:name"]').classList.contains("k-dt-truncate"));
     assert.ok($(table, '[data-fk="cell:0:fee"]').classList.contains("k-dt-truncate"));
@@ -286,11 +289,11 @@ test("cell overflow defaults to wrapping; columns can override the table setting
 // one down to its longest word.
 const WIDE_KEYS = Array.from({ length: 40 }, (_, i) => `c${i}`);
 const WIDE_DATA = [{ id: 1, ...Object.fromEntries(WIDE_KEYS.map((k) => [k, "some words that wrap a lot"])) }];
-const wideColumns = (extra = {}) => [
+const wideColumns = (/** @type {Record<string, object>} */ extra = {}) => [
     { key: "id", label: "ID", type: "integer" },
     ...WIDE_KEYS.map((key) => ({ key, label: key.toUpperCase(), ...(extra[key] || {}) }))
 ];
-const thWidth = (table, key) => $(table, `thead th[data-key="${key}"]`).getBoundingClientRect().width;
+const thWidth = (/** @type {HTMLElement} */ table, /** @type {string} */ key) => $(table, `thead th[data-key="${key}"]`).getBoundingClientRect().width;
 
 test("columnMinWidth keeps text columns readable; numbers keep their natural width", async () => {
     const table = mount({ data: WIDE_DATA, columns: wideColumns(), columnMinWidth: "10rem" });
@@ -316,7 +319,7 @@ test("column minWidth and width are floors that win over columnMinWidth", async 
 
 test("numbers, dates and booleans never wrap; text does", () => {
     const table = mount();
-    const whiteSpace = (key) => getComputedStyle($(table, `[data-fk="cell:0:${key}"] .k-dt-value`)).whiteSpace;
+    const whiteSpace = (/** @type {string} */ key) => getComputedStyle($(table, `[data-fk="cell:0:${key}"] .k-dt-value`)).whiteSpace;
     for (const key of ["id", "fee", "active", "joined"]) assert.equal(whiteSpace(key), "nowrap", key);
     assert.equal(whiteSpace("name"), "normal");
 });
@@ -366,7 +369,7 @@ test("hiding and showing a column keeps the table element", () => {
 test("text in cells with a copy button lines up with plain cells; compact rows are as high as table rows", () => {
     const table = mount({ features: { compact: true } });
     const rowTop = $(table, "tbody tr").getBoundingClientRect().top;
-    const top = (sel) => $(table, sel).getBoundingClientRect().top - rowTop;
+    const top = (/** @type {string} */ sel) => $(table, sel).getBoundingClientRect().top - rowTop;
     assert.ok(Math.abs(top('[data-fk="cell:0:name"] .k-dt-value') - top('[data-fk="cell:0:fee"] .k-dt-value')) < 1,
         "copy button does not push the text down");
     const tableRow = $(table, "tbody tr").getBoundingClientRect().height;

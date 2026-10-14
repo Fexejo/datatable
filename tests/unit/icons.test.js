@@ -5,7 +5,7 @@ import { ICONS } from "../../src/ui/icons.js";
 
 // All bundled sources except the icon table itself.
 const src = new URL("../../src/", import.meta.url);
-const source = readdirSync(src, { recursive: true })
+const source = readdirSync(src, { recursive: true, encoding: "utf8" })
     .filter((f) => f.endsWith(".js") && !f.endsWith("icons.js"))
     .map((f) => readFileSync(new URL(f, src), "utf8"))
     .join("\n");

@@ -29,8 +29,8 @@ test("toNumber accepts comma decimals and whitespace", () => {
 });
 
 test("toDate handles Date, timestamp, ISO string and garbage", () => {
-    assert.equal(toDate("2024-01-02").getUTCDate(), 2);
-    assert.equal(toDate(0).getTime(), 0);
+    assert.equal(toDate("2024-01-02")?.getUTCDate(), 2);
+    assert.equal(toDate(0)?.getTime(), 0);
     assert.equal(toDate("not a date"), null);
     assert.equal(toDate(""), null);
 });

@@ -52,7 +52,7 @@ test("toggleSort is exported", () => {
 test("sortData keeps empty and unparsable values last in both directions", () => {
     const columns = [{ key: "n", type: "number" }, { key: "d", type: "date" }];
     const rows = [{ n: "x", d: "nope" }, { n: 2, d: "2020-01-02" }, { n: null, d: "" }, { n: 10, d: "2021-05-01" }];
-    for (const direction of ["asc", "desc"]) {
+    for (const direction of /** @type {const} */ (["asc", "desc"])) {
         assert.deepEqual(sortData(rows, [{ key: "n", direction }], columns).slice(2).map((r) => r.n), ["x", null]);
         assert.deepEqual(sortData(rows, [{ key: "d", direction }], columns).slice(2).map((r) => r.d), ["nope", ""]);
     }

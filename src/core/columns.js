@@ -8,7 +8,7 @@ import { typeGroup } from "./util.js";
 
 // Infers column type from the first non-empty values.
 /**
- * @param {Row[]} rows
+ * @param {(Row|null|undefined)[]} rows
  * @param {string} key
  * @returns {string}
  */
@@ -27,7 +27,7 @@ export function inferType(rows, key) {
 // Builds column definitions from keys on the first row.
 // options.overrides: { [key]: PartialColumn } — per-column overrides.
 /**
- * @param {Row[]} rows
+ * @param {(Row|null|undefined)[]} rows   Non-objects are skipped.
  * @param {{ overrides?: Record<string, Partial<Column>> }} [options]
  * @returns {Column[]}
  */

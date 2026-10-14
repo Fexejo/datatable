@@ -1,24 +1,25 @@
 // Saved views: API, events, panel, adapter errors.
 
 import { test, assert, sleep, waitFor, deepActiveElement, accessibleName, input } from "./harness.js";
-import { mount, $, $$, columnTexts, announced, hasIcon, memoryAdapter, SORT_DESC, mountViews } from "./helpers.js";
+import { mount, $, $$, columnTexts, announced, hasIcon, memoryAdapter, SORT_DESC, mountViews, root } from "./helpers.js";
 
 // ---- Saved views ----------------------------------------------------------
 
-const openViews = async (table) => {
+const openViews = async (/** @type {HTMLElement} */ table) => {
     $(table, '[data-fk="tb:saved-views"]').click();
     await waitFor(() => !$(table, ".k-dt-overlay").hasAttribute("aria-busy"), { message: "views panel did not load" });
     return $(table, ".k-dt-overlay");
 };
-const viewNames = (table) => $$(table, ".k-dt-overlay .k-dt-views-name").map((n) => n.textContent);
-const vk = (table, key) => $(table, `.k-dt-overlay [data-vk="${CSS.escape(key)}"]`);
+const viewNames = (/** @type {HTMLElement} */ table) => $$(table, ".k-dt-overlay .k-dt-views-name").map((n) => n.textContent);
+const vk = (/** @type {HTMLElement} */ table, /** @type {string} */ key) => $(table, `.k-dt-overlay [data-vk="${CSS.escape(key)}"]`);
 
 test("saved views store the state without the page and fire events", async () => {
     const adapter = memoryAdapter();
     const table = mountViews(adapter);
+    /** @type {any[]} */
     const events = [];
     for (const name of ["viewsave", "viewload", "viewrename", "viewdelete"]) {
-        table.addEventListener(`jw-datatable:${name}`, (e) => events.push([name, e.detail]));
+        table.addEventListener(`jw-datatable:${name}`, (/** @type {any} */ e) => events.push([name, e.detail]));
     }
     table.setState({ page: 3, sort: SORT_DESC });
     await table.saveView(" Desc ");
@@ -50,9 +51,9 @@ test("the active view knows when the state differs from it", async () => {
     await table.saveView("Lean");
     assert.deepEqual(table.getActiveView(), { name: "Lean", modified: false });
     table.setState({ sort: SORT_DESC });
-    assert.equal(table.getActiveView().modified, true, "sort changed");
+    assert.equal(table.getActiveView()?.modified, true, "sort changed");
     table.setState({ sort: [], hiddenColumns: ["active", "fee"] });
-    assert.equal(table.getActiveView().modified, false, "same columns in another order");
+    assert.equal(table.getActiveView()?.modified, false, "same columns in another order");
 });
 
 test("views drop columns that no longer exist", async () => {
@@ -73,8 +74,9 @@ test("views drop columns that no longer exist", async () => {
 
 test("an adapter needs all five methods; the API rejects without the feature", async () => {
     const { rename, ...incomplete } = memoryAdapter();
+    /** @type {any} */
     let error = null;
-    try { mountViews(incomplete); } catch (e) { error = e; }
+    try { mountViews(/** @type {any} */ (incomplete)); } catch (e) { error = e; }
     assert.match(error?.message, /missing: rename/);
 
     const table = mount();
@@ -92,7 +94,7 @@ test("saved views panel: an empty name is an error tied to the field", async () 
     vk(table, "save").click();
     const name = vk(table, "name");
     assert.equal(name.getAttribute("aria-invalid"), "true");
-    assert.equal(table.shadowRoot.getElementById(name.getAttribute("aria-describedby"))?.textContent, "Please enter a name.");
+    assert.equal(root(table).getElementById(name.getAttribute("aria-describedby"))?.textContent, "Please enter a name.");
     await announced(table, "Please enter a name.");
 });
 
@@ -179,7 +181,7 @@ test("saved views panel: current view, modified state and update", async () => {
     assert.equal(active.textContent, "Current view: Desc (modified)");
     assert.equal(vk(table, "load:Desc").getAttribute("aria-current"), "true");
     const update = vk(table, "update");
-    assert.equal(table.shadowRoot.getElementById(update.getAttribute("aria-describedby")), active);
+    assert.equal(root(table).getElementById(update.getAttribute("aria-describedby")), active);
     update.click();
     await announced(table, "View “Desc” updated");
     assert.deepEqual(adapter.saved.get("Desc").sort, []);
@@ -243,10 +245,11 @@ test("sorting keeps the focused header button and the table element", async () =
 
 test("search announces the result count once, after typing pauses", async () => {
     const table = mount({ features: { globalSearch: true } });
-    const announcer = document.querySelector("body > [data-jw-datatable-announcer]");
+    const announcer = /** @type {Element} */ (document.querySelector("body > [data-jw-datatable-announcer]"));
+    /** @type {any[]} */
     const texts = [];
     const observer = new MutationObserver(() => {
-        const text = announcer.textContent.trim();
+        const text = announcer.textContent?.trim();
         if (text) texts.push(text);
     });
     observer.observe(announcer, { childList: true, characterData: true, subtree: true });

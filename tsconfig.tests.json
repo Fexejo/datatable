@@ -1,0 +1,8 @@
+{
+    // Type check of the tests and tools (Node + browser) — no emit (npm run typecheck).
+    "extends": "./tsconfig.json",
+    "compilerOptions": {
+        "types": ["node"]
+    },
+    "include": ["tests/**/*.js", "tools/**/*.js", "eslint.config.js"]
+}

@@ -17,15 +17,19 @@ const [name, fee, active] = normalizeColumns(
 
 // Items as labels ("—" for a separator) plus the calls their actions make.
 function menu(overrides = {}) {
+    /** @type {unknown[][]} */
     const calls = [];
-    const on = new Proxy({}, { get: (_, action) => (...args) => calls.push([action, ...args]) });
+    // Every action records its name and arguments.
+    const on = /** @type {import("../../src/render/menuItems.js").MenuActions} */ (new Proxy({}, {
+        get: (_, action) => (/** @type {unknown[]} */ ...args) => calls.push([action, ...args])
+    }));
     const items = contextMenuItems({
         t, locale: "en-US", column: name, row: { name: "Anna" }, value: "Anna", features: ALL,
         details: true, sorted: false, filtered: false, pinned: false,
         order: { index: 1, count: 3, changed: false }, on, ...overrides
     });
-    const select = (label) => items.find((item) => item.label === label)?.onSelect?.(/** @type {any} */ ({}));
-    return { labels: items.map((item) => (item.separator ? "—" : item.label)), calls, select };
+    const select = (/** @type {string} */ label) => items.find((item) => item.label === label)?.onSelect?.(/** @type {any} */ ({}));
+    return { labels: items.map((item) => (item.separator ? "—" : item.label ?? "")), calls, select };
 }
 
 test("context menu of a cell: details, sort, filter, copy, columns, export", () => {
@@ -60,7 +64,7 @@ test("exclude: text compares the displayed text, numbers the raw value; booleans
     assert.deepEqual(m.calls, [["filter", { kind: "pattern", operator: "notEquals", operand: 1234.5, arity: 1 }]]);
     m = menu();
     m.select("Exclude “Anna”");
-    assert.equal(m.calls[0][1].operand, "Anna");
+    assert.deepEqual(m.calls, [["filter", { kind: "pattern", operator: "notEquals", operand: "Anna", arity: 1 }]]);
     assert.ok(!menu({ column: active, value: true, row: { active: true } }).labels.some((l) => l.startsWith("Exclude")));
 });
 

@@ -1,11 +1,11 @@
 // Record details dialog and the compact layout.
 
 import { test, assert, sleep, waitFor, deepActiveElement, accessibleName, input } from "./harness.js";
-import { COLUMNS, mount, $, $$, rightClick, announced, headerKeys, menuItem, COMPACT } from "./helpers.js";
+import { COLUMNS, mount, $, $$, rightClick, announced, headerKeys, menuItem, COMPACT, root } from "./helpers.js";
 
 // ---- Record details -----------------------------------------------------------
 
-const dialogLabels = (table) => $$(table, ".k-dt-details dt").map((dt) => dt.textContent);
+const dialogLabels = (/** @type {HTMLElement} */ table) => $$(table, ".k-dt-details dt").map((dt) => dt.textContent);
 
 test("details dialog: opened from the context menu, labelled, lists hidden columns too", async () => {
     const table = mount({ features: { rowDetails: true }, initial: { hiddenColumns: ["joined"] } });
@@ -60,6 +60,7 @@ test("details dialog: previous/next walk across pages and focus returns to that 
 }, { cdp: true });
 
 test("details dialog: Open runs onRowClick for the shown record", () => {
+    /** @type {any} */
     let opened = null;
     const table = mount({ features: { rowDetails: true }, onRowClick: (row, index) => { opened = [row.id, index]; } });
     rightClick($(table, '[data-fk="cell:3:name"]'));
@@ -89,7 +90,7 @@ test("compact layout: marked (or first two) columns plus a details button per ro
     const button = $(table, '[data-fk="details:0"]');
     assert.equal(accessibleName(button), "Show details: Anna");
     assert.equal(button.getAttribute("aria-haspopup"), "dialog");
-    assert.ok(/Enter opens the details/.test(table.shadowRoot.getElementById($(table, "table").getAttribute("aria-describedby")).textContent));
+    assert.ok(/Enter opens the details/.test(root(table).getElementById($(table, "table").getAttribute("aria-describedby"))?.textContent ?? ""));
 
     button.click();
     assert.equal(button.getAttribute("aria-expanded"), "true");
@@ -97,10 +98,12 @@ test("compact layout: marked (or first two) columns plus a details button per ro
 });
 
 test("compact layout: tapping a row opens its details; links keep their action; onRowClick moves to Open", () => {
+    /** @type {any} */
     let linked = null;
+    /** @type {any} */
     let rowClicked = null;
-    const columns = COLUMNS.map((c) => c.key === "name" ? { ...c, link: { handler: (row) => { linked = row.id; } } } : c);
-    const table = mount({ ...COMPACT, columns, onRowClick: (row) => { rowClicked = row.id; } });
+    const columns = COLUMNS.map((c) => c.key === "name" ? { ...c, link: { handler: (/** @type {any} */ row) => { linked = row.id; } } } : c);
+    const table = mount({ ...COMPACT, columns, onRowClick: (/** @type {any} */ row) => { rowClicked = row.id; } });
     $(table, '[data-fk="cell:2:id"]').click();
     assert.equal($(table, ".k-dt-details-pos")?.textContent, "Record 3 of 30");
     assert.equal(rowClicked, null, "row tap does not run onRowClick");
@@ -146,7 +149,7 @@ test("a click beside an overlay only closes it; the page behind gets no hover an
     const cell = $(table, '[data-fk="cell:4:id"]').getBoundingClientRect();
     const [x, y] = [cell.left + 4, cell.top + cell.height / 2];
     assert.ok(x < dialog.left || y < dialog.top || y > dialog.bottom, "the point lies beside the dialog");
-    assert.ok(table.shadowRoot.elementFromPoint(x, y).classList.contains("k-dt-backdrop--dim"),
+    assert.ok(root(table).elementFromPoint(x, y)?.classList.contains("k-dt-backdrop--dim"),
         "a dimmed backdrop takes the pointer");
     await input.clickAt(x, y);
     assert.equal($(table, '[role="dialog"]'), null, "closed, no other record opened");
@@ -157,8 +160,8 @@ test("a click beside an overlay only closes it; the page behind gets no hover an
     const opener = $(table, '[data-fk="tb:columns"]');
     await input.click(opener);
     assert.ok($(table, '[role="dialog"]'));
-    const backdrop = table.shadowRoot.elementFromPoint(x, y);
-    assert.ok(backdrop.classList.contains("k-dt-backdrop") && !backdrop.classList.contains("k-dt-backdrop--dim"));
+    const backdrop = root(table).elementFromPoint(x, y);
+    assert.ok(backdrop?.classList.contains("k-dt-backdrop") && !backdrop.classList.contains("k-dt-backdrop--dim"));
     await input.clickAt(x, y);
     assert.equal($(table, '[role="dialog"]'), null);
     assert.equal(deepActiveElement(), opener, "focus back on the opener");
@@ -175,9 +178,9 @@ test("compact layout is part of the state and falls back to the table without th
 });
 
 test("the former view names (compactView, viewMode, defaultView) no longer apply", () => {
-    let table = mount({ features: { grid: true, compactView: true }, defaultView: "grid" });
+    let table = mount({ features: /** @type {any} */ ({ grid: true, compactView: true }), defaultView: "grid" });
     assert.ok($(table, "table") && !$(table, ".k-dt-table--compact"), "table, no compact layout");
-    table = mount({ features: { grid: true }, initial: { viewMode: "grid" } });
+    table = mount({ features: { grid: true }, initial: /** @type {any} */ ({ viewMode: "grid" }) });
     assert.ok($(table, "table"), "initial.viewMode ignored");
     assert.ok(!("viewMode" in table.getState()), "state has no viewMode");
 });

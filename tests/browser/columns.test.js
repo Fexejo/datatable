@@ -5,7 +5,7 @@ import { COLUMNS, mount, $, $$, columnTexts, rightClick, announced, headerKeys, 
 
 // ---- Column pinning & scroll shadows ----------------------------------------
 
-const cellLeft = (table, key, row = 0) => {
+const cellLeft = (/** @type {HTMLElement} */ table, /** @type {string} */ key, /** @type {any} */ row = 0) => {
     const cell = $(table, `[data-fk="cell:${row}:${key}"]`);
     return cell.getBoundingClientRect().left - $(table, ".k-dt-body").getBoundingClientRect().left;
 };
@@ -116,7 +116,7 @@ test("scroll shadows mark the edges with more content", async () => {
 });
 
 test("as a grid item the table stays inside its track and scrolls", async () => {
-    const fixture = document.getElementById("fixture");
+    const fixture = /** @type {HTMLElement} */ (document.getElementById("fixture"));
     fixture.style.cssText = "display:grid;grid-template-columns:1fr;width:300px";
     try {
         const table = mount();
@@ -131,13 +131,13 @@ test("as a grid item the table stays inside its track and scrolls", async () => 
 // ---- Column order ---------------------------------------------------------------
 
 const REORDER = { features: { columnReorder: true, sorting: true } };
-const menuLabels = (table) => $$(table, '[role="menuitem"]').map((i) => i.textContent.trim());
-const dragTo = (table, fromKey, toKey, after = false) => {
-    const th = (key) => $(table, `thead th[data-key="${key}"]`);
+const menuLabels = (/** @type {HTMLElement} */ table) => $$(table, '[role="menuitem"]').map((i) => i.textContent.trim());
+const dragTo = (/** @type {HTMLElement} */ table, /** @type {string} */ fromKey, /** @type {string} */ toKey, after = false) => {
+    const th = (/** @type {string} */ key) => $(table, `thead th[data-key="${key}"]`);
     const dataTransfer = new DataTransfer();
     const target = th(toKey).getBoundingClientRect();
     const at = { clientX: after ? target.right - 2 : target.left + 2, clientY: target.top + 5 };
-    const fire = (node, type, extra = {}) => node.dispatchEvent(new DragEvent(type, { bubbles: true, composed: true, cancelable: true, dataTransfer, ...extra }));
+    const fire = (/** @type {Element} */ node, /** @type {string} */ type, extra = {}) => node.dispatchEvent(new DragEvent(type, { bubbles: true, composed: true, cancelable: true, dataTransfer, ...extra }));
     const source = th(fromKey);
     fire(source, "dragstart");
     fire(th(toKey), "dragover", at);
@@ -224,8 +224,8 @@ test("column chooser: up/down buttons reorder, keep focus and follow the pinned 
     $(table, '[data-fk="tb:columns"]').click();
     const rowKeys = () => $$(table, ".k-dt-overlay .k-dt-col-row").map((r) => r.dataset.key);
     assert.deepEqual(rowKeys(), ["joined", "id", "name", "fee", "active"], "listed in display order");
-    const up = (key) => $(table, `[data-fk="colmove:up:${key}"]`);
-    const down = (key) => $(table, `[data-fk="colmove:down:${key}"]`);
+    const up = (/** @type {string} */ key) => $(table, `[data-fk="colmove:up:${key}"]`);
+    const down = (/** @type {string} */ key) => $(table, `[data-fk="colmove:down:${key}"]`);
     assert.equal(accessibleName(up("name")), "Move up: Name");
     assert.ok(up("joined").disabled && down("active").disabled, "ends are disabled");
 

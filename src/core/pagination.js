@@ -67,7 +67,7 @@ export const DEFAULT_PAGE_SIZES = [10, 25, 50, 100, 250, 500, 1000];
 /**
  * @param {number[]} options
  * @param {number} columnCount
- * @param {number} [current]
+ * @param {number|null} [current]
  */
 export function pageSizeChoices(options, columnCount, current, maxCells = MAX_PAGE_CELLS) {
     const sizes = [...new Set(options)].sort((a, b) => a - b);

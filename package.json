@@ -5,13 +5,14 @@
     "description": "Dev tooling only (lint, type check, axe-core in the browser tests). The sources need no build or install.",
     "scripts": {
         "lint": "eslint .",
-        "typecheck": "tsc -p tsconfig.json",
+        "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.tests.json",
         "test": "node tests/run.js",
         "coverage": "node tests/run.js --coverage --coverage-min 97",
         "check": "npm run lint && npm run typecheck && npm run coverage"
     },
     "devDependencies": {
         "@eslint/js": "10.0.1",
+        "@types/node": "24.19.0",
         "axe-core": "4.13.0",
         "eslint": "10.11.0",
         "globals": "17.12.0",

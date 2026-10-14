@@ -46,8 +46,9 @@ test("CSV: fields with delimiter, quotes or newlines are quoted (RFC 4180)", () 
 });
 
 test("CSV: exportFormatter overrides the value and gets the options", () => {
+    /** @type {any} */
     let ctx = null;
-    const cols = [{ key: "fee", label: "Fee", exportFormatter: (v, c) => { ctx = c; return v.toFixed(2); } }];
+    const cols = [{ key: "fee", label: "Fee", exportFormatter: (/** @type {number} */ v, /** @type {any} */ c) => { ctx = c; return v.toFixed(2); } }];
     assert.equal(buildCSV([{ fee: 3 }], cols, { headers: false, localized: true }), "3.00");
     assert.equal(ctx.localized, true);
     assert.equal(ctx.format, "csv");

@@ -6,22 +6,23 @@ import { mount, $, $$, rightClick, announced, menuItem } from "./helpers.js";
 // ---- Export -----------------------------------------------------------------
 
 // Captures export events; `cancel` keeps the browser from downloading.
-function captureExports(table, { cancel = true } = {}) {
+function captureExports(/** @type {HTMLElement} */ table, { cancel = true } = {}) {
+    /** @type {any[]} */
     const events = [];
-    table.addEventListener("jw-datatable:export", (e) => {
+    table.addEventListener("jw-datatable:export", (/** @type {any} */ e) => {
         events.push(e.detail);
         if (cancel) e.preventDefault();
     });
     return events;
 }
-const exportDialog = (table) => $(table, ".k-dt-export[role='dialog']");
+const exportDialog = (/** @type {HTMLElement} */ table) => $(table, ".k-dt-export[role='dialog']");
 // Input of the option/switch labelled `text` (exact match first, then prefix).
-const exportControl = (table, text) => {
+const exportControl = (/** @type {HTMLElement} */ table, /** @type {string} */ text) => {
     const labels = $$(table, ".k-dt-export label");
     return (labels.find((l) => l.textContent.trim() === text)
         ?? labels.find((l) => l.textContent.trim().startsWith(text)))?.querySelector("input");
 };
-const submitExport = (table) => $(table, ".k-dt-export button[type='submit']").click();
+const submitExport = (/** @type {HTMLElement} */ table) => $(table, ".k-dt-export button[type='submit']").click();
 
 test("export: toolbar button opens a labelled dialog with format and file name", async () => {
     const table = mount({ title: "Members", features: { export: true } });
@@ -90,7 +91,7 @@ test("export: default CSV has raw values of the filtered rows, then an announcem
 test("export: options for scope, columns, formatting, header and delimiter", () => {
     const table = mount({ locale: "de-DE", features: { export: true }, initial: { hiddenColumns: ["fee"] } });
     const events = captureExports(table);
-    const run = (setup) => {
+    const run = (/** @type {any} */ setup) => {
         $(table, '[data-fk="tb:export"]').click();
         $(table, ".k-dt-disclosure").click();
         setup();
@@ -173,13 +174,14 @@ test("export: XLSX downloads a workbook with typed cells", async () => {
 
 // Replaces the async Clipboard API for one test; returns the written texts.
 function stubClipboard() {
+    /** @type {string[] & { restore?: () => void }} */
     const written = [];
     Object.defineProperty(navigator, "clipboard", {
         configurable: true,
-        value: { writeText: async (text) => { written.push(text); } }
+        value: { writeText: async (/** @type {string} */ text) => { written.push(text); } }
     });
-    written.restore = () => { delete navigator.clipboard; };
-    return written;
+    written.restore = () => { delete /** @type {any} */ (navigator).clipboard; };
+    return /** @type {string[] & { restore: () => void }} */ (written);
 }
 
 test("export: clipboard destination copies text with tabs, hides XLSX and the file name", async () => {
@@ -290,11 +292,11 @@ test("export: exportData() API, cancelable event, defaults", () => {
     assert.equal(events[1].filename, "x.json");
     table.exportData({ format: "xlsx", destination: "clipboard" });
     assert.equal(events[2].destination, "download", "XLSX can only be downloaded");
-    assert.equal(table.exportCSV, undefined, "exportCSV() removed");
+    assert.equal(/** @type {any} */ (table).exportCSV, undefined, "exportCSV() removed");
 });
 
 test("export: the former csvExport flag no longer enables export", () => {
-    const table = mount({ features: { csvExport: true } });
+    const table = mount({ features: /** @type {any} */ ({ csvExport: true }) });
     assert.equal($(table, '[data-fk="tb:export"]'), null);
 });
 

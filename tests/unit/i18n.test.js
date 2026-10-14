@@ -11,6 +11,10 @@ test("locale resolution: exact, language prefix, English fallback", () => {
 
 // Every language must provide every key English has, with the same kind
 // (string vs. function), including nested operator labels.
+/**
+ * @param {object} obj
+ * @returns {string[]}
+ */
 function shape(obj, prefix = "") {
     return Object.entries(obj).flatMap(([k, v]) =>
         v && typeof v === "object" ? shape(v, `${prefix}${k}.`) : [`${prefix}${k}:${typeof v}`]

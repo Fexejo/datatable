@@ -43,6 +43,7 @@ test("serializeState keeps active filters only and can omit the page", () => {
 });
 
 test("viewSignature ignores the order of hidden columns, filters and values", () => {
+    /** @type {Omit<import("../../src/types.js").SerializedState, "hiddenColumns"|"filters">} */
     const base = { sort: [], globalSearch: "", pageSize: 10, layout: "table", pinnedColumns: [], columnOrder: keys };
     const one = viewSignature({ ...base, hiddenColumns: ["a", "b"], filters: { a: { kind: "value", values: [2, 1] }, b: { kind: "value", values: [1] } } });
     const two = viewSignature({ ...base, hiddenColumns: ["b", "a"], filters: { b: { kind: "value", values: [1] }, a: { kind: "value", values: ["1", "2"] } } });
@@ -50,44 +51,47 @@ test("viewSignature ignores the order of hidden columns, filters and values", ()
 });
 
 test("activeFilterCount counts the global search as one filter", () => {
-    const state = createState(columns, { filters: { a: { kind: "value", values: ["x"] } }, globalSearch: "q" }, {});
+    const state = createState(columns, { filters: { a: { kind: "value", values: ["x"] } }, globalSearch: "q" }, { pageSize: 10 });
     assert.equal(activeFilterCount(state), 2);
     assert.equal(activeFilterCount(state, { globalSearch: false }), 1);
 });
 
 test("normalizeOrder and knownColumnsOnly drop unknown keys", () => {
     assert.deepEqual(normalizeOrder(["c", "x", "c", "a"], keys), ["c", "a", "b", "d"]);
-    assert.deepEqual(knownColumnsOnly({ pinnedColumns: ["x", "a"], filters: { x: {}, a: {} } }, keys),
+    assert.deepEqual(knownColumnsOnly({ pinnedColumns: ["x", "a"], filters: /** @type {any} */ ({ x: {}, a: {} }) }, keys),
         { pinnedColumns: ["a"], filters: { a: {} } });
 });
 
 test("orderedColumns puts pinned columns first only when pinning is on", () => {
-    const state = createState(columns, {}, {});
+    const state = createState(columns, {}, { pageSize: 10 });
     assert.deepEqual(orderedColumns(columns, state).map((c) => c.key), keys);
     assert.deepEqual(orderedColumns(columns, state, { pinning: true }).map((c) => c.key), ["c", "a", "b", "d"]);
 });
 
 test("moveColumn reorders, and pins or unpins across the pinned block", () => {
-    const state = createState(columns, {}, {});
+    const state = createState(columns, {}, { pageSize: 10 });
     const shown = ["c", "a", "d"];   // pinned c, then a and d (b hidden)
     assert.equal(moveColumn(state, shown, "a", 1, { pinning: true }), null, "same place");
 
     const right = moveColumn(state, shown, "a", 2, { pinning: true });
+    assert.ok(right);
     assert.deepEqual(right.columnOrder, ["b", "c", "d", "a"]);
     assert.equal(right.pinned, false);
 
     const intoBlock = moveColumn(state, shown, "d", 0, { pinning: true });
+    assert.ok(intoBlock);
     assert.deepEqual(intoBlock.pinnedColumns, ["d", "c"]);
     assert.equal(intoBlock.pinned, true);
 
     const outOfBlock = moveColumn(state, shown, "c", 2, { pinning: true });
+    assert.ok(outOfBlock);
     assert.deepEqual(outOfBlock.pinnedColumns, []);
     assert.deepEqual(outOfBlock.columnOrder, ["a", "b", "d", "c"]);
 });
 
 test("deriveRows filters, sorts and paginates", () => {
     const rows = Array.from({ length: 12 }, (_, i) => ({ a: `r${i}`, b: i % 3 }));
-    const state = { ...createState(columns, {}, { pageSize: 5 }), sort: [{ key: "b", direction: "desc" }], page: 9 };
+    const state = { ...createState(columns, {}, { pageSize: 5 }), sort: [{ key: "b", direction: /** @type {const} */ ("desc") }], page: 9 };
     const result = deriveRows(rows, state, columns, { locale: "en-US" });
     assert.equal(result.viewData.length, 12);
     assert.equal(result.viewData[0].b, 2);

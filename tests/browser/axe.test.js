@@ -6,12 +6,14 @@ import { ALL_FEATURES, mount, $, $$, rightClick, memoryAdapter, SORT_DESC, mount
 // ---- Automated accessibility checks (axe-core) ------------------------------
 
 // axe-core comes from node_modules (npm ci); it checks open shadow roots too.
+/** @type {Promise<any>|null} */
 let axeLoading = null;
+/** @returns {Promise<any>} */
 function loadAxe() {
     axeLoading ??= new Promise((resolve, reject) => {
         const script = document.createElement("script");
         script.src = "../../node_modules/axe-core/axe.min.js";
-        script.onload = () => resolve(window.axe);
+        script.onload = () => resolve(/** @type {any} */ (window).axe);
         script.onerror = () => reject(new Error("axe-core not found: run `npm ci`"));
         document.head.append(script);
     });
@@ -24,11 +26,11 @@ const AXE_OPTIONS = {
 };
 
 // Fails with one line per violation: rule, impact, help and the offending elements.
-async function assertNoAxeViolations(state) {
+async function assertNoAxeViolations(/** @type {string} */ state) {
     const axe = await loadAxe();
     const { violations } = await axe.run({ include: [["#fixture"]] }, AXE_OPTIONS);
-    const report = violations.map((v) =>
-        `${v.id} (${v.impact}): ${v.help}\n    ${v.nodes.map((n) => n.target.join(" > ")).join("\n    ")}`);
+    const report = violations.map((/** @type {any} */ v) =>
+        `${v.id} (${v.impact}): ${v.help}\n    ${v.nodes.map((/** @type {any} */ n) => n.target.join(" > ")).join("\n    ")}`);
     assert.equal(report.join("\n"), "", `axe violations (${state})`);
 }
 
@@ -47,8 +49,8 @@ test("axe: table layout with all features, sorted, filtered and pinned", async (
 });
 
 // One table per check: `mount()` appends, so earlier tables are removed first.
-function mountAlone(config) {
-    document.getElementById("fixture").replaceChildren();
+function mountAlone(/** @type {any} */ config) {
+    document.getElementById("fixture")?.replaceChildren();
     return mount(config);
 }
 

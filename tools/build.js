@@ -27,6 +27,11 @@ const OUT_DIR = join(ROOT, "dist");
 const OUT_FILE = join(OUT_DIR, "jw-datatable.min.js");
 const version = process.argv[2] || "0.0.0-dev";
 
+/**
+ * @param {string[]} args
+ * @param {string} [input] stdin
+ * @returns {string} stdout
+ */
 function esbuild(args, input) {
     const [cmd, pre] = process.env.ESBUILD_BIN
         ? [process.env.ESBUILD_BIN, []]
@@ -70,7 +75,7 @@ try {
     ]);
 
     const output = readFileSync(OUT_FILE);
-    const kb = (n) => (n / 1024).toFixed(1) + " KB";
+    const kb = (/** @type {number} */ n) => (n / 1024).toFixed(1) + " KB";
     console.log(`dist/jw-datatable.min.js  v${version}  ${kb(output.length)}  (gzip ${kb(gzipSync(output).length)})`);
 } finally {
     rmSync(tmp, { recursive: true, force: true });

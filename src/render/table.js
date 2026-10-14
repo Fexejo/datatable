@@ -31,7 +31,7 @@ import { copyButton, valueNode } from "./values.js";
  * @property {string} hintId             Id for the keyboard hint.
  * @property {string|undefined} emptyText Shown without rows.
  * @property {"wrap"|"ellipsis"} [cellOverflow]
- * @property {((row: Row, index: number) => string) | undefined} rowClass
+ * @property {import("../types.js").DataTableConfig["rowClass"]} rowClass
  * @property {boolean} rowsClickable     Rows react to a click (styling).
  * @property {boolean} cellsActivatable  Enter on a plain cell clicks it.
  * @property {(row: Row) => string} recordTitle

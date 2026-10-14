@@ -4,12 +4,17 @@ import { crc32, zip, buildXLSX, columnLetter, dateSerial, sheetName } from "../.
 import { buildSheet } from "../../src/export/export.js";
 
 // Minimal reader for stored (uncompressed) ZIP archives: name → text.
+/**
+ * @param {Uint8Array} bytes
+ * @returns {Record<string, string>}
+ */
 function unzip(bytes) {
     const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
     const end = bytes.length - 22;
     assert.equal(view.getUint32(end, true), 0x06054B50, "end of central directory");
     const count = view.getUint16(end + 10, true);
     let at = view.getUint32(end + 16, true);
+    /** @type {Record<string, string>} */
     const files = {};
     for (let i = 0; i < count; i++) {
         assert.equal(view.getUint32(at, true), 0x02014B50, "central directory entry");

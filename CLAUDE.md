@@ -34,8 +34,8 @@ internals: "Architecture").
 - DOM via `el()` from `src/ui/dom.js`. CSS prefix `k-dt-` (context menu `k-ctx-`),
   tokens `--k-*` with fallbacks, events `jw-datatable:<name>` (bubbles, composed),
   private members `_name`. JSDoc types on every function (public ones in
-  `src/types.js`); `npm run typecheck` (tsc `strict`) must pass, prefer
-  narrowing over casts.
+  `src/types.js`); `npm run typecheck` (tsc `strict`, also over tests and
+  tools) must pass, prefer narrowing over casts.
 
 ## Icons (Lucide)
 

@@ -1,7 +1,7 @@
 // Accessibility: roles and names, keyboard, focus management, roving focus, announcements.
 
 import { test, assert, sleep, waitFor, deepActiveElement, accessibleName, input } from "./harness.js";
-import { COLUMNS, ALL_FEATURES, mount, $, $$, columnTexts, rightClick, statusText, announced, hasIcon, status } from "./helpers.js";
+import { COLUMNS, ALL_FEATURES, mount, $, $$, columnTexts, rightClick, statusText, announced, hasIcon, status, root } from "./helpers.js";
 
 // ---- Accessibility --------------------------------------------------------
 
@@ -27,7 +27,7 @@ test("form controls have accessible names", () => {
 
 test("form controls inside panels have accessible names", async () => {
     const table = mount({ features: ALL_FEATURES });
-    const check = (what) => {
+    const check = (/** @type {string} */ what) => {
         const unnamed = $$(table, ".k-dt-overlay input, .k-dt-overlay select")
             .filter((c) => !c.getAttribute("aria-label") && !c.labels?.length);
         assert.deepEqual(unnamed.map((c) => c.outerHTML), [], what);
@@ -105,10 +105,12 @@ test("table body is a single tab stop with arrow-key navigation", async () => {
 }, { cdp: true });
 
 test("Enter on a cell activates its link or the row handler", async () => {
+    /** @type {any} */
     let linked = null;
+    /** @type {any} */
     let rowClicked = null;
-    const columns = COLUMNS.map((c) => c.key === "name" ? { ...c, link: { handler: (row) => { linked = row.id; } } } : c);
-    const table = mount({ columns, onRowClick: (row) => { rowClicked = row.id; } });
+    const columns = COLUMNS.map((c) => c.key === "name" ? { ...c, link: { handler: (/** @type {any} */ row) => { linked = row.id; } } } : c);
+    const table = mount({ columns, onRowClick: (/** @type {any} */ row) => { rowClicked = row.id; } });
     $(table, '[data-fk="cell:2:name"]').focus();
     await input.press("Enter");
     assert.equal(linked, 3);
@@ -118,16 +120,17 @@ test("Enter on a cell activates its link or the row handler", async () => {
 }, { cdp: true });
 
 test("clicks: action stops at its button, links reach cell and row, SPA links emit navigate", () => {
+    /** @type {string[]} */
     const calls = [];
     const columns = COLUMNS.map((c) =>
-        c.key === "name" ? { ...c, link: { url: (row) => `/m/${row.id}`, spa: true } } :
-        c.key === "fee" ? { ...c, action: (row) => calls.push(`action:${row.id}`) } : c);
+        c.key === "name" ? { ...c, link: { url: (/** @type {any} */ row) => `/m/${row.id}`, spa: true } } :
+        c.key === "fee" ? { ...c, action: (/** @type {any} */ row) => calls.push(`action:${row.id}`) } : c);
     const table = mount({
         columns,
         onCellClick: (value, row, column) => calls.push(`cell:${row.id}:${column.key}`),
         onRowClick: (row, index) => calls.push(`row:${row.id}:${index}`)
     });
-    table.addEventListener("jw-datatable:navigate", (e) => calls.push(`navigate:${e.detail.href}`));
+    table.addEventListener("jw-datatable:navigate", (/** @type {any} */ e) => calls.push(`navigate:${e.detail.href}`));
     $(table, '[data-fk="cell:1:fee:action"]').click();
     assert.deepEqual(calls.splice(0), ["action:2"]);
     $(table, '[data-fk="cell:1:name:link"]').click();
@@ -137,8 +140,9 @@ test("clicks: action stops at its button, links reach cell and row, SPA links em
 });
 
 test("record details: copy buttons and links in the dialog act on the shown record", async () => {
+    /** @type {number[]} */
     const linked = [];
-    const columns = COLUMNS.map((c) => c.key === "name" ? { ...c, link: { handler: (row) => linked.push(row.id) } } : c);
+    const columns = COLUMNS.map((c) => c.key === "name" ? { ...c, link: { handler: (/** @type {any} */ row) => linked.push(row.id) } } : c);
     const table = mount({ columns, features: { rowDetails: true } });
     rightClick($$(table, "tbody td")[0]);
     Array.from($$(table, '[role="menuitem"]')).find((i) => i.textContent.includes("details")).click();
@@ -146,12 +150,12 @@ test("record details: copy buttons and links in the dialog act on the shown reco
     dialog.querySelector(".k-dt-link").click();
     assert.deepEqual(linked, [1]);
     dialog.querySelector(".k-dt-copy").click();
-    await waitFor(() => dialog.querySelector(".k-dt-copy.is-copied"), "copy feedback");
+    await waitFor(() => dialog.querySelector(".k-dt-copy.is-copied"), { message: "copy feedback" });
 });
 
 test("empty values get no link or action button", () => {
     const columns = COLUMNS.map((c) =>
-        c.key === "name" ? { ...c, link: (row) => `/m/${row.id}` } :
+        c.key === "name" ? { ...c, link: (/** @type {any} */ row) => `/m/${row.id}` } :
         c.key === "fee" ? { ...c, action: () => {} } : c);
     const data = [{ id: 1, name: "Anna", fee: 5 }, { id: 2, name: "", fee: null }];
     const table = mount({ columns, data });
@@ -167,8 +171,8 @@ test("links with an unsafe URL scheme render as text; SPA links get a safe href"
     const table = mount({
         data,
         columns: [
-            { key: "name", label: "Name", link: { spa: true, url: (row) => row.site } },
-            { key: "site", label: "Site", link: (row) => row.site }
+            { key: "name", label: "Name", link: { spa: true, url: (/** @type {any} */ row) => row.site } },
+            { key: "site", label: "Site", link: (/** @type {any} */ row) => row.site }
         ]
     });
     assert.equal($(table, '[data-fk="cell:0:site:link"]').getAttribute("href"), "https://example.org");
@@ -176,15 +180,17 @@ test("links with an unsafe URL scheme render as text; SPA links get a safe href"
     assert.equal($(table, '[data-fk="cell:1:site"] .k-dt-value').textContent, evil, "value still shown");
     const spa = $(table, '[data-fk="cell:1:name:link"]');
     assert.equal(spa.getAttribute("href"), "#", "SPA link keeps working without the unsafe href");
+    /** @type {any} */
     let detail = null;
-    table.addEventListener("jw-datatable:navigate", (e) => { detail = e.detail; });
+    table.addEventListener("jw-datatable:navigate", (/** @type {any} */ e) => { detail = e.detail; });
     spa.click();
     assert.equal(detail.href, null, "navigate carries no unsafe href");
 });
 
 test("cards: single tab stop, arrow navigation, Enter triggers onRowClick", async () => {
+    /** @type {any} */
     let clicked = null;
-    const table = mount({ features: { grid: true }, defaultLayout: "grid", onRowClick: (row) => { clicked = row.id; } });
+    const table = mount({ features: { grid: true }, defaultLayout: "grid", onRowClick: (/** @type {any} */ row) => { clicked = row.id; } });
     assert.equal($(table, ".k-dt-grid").getAttribute("role"), "list");
     assert.equal($$(table, ".k-dt-card").filter((c) => c.tabIndex === 0).length, 1);
     $(table, '[data-fk="card:0"]').focus();
@@ -236,7 +242,7 @@ test("German announcements", async () => {
 test("table is named by the title; multi-sort priority is announced, not the bare digit", () => {
     const table = mount({ title: "Members", features: { sorting: true } });
     const labelId = $(table, "table").getAttribute("aria-labelledby");
-    assert.equal(table.shadowRoot.getElementById(labelId)?.textContent, "Members");
+    assert.equal(root(table).getElementById(labelId)?.textContent, "Members");
     table.setState({ sort: [{ key: "name", direction: "asc" }, { key: "fee", direction: "desc" }] });
     assert.equal(accessibleName($(table, '[data-fk="sort:fee"]')), "Fee, sort priority 2");
 });

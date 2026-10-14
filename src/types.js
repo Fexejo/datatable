@@ -27,7 +27,7 @@
  * @property {string} [exportFilename]          Base of the default export file name.
  * @property {Partial<ExportOptions>} [exportDefaults]
  * @property {string} [styles]                  Extra CSS for this table.
- * @property {(row: Row, index: number) => string} [rowClass]
+ * @property {(row: Row, index: number) => string|null|undefined} [rowClass] Extra row classes (space-separated).
  * @property {(row: Row, index: number) => void} [onRowClick]
  * @property {(value: any, row: Row, column: Column) => void} [onCellClick]
  */
@@ -83,7 +83,7 @@
  * @property {boolean} [copyable]
  * @property {((row: Row, value: any) => string)|ColumnLink} [link]
  * @property {(row: Row, value: any, event: Event) => void} [action]
- * @property {(value: any, row: Row) => string} [cellClass]
+ * @property {(value: any, row: Row) => string|null|undefined} [cellClass] Extra cell classes (space-separated).
  */
 
 /**

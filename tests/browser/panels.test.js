@@ -1,7 +1,7 @@
 // Panels as dialogs: filter panel, column chooser, filter summary.
 
 import { test, assert, waitFor, deepActiveElement, accessibleName, input } from "./harness.js";
-import { COLUMNS, mount, $, $$, statusText, announced, hasIcon } from "./helpers.js";
+import { COLUMNS, mount, $, $$, statusText, announced, hasIcon, root } from "./helpers.js";
 
 // ---- Panels as dialogs -----------------------------------------------------
 
@@ -16,7 +16,7 @@ test("filter panel is a labelled modal dialog with focus inside and focus return
     const dialog = $(table, '[role="dialog"]');
     assert.ok(dialog, "dialog opened");
     assert.equal(dialog.getAttribute("aria-modal"), "true");
-    assert.equal(table.shadowRoot.getElementById(dialog.getAttribute("aria-labelledby"))?.textContent, "Filter: Name");
+    assert.equal(root(table).getElementById(dialog.getAttribute("aria-labelledby"))?.textContent, "Filter: Name");
     assert.equal(button().getAttribute("aria-expanded"), "true");
     assert.equal(deepActiveElement()?.getAttribute("type"), "search", "focus in the value search");
 
@@ -26,16 +26,16 @@ test("filter panel is a labelled modal dialog with focus inside and focus return
     assert.equal(button().getAttribute("aria-expanded"), "false");
 }, { cdp: true });
 
-async function openNameFilter(table) {
+async function openNameFilter(/** @type {HTMLElement} */ table) {
     const button = $(table, '[data-fk="filter:name"]');
     button.focus();
     await input.press("Enter");
 }
-async function type(text) {
+async function type(/** @type {string} */ text) {
     for (const ch of text) await input.press(ch);
 }
-const valueBox = (table, value) => $(table, `.k-dt-overlay .k-dt-check[data-value="${value}"] input`);
-const visibleValues = (table) => $$(table, ".k-dt-overlay .k-dt-check[data-value]")
+const valueBox = (/** @type {HTMLElement} */ table, /** @type {any} */ value) => $(table, `.k-dt-overlay .k-dt-check[data-value="${value}"] input`);
+const visibleValues = (/** @type {HTMLElement} */ table) => $$(table, ".k-dt-overlay .k-dt-check[data-value]")
     .filter((l) => l.style.display !== "none").map((l) => l.dataset.value);
 
 test("Enter in the value filter search applies only the matches", async () => {
@@ -46,7 +46,7 @@ test("Enter in the value filter search applies only the matches", async () => {
     await input.press("Enter");
 
     assert.equal($(table, '[role="dialog"]'), null, "dialog closed");
-    assert.deepEqual(table.getState().filters.name?.values, ["Anna"], "hidden values are not part of the filter");
+    assert.deepEqual(/** @type {any} */ (table.getState().filters.name)?.values, ["Anna"], "hidden values are not part of the filter");
     assert.equal($$(table, "tbody tr").length, 5);
     assert.equal(deepActiveElement(), $(table, '[data-fk="filter:name"]'), "focus back on the filter button");
 }, { cdp: true });
@@ -61,7 +61,7 @@ test("Enter in a pattern operand applies the condition", async () => {
 
     assert.equal($(table, '[role="dialog"]'), null, "dialog closed");
     assert.equal(table.getState().filters.name?.kind, "pattern");
-    assert.equal(table.getState().filters.name?.operand, "ann");
+    assert.equal(/** @type {any} */ (table.getState().filters.name)?.operand, "ann");
     assert.equal(deepActiveElement(), $(table, '[data-fk="filter:name"]'), "focus back on the filter button");
 }, { cdp: true });
 
@@ -108,7 +108,7 @@ test("value search can add the matches to the existing filter", async () => {
     assert.ok(radios[1].checked, "arrow keys select the option");
     await input.press("Enter");
     assert.equal($(table, '[role="dialog"]'), null, "Enter on the option applies");
-    assert.deepEqual(table.getState().filters.name?.values, ["Ben", "Clara", "Emma"]);
+    assert.deepEqual(/** @type {any} */ (table.getState().filters.name)?.values, ["Ben", "Clara", "Emma"]);
 }, { cdp: true });
 
 test("value search add keeps earlier values even if unchecked in the results", async () => {
@@ -120,7 +120,7 @@ test("value search add keeps earlier values even if unchecked in the results", a
     valueBox(table, "David").click();    // unchecked, not part of it
     $(table, '.k-dt-search-mode input[value="add"]').click();
     $(table, ".k-dt-panel-actions .k-dt-btn-primary").click();
-    assert.deepEqual(table.getState().filters.name?.values, ["Anna", "Ben", "Clara", "Emma"]);
+    assert.deepEqual(/** @type {any} */ (table.getState().filters.name)?.values, ["Anna", "Ben", "Clara", "Emma"]);
 }, { cdp: true });
 
 test("filter tabs follow the tabs pattern", async () => {
@@ -211,7 +211,7 @@ function mountFiltered() {
     });
     return table;
 }
-const summaryEntries = (table) => $$(table, ".k-dt-overlay .k-dt-fsum-edit").map((b) => b.getAttribute("aria-label"));
+const summaryEntries = (/** @type {HTMLElement} */ table) => $$(table, ".k-dt-overlay .k-dt-fsum-edit").map((b) => b.getAttribute("aria-label"));
 
 test("filter summary: \"Filter (n)\" opens the active filters with their values", async () => {
     const table = mountFiltered();
@@ -224,7 +224,7 @@ test("filter summary: \"Filter (n)\" opens the active filters with their values"
     await input.press("Enter");
 
     const dialog = $(table, '[role="dialog"]');
-    assert.equal(table.shadowRoot.getElementById(dialog.getAttribute("aria-labelledby"))?.textContent, "Active filters");
+    assert.equal(root(table).getElementById(dialog.getAttribute("aria-labelledby"))?.textContent, "Active filters");
     assert.equal($(table, '[data-fk="tb:filters"]').getAttribute("aria-expanded"), "true");
     assert.deepEqual(summaryEntries(table), [
         "Edit filter Search: “e”",
@@ -246,7 +246,7 @@ test("filter summary: \"Filter (n)\" opens the active filters with their values"
     await input.press("Enter");
     assert.equal($(table, '[role="dialog"]'), null, "Close closes the panel");
     assert.equal(deepActiveElement()?.dataset.fk, "tb:filters", "focus back on the opener");
-    assert.equal(table.getState().filters.name?.values.length, 2, "filters unchanged");
+    assert.equal(/** @type {any} */ (table.getState().filters.name)?.values.length, 2, "filters unchanged");
 }, { cdp: true });
 
 test("typing in the search field updates \"Filter (n)\" and keeps focus in the field", async () => {
@@ -282,7 +282,7 @@ test("filter summary: removing one filter keeps the panel open, the last one clo
     assert.equal($(table, ".k-dt-search-input").value, "");
     assert.equal($(table, '[role="dialog"]'), null, "closed with the last filter");
     assert.equal($(table, '[data-fk="tb:filters"]'), null);
-    assert.ok(table.shadowRoot.contains(deepActiveElement()), "focus stays in the table");
+    assert.ok(root(table).contains(deepActiveElement()), "focus stays in the table");
 });
 
 test("filter summary: \"Clear all filters\" and the toolbar x reset everything", () => {
@@ -304,7 +304,7 @@ test("filter summary: an entry opens its column filter, which comes back to the 
     $(table, '[data-fk="fsum:edit:column:fee"]').focus();
     await input.press("Enter");
     const dialog = () => $(table, '[role="dialog"]');
-    assert.equal(table.shadowRoot.getElementById(dialog().getAttribute("aria-labelledby"))?.textContent, "Filter: Fee");
+    assert.equal(root(table).getElementById(dialog().getAttribute("aria-labelledby"))?.textContent, "Filter: Fee");
     assert.equal($(table, '[data-fk="tb:filters"]').getAttribute("aria-expanded"), "true");
 
     await input.press("Escape");
@@ -317,7 +317,7 @@ test("filter summary: an entry opens its column filter, which comes back to the 
     operand.select();
     await type("100");
     await input.press("Enter");
-    assert.equal(table.getState().filters.fee.operand, "100");
+    assert.equal(/** @type {any} */ (table.getState().filters.fee).operand, "100");
     assert.ok(dialog().classList.contains("k-dt-fsum-panel"), "Apply comes back to the summary");
     assert.equal(summaryEntries(table)[2], "Edit filter Fee: > €100.00");
     assert.equal(deepActiveElement()?.dataset.fk, "fsum:edit:column:fee");

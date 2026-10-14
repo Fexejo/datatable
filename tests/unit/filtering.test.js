@@ -23,23 +23,23 @@ test("operators per type family", () => {
 });
 
 test("text patterns are case-insensitive", () => {
-    assert.ok(matchesPattern("Anna", { operator: "contains", operand: "NN" }, "string"));
-    assert.ok(matchesPattern("Anna", { operator: "startsWith", operand: "an" }, "string"));
-    assert.ok(!matchesPattern("Anna", { operator: "equals", operand: "ann" }, "string"));
-    assert.ok(!matchesPattern("Anna", { operator: "regex", operand: "(" }, "string"), "invalid regex never matches");
+    assert.ok(matchesPattern("Anna", { kind: "pattern", operator: "contains", operand: "NN" }, "string"));
+    assert.ok(matchesPattern("Anna", { kind: "pattern", operator: "startsWith", operand: "an" }, "string"));
+    assert.ok(!matchesPattern("Anna", { kind: "pattern", operator: "equals", operand: "ann" }, "string"));
+    assert.ok(!matchesPattern("Anna", { kind: "pattern", operator: "regex", operand: "(" }, "string"), "invalid regex never matches");
 });
 
 test("number patterns incl. between with swapped bounds", () => {
-    assert.ok(matchesPattern(50, { operator: "gte", operand: "50" }, "number"));
-    assert.ok(matchesPattern(5, { operator: "between", operand: 10, operand2: 1 }, "number"));
-    assert.ok(!matchesPattern(null, { operator: "lt", operand: 100 }, "number"), "empty never matches comparisons");
-    assert.ok(matchesPattern(null, { operator: "empty" }, "number"));
+    assert.ok(matchesPattern(50, { kind: "pattern", operator: "gte", operand: "50" }, "number"));
+    assert.ok(matchesPattern(5, { kind: "pattern", operator: "between", operand: 10, operand2: 1 }, "number"));
+    assert.ok(!matchesPattern(null, { kind: "pattern", operator: "lt", operand: 100 }, "number"), "empty never matches comparisons");
+    assert.ok(matchesPattern(null, { kind: "pattern", operator: "empty" }, "number"));
 });
 
 test("date patterns", () => {
-    assert.ok(matchesPattern("2021-03-02", { operator: "after", operand: "2021-01-01" }, "date"));
-    assert.ok(matchesPattern("2021-03-02", { operator: "on", operand: "2021-03-02" }, "date"));
-    assert.ok(!matchesPattern("", { operator: "before", operand: "2030-01-01" }, "date"));
+    assert.ok(matchesPattern("2021-03-02", { kind: "pattern", operator: "after", operand: "2021-01-01" }, "date"));
+    assert.ok(matchesPattern("2021-03-02", { kind: "pattern", operator: "on", operand: "2021-03-02" }, "date"));
+    assert.ok(!matchesPattern("", { kind: "pattern", operator: "before", operand: "2030-01-01" }, "date"));
 });
 
 test("isActiveFilter respects arity", () => {
@@ -77,7 +77,7 @@ test("distinctValues counts and sorts by label", () => {
 test("text conditions test the displayed text (enum labels)", () => {
     const status = { key: "status", type: "enum", options: [{ value: "a", label: "Active" }, { value: "b", label: "Blocked" }] };
     const rows = [{ status: "a" }, { status: "b" }, { status: null }];
-    const keep = (filter) => applyFilters(rows, { status: { kind: "pattern", arity: 1, ...filter } }, [status]).map((r) => r.status);
+    const keep = (/** @type {{ operator: string, operand?: any, arity?: number }} */ filter) => applyFilters(rows, { status: { kind: "pattern", arity: 1, ...filter } }, [status]).map((r) => r.status);
     assert.deepEqual(keep({ operator: "notEquals", operand: "Active" }), ["b", null]);
     assert.deepEqual(keep({ operator: "contains", operand: "lock" }), ["b"]);
     assert.deepEqual(keep({ operator: "empty", arity: 0 }), [null]);

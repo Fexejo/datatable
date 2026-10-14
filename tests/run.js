@@ -53,11 +53,12 @@ function runUnit() {
 
 // ---- Static file server ---------------------------------------------------
 
+/** @type {Record<string, string>} */
 const MIME = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css", ".json": "application/json", ".svg": "image/svg+xml" };
 
 function startServer() {
     const server = createServer((req, res) => {
-        const path = normalize(decodeURIComponent(new URL(req.url, "http://x").pathname));
+        const path = normalize(decodeURIComponent(new URL(req.url ?? "/", "http://x").pathname));
         const file = join(ROOT, path);
         if (!file.startsWith(ROOT + sep) || !existsSync(file) || !statSync(file).isFile()) {
             res.writeHead(404).end("Not found");
@@ -66,7 +67,9 @@ function startServer() {
         res.writeHead(200, { "Content-Type": (MIME[extname(file)] ?? "application/octet-stream") + "; charset=utf-8" });
         res.end(readFileSync(file));
     });
-    return new Promise((ok) => server.listen(0, "127.0.0.1", () => ok(server)));
+    /** @type {Promise<import("node:http").Server>} */
+    const listening = new Promise((ok) => server.listen(0, "127.0.0.1", () => ok(server)));
+    return listening;
 }
 
 // ---- Browser discovery ----------------------------------------------------
@@ -91,21 +94,39 @@ function findChrome() {
 
 // ---- Chrome DevTools Protocol (built-in WebSocket) ------------------------
 
+// Protocol messages are plain JSON; their payloads stay untyped here.
+/** @typedef {{ id?: number, method?: string, params?: any, result?: any, error?: { message: string }, sessionId?: string }} CdpMessage */
+/**
+ * @typedef {object} CdpConnection
+ * @property {(method: string, params?: object, sessionId?: string) => Promise<any>} send
+ * @property {(listener: (msg: CdpMessage) => void) => void} on
+ * @property {() => void} close
+ */
+
+/**
+ * @param {string} url
+ * @returns {Promise<CdpConnection>}
+ */
 function connect(url) {
     const ws = new WebSocket(url);
     let id = 0;
+    /** @type {Map<number, { resolve: (result: any) => void, reject: (error: Error) => void }>} */
     const calls = new Map();
+    /** @type {((msg: CdpMessage) => void)[]} */
     const listeners = [];
     ws.addEventListener("message", (event) => {
+        /** @type {CdpMessage} */
         const msg = JSON.parse(event.data);
-        if (msg.id && calls.has(msg.id)) {
-            const { resolve: ok, reject } = calls.get(msg.id);
+        const call = msg.id ? calls.get(msg.id) : undefined;
+        if (msg.id && call) {
+            const { resolve: ok, reject } = call;
             calls.delete(msg.id);
             if (msg.error) reject(new Error(msg.error.message)); else ok(msg.result);
         } else if (msg.method) {
             listeners.forEach((fn) => fn(msg));
         }
     });
+    /** @type {CdpConnection["send"]} */
     const send = (method, params = {}, sessionId) => new Promise((ok, reject) => {
         const callId = ++id;
         calls.set(callId, { resolve: ok, reject });
@@ -117,6 +138,11 @@ function connect(url) {
     });
 }
 
+/**
+ * @param {string} bin
+ * @param {string} profileDir
+ * @returns {Promise<{ child: import("node:child_process").ChildProcess, wsUrl: string }>}
+ */
 function launchChrome(bin, profileDir) {
     const child = spawn(bin, [
         "--headless", "--no-sandbox", "--disable-gpu", "--no-first-run",
@@ -159,15 +185,17 @@ async function runBrowser() {
         const browser = await connect(chrome.wsUrl);
         const { targetId } = await browser.send("Target.createTarget", { url: "about:blank" });
         const { sessionId } = await browser.send("Target.attachToTarget", { targetId, flatten: true });
+        /** @type {(method: string, params?: object) => Promise<any>} */
         const page = (method, params) => browser.send(method, params, sessionId);
 
+        /** @type {string[]} */
         const pageErrors = [];
         browser.on(async (msg) => {
             if (msg.sessionId !== sessionId) return;
             if (msg.method === "Runtime.exceptionThrown") {
                 pageErrors.push(msg.params.exceptionDetails.exception?.description ?? msg.params.exceptionDetails.text);
             } else if (msg.method === "Runtime.consoleAPICalled" && ["error", "warning"].includes(msg.params.type)) {
-                pageErrors.push(`console.${msg.params.type}: ` + msg.params.args.map((a) => a.value ?? a.description).join(" "));
+                pageErrors.push(`console.${msg.params.type}: ` + msg.params.args.map((/** @type {any} */ a) => a.value ?? a.description).join(" "));
             } else if (msg.method === "Runtime.bindingCalled" && msg.params.name === "__cdpSend") {
                 const { id, method, params } = JSON.parse(msg.params.payload);
                 let error = null;
@@ -175,7 +203,7 @@ async function runBrowser() {
                     if (!ALLOWED_FROM_PAGE.has(method)) throw new Error(`CDP method not allowed: ${method}`);
                     await page(method, params);
                 } catch (e) {
-                    error = e.message;
+                    error = e instanceof Error ? e.message : String(e);
                 }
                 await page("Runtime.evaluate", { expression: `window.__cdpResolve(${id}, ${JSON.stringify(error)})` });
             }
@@ -189,13 +217,15 @@ async function runBrowser() {
         if (filter) params.set("filter", filter);
         if (dist) params.set("dist", "");
         const query = params.size ? `?${params}` : "";
-        const url = `http://127.0.0.1:${server.address().port}/tests/browser/index.html${query}`;
+        const { port } = /** @type {import("node:net").AddressInfo} */ (server.address());
+        const url = `http://127.0.0.1:${port}/tests/browser/index.html${query}`;
         if (coverage) {
             await page("Profiler.enable");
             await page("Profiler.startPreciseCoverage", { detailed: true });
         }
         await page("Page.navigate", { url });
 
+        /** @type {import("./browser/harness.js").TestResult[]|null} */
         let results = null;
         const deadline = Date.now() + 60000;
         while (!results && Date.now() < deadline) {
@@ -243,7 +273,7 @@ if (only !== "unit") {
     try {
         ok = (await runBrowser()) && ok;
     } catch (error) {
-        console.error("✖ " + (error?.stack || error));
+        console.error("✖ " + ((error instanceof Error && error.stack) || error));
         ok = false;
     }
 }

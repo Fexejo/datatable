@@ -3,14 +3,15 @@ import assert from "node:assert/strict";
 import { LocalStorageAdapter, ViewStore } from "../../src/core/viewStore.js";
 
 // Minimal in-memory localStorage for Node.
+/** @type {Map<string, string>} */
 let backing;
 beforeEach(() => {
     backing = new Map();
-    globalThis.localStorage = {
-        getItem: (k) => (backing.has(k) ? backing.get(k) : null),
-        setItem: (k, v) => backing.set(k, String(v)),
-        removeItem: (k) => backing.delete(k)
-    };
+    globalThis.localStorage = /** @type {any} */ ({
+        getItem: (/** @type {string} */ k) => (backing.has(k) ? backing.get(k) : null),
+        setItem: (/** @type {string} */ k, /** @type {unknown} */ v) => backing.set(k, String(v)),
+        removeItem: (/** @type {string} */ k) => backing.delete(k)
+    });
 });
 
 test("LocalStorageAdapter round-trip with index", async () => {
@@ -41,24 +42,26 @@ test("LocalStorageAdapter renames in place and overwrites the target", async () 
 });
 
 test("namespaces are isolated", async () => {
-    new LocalStorageAdapter("one").save("X", 1);
+    new LocalStorageAdapter("one").save("X", { n: 1 });
     assert.deepEqual(await new LocalStorageAdapter("two").list(), []);
 });
 
 test("ViewStore requires every adapter method", () => {
-    assert.throws(() => new ViewStore({ list() {}, get() {}, save() {}, delete() {} }), /missing: rename/);
+    assert.throws(() => new ViewStore(/** @type {any} */ ({ list() {}, get() {}, save() {}, delete() {} })), /missing: rename/);
 });
 
 test("ViewStore accepts sync adapters and turns throws into rejections", async () => {
+    /** @type {string[]} */
     const names = [];
-    const store = new ViewStore({
+    // `get` returns undefined, which the store turns into null.
+    const store = new ViewStore(/** @type {any} */ ({
         list: () => names,
         get: () => undefined,
-        save: (n) => { names.push(n); },
+        save: (/** @type {string} */ n) => { names.push(n); },
         rename: () => { throw new Error("nope"); },
         delete: () => {}
-    });
-    await store.save("sync");
+    }));
+    await store.save("sync", {});
     assert.deepEqual(await store.list(), ["sync"]);
     assert.equal(await store.get("sync"), null);
     await assert.rejects(store.rename("sync", "x"), /nope/);

@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { formatValue, toText } from "../../src/core/formatters.js";
 
 // Intl output can contain narrow no-break spaces; normalize for comparisons.
-const norm = (s) => String(s).replace(/[\u00a0\u202f]/g, " ");
+const norm = (/** @type {unknown} */ s) => String(s).replace(/[\u00a0\u202f]/g, " ");
 
 test("numbers and currency follow the locale", () => {
     assert.equal(formatValue(1234.5, { type: "number" }, "en-US"), "1,234.5");
@@ -42,6 +42,7 @@ test("empty values use column.emptyText", () => {
 });
 
 test("custom formatter gets ctx; toText falls back to textContent", () => {
-    const column = { key: "s", formatter: (v, ctx) => ({ textContent: `${v}/${ctx.locale}` }) };
+    // The formatter returns a node-like object (only `textContent`).
+    const column = /** @type {any} */ ({ key: "s", formatter: (/** @type {string} */ v, /** @type {{ locale: string }} */ ctx) => ({ textContent: `${v}/${ctx.locale}` }) });
     assert.equal(toText("ok", column, "de-DE"), "ok/de-DE");
 });
