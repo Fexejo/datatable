@@ -2235,6 +2235,17 @@ test("axe: card and compact layouts, empty and no-result states", async () => {
     await assertNoAxeViolations("no results");
 });
 
+test("axe: two tables on one page have distinct pagination landmarks", async () => {
+    const members = mount({ title: "Members" });
+    const guests = mount({ title: "Guests" });
+    assert.equal($(members, ".k-dt-pager").getAttribute("aria-label"), "Pagination: Members");
+    assert.equal($(guests, ".k-dt-pager").getAttribute("aria-label"), "Pagination: Guests");
+    const untitled = mount();
+    assert.equal($(untitled, ".k-dt-pager").getAttribute("aria-label"), "Pagination", "without a title");
+    untitled.remove();
+    await assertNoAxeViolations("two tables");
+});
+
 // Opening a panel closes the one before.
 test("axe: panels — filter (both tabs), filter summary, columns, saved views, export", async () => {
     const table = mountViews(memoryAdapter({ Lean: { sort: SORT_DESC } }), {

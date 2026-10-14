@@ -4,12 +4,14 @@ import { el, iconEl } from "../ui/dom.js";
 import { pageItems, pageRange } from "../core/pagination.js";
 
 // `onPage(page)`: go to a page. `onPageSize(size)`: change the page size.
+// `title`: the table's title; it names the pager, so several tables on one
+// page have distinct navigation landmarks.
 /**
- * @param {{ t: import("../core/i18n.js").Translations, page: number, pageCount: number, pageSize: number,
+ * @param {{ t: import("../core/i18n.js").Translations, title?: string, page: number, pageCount: number, pageSize: number,
  *     pageSizeOptions: number[], total: number, onPage: (page: number) => void,
  *     onPageSize: (size: number) => void }} options
  */
-export function buildFooter({ t, page, pageCount, pageSize, pageSizeOptions, total, onPage, onPageSize }) {
+export function buildFooter({ t, title, page, pageCount, pageSize, pageSizeOptions, total, onPage, onPageSize }) {
     const { start, end } = pageRange(page, pageSize, total);
     const info = el("div", { class: "k-dt-info" }, [
         el("span", { text: t.pageInfo(start, end, total) }),
@@ -54,7 +56,11 @@ export function buildFooter({ t, page, pageCount, pageSize, pageSizeOptions, tot
             onclick: () => onPage(item)
         }));
 
-    const nav = el("div", { class: "k-dt-pager", role: "navigation", "aria-label": t.paginationAriaLabel }, [
+    const nav = el("div", {
+        class: "k-dt-pager",
+        role: "navigation",
+        "aria-label": title ? t.paginationNamed(title) : t.paginationAriaLabel
+    }, [
         navBtn("chevrons-left", t.firstPage, 1, page <= 1),
         navBtn("chevron-left", t.prevPage, page - 1, page <= 1),
         ...pageItems(page, pageCount).map(pageButton),

@@ -55,6 +55,8 @@ const en = {
     perPage: "per page:",
     rowsPerPage: "Rows per page",
     paginationAriaLabel: "Pagination",
+    /** @param {string} title */
+    paginationNamed: (title) => `Pagination: ${title}`,
     firstPage: "First page",
     prevPage: "Previous page",
     nextPage: "Next page",
@@ -313,6 +315,7 @@ const de = {
     perPage: "pro Seite:",
     rowsPerPage: "Einträge pro Seite",
     paginationAriaLabel: "Seitennavigation",
+    paginationNamed: (title) => `Seitennavigation: ${title}`,
     firstPage: "Erste Seite",
     prevPage: "Vorherige Seite",
     nextPage: "Nächste Seite",

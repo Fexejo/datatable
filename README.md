@@ -1066,8 +1066,10 @@ table.
   (`aria-pressed`, named “Pin column: <column>”); the pin button in a pinned
   column's header is named “Unpin column: <column>”. After unpinning from the
   header, focus moves to the column's header button at its new position.
-- Pagination is a `navigation` landmark; page buttons are named “Page n”, the
-  current one has `aria-current="page"`.
+- Pagination is a `navigation` landmark named “Pagination: <title>” (just
+  “Pagination” without a `title`), so several tables on one page have distinct
+  landmarks; give each a `title`. Page buttons are named “Page n”, the current
+  one has `aria-current="page"`.
 - Actions menu: `role="menu"` / `menuitem`, named “Actions: <column>”.
 - Panels are modal dialogs (`role="dialog"`, `aria-modal`, named by their
   heading); opener buttons carry `aria-haspopup="dialog"` and `aria-expanded`.

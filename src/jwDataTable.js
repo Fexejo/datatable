@@ -980,6 +980,7 @@ class JwDataTable extends HTMLElement {
     _renderFooter() {
         return buildFooter({
             t: this._t,
+            title: this._config.title,
             page: this._state.page,
             pageCount: this._pageCount,
             pageSize: this._state.pageSize,
