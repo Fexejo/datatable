@@ -51,7 +51,7 @@ from i18n. Ask the user which icon to use; remove unused ones.
 
 ```bash
 npm ci                            # dev tools: ESLint, TypeScript, axe-core
-npm run check                     # lint + typecheck + all tests; must pass after every change
+npm run check                     # lint + typecheck + tests + coverage ≥ 97%; must pass after every change
 node tests/run.js                 # all tests
 node tests/run.js --unit|--browser
 node tests/run.js --filter "context menu"

@@ -6,6 +6,8 @@
 //   node tests/run.js --browser  browser tests only (headless Chromium)
 //   node tests/run.js --browser --filter "context menu"
 //   node tests/run.js --browser --dist   browser tests against dist/jw-datatable.min.js
+//   node tests/run.js --coverage [--coverage-min 95]   line coverage of datatable.js
+//                                and src/ (unit + browser); fails below the minimum
 //
 // Browser tests need a Chromium-based browser. Set CHROME_BIN, or have one on
 // PATH (chromium, google-chrome, …), or a Playwright-cached headless shell.
@@ -16,6 +18,7 @@ import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync } 
 import { homedir, tmpdir } from "node:os";
 import { extname, join, normalize, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
+import { Coverage } from "./coverage.js";
 
 const ROOT = resolve(fileURLToPath(new URL("..", import.meta.url)));
 const args = process.argv.slice(2);
@@ -23,6 +26,10 @@ const only = args.includes("--unit") ? "unit" : args.includes("--browser") ? "br
 const filterIndex = args.indexOf("--filter");
 const filter = filterIndex >= 0 ? args[filterIndex + 1] : null;
 const dist = args.includes("--dist");
+const minIndex = args.indexOf("--coverage-min");
+const coverageMin = minIndex >= 0 ? Number(args[minIndex + 1]) : null;
+// The bundle has no source files to map coverage to.
+const coverage = (args.includes("--coverage") || coverageMin !== null) && !dist ? new Coverage(ROOT) : null;
 
 // ---- Unit tests -----------------------------------------------------------
 
@@ -30,9 +37,17 @@ function runUnit() {
     const dir = join(ROOT, "tests", "unit");
     const files = readdirSync(dir).filter((f) => f.endsWith(".test.js")).map((f) => join(dir, f));
     const extra = filter ? ["--test-name-pattern", filter] : [];
+    const coverageDir = coverage ? mkdtempSync(join(tmpdir(), "jw-datatable-cov-")) : null;
+    const env = coverageDir ? { ...process.env, NODE_V8_COVERAGE: coverageDir } : process.env;
     return new Promise((done) => {
-        const child = spawn(process.execPath, ["--test", ...extra, ...files], { stdio: "inherit" });
-        child.on("exit", (code) => done(code === 0));
+        const child = spawn(process.execPath, ["--test", ...extra, ...files], { stdio: "inherit", env });
+        child.on("exit", (code) => {
+            if (coverageDir) {
+                coverage?.addNodeDir(coverageDir);
+                rmSync(coverageDir, { recursive: true, force: true });
+            }
+            done(code === 0);
+        });
     });
 }
 
@@ -175,6 +190,10 @@ async function runBrowser() {
         if (dist) params.set("dist", "");
         const query = params.size ? `?${params}` : "";
         const url = `http://127.0.0.1:${server.address().port}/tests/browser/index.html${query}`;
+        if (coverage) {
+            await page("Profiler.enable");
+            await page("Profiler.startPreciseCoverage", { detailed: true });
+        }
         await page("Page.navigate", { url });
 
         let results = null;
@@ -199,6 +218,10 @@ async function runBrowser() {
         const passed = results.filter((r) => r.status === "pass").length;
         const skipped = results.filter((r) => r.status === "skip").length;
         console.log(`\nbrowser${dist ? " (dist)" : ""}: ${passed} passed, ${failed} failed, ${skipped} skipped`);
+        if (coverage) {
+            const { result } = await page("Profiler.takePreciseCoverage");
+            coverage.add(result, (scriptUrl) => (scriptUrl.startsWith(url.split("/tests/")[0]) ? new URL(scriptUrl).pathname.slice(1) : null));
+        }
         browser.close();
         return failed === 0 && pageErrors.length === 0;
     } finally {
@@ -221,6 +244,14 @@ if (only !== "unit") {
         ok = (await runBrowser()) && ok;
     } catch (error) {
         console.error("✖ " + (error?.stack || error));
+        ok = false;
+    }
+}
+if (coverage) {
+    console.log("\n── Coverage (lines, unit + browser) ──");
+    const total = coverage.report();
+    if (coverageMin !== null && total < coverageMin) {
+        console.error(`✖ Coverage ${total.toFixed(1)}% is below the minimum of ${coverageMin}%.`);
         ok = false;
     }
 }

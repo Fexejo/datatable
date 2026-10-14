@@ -1185,7 +1185,8 @@ Needs **Node.js ≥ 22** and, for browser tests, a Chromium-based browser.
 
 ```bash
 npm ci                            # dev tools (once, and after package.json changes)
-npm run check                     # lint + type check + all tests, as in CI
+npm run check                     # lint + type check + all tests with coverage, as in CI
+npm run coverage                  # all tests + line coverage per file (fails below 97%)
 npm run lint                      # ESLint (eslint.config.js)
 npm run typecheck                 # tsc --strict over the JSDoc types (tsconfig.json), emits nothing
 node tests/run.js                 # all tests
@@ -1201,6 +1202,7 @@ node tests/run.js --filter "sort" # only tests whose name contains "sort"
 | `tests/browser/helpers.js` | Shared fixtures (`mount()`, `DATA`, `COLUMNS`, …) and query helpers |
 | `tests/browser/harness.js` | Tiny in-browser test harness (`test`, `assert`, `waitFor`, `input.press`, `input.longPress`, `input.viewport`) |
 | `tests/run.js` | Runner: starts a static server and headless Chromium, drives it via the DevTools protocol |
+| `tests/coverage.js` | Line coverage from V8 data of both runs (`--coverage`, `--coverage-min <percent>`) |
 
 **Types:** `datatable.js` and `src/` carry JSDoc types throughout (public ones
 in `src/types.js`); `npm run typecheck` checks them with `strict`. Editors
