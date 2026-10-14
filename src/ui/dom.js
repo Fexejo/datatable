@@ -145,12 +145,3 @@ export function placePopup(node, left, top, { flipTop = null } = {}) {
     node.style.left = `${Math.max(4, left)}px`;
     node.style.top = `${Math.max(4, top)}px`;
 }
-
-// ---- Misc ---------------------------------------------------------------------
-
-// Shortens `text` to `max` characters with an ellipsis.
-/** @param {any} text */
-export function truncate(text, max = 30) {
-    const str = String(text);
-    return str.length > max ? str.slice(0, max - 1) + "…" : str;
-}

@@ -100,6 +100,13 @@ export function clamp(value, min, max) {
     return Math.min(Math.max(value, min), max);
 }
 
+// Shortens `text` to `max` characters with an ellipsis.
+/** @param {any} text */
+export function truncate(text, max = 30) {
+    const str = String(text);
+    return str.length > max ? str.slice(0, max - 1) + "…" : str;
+}
+
 // Maps concrete column types to one of four families. Drives default formatting,
 // sort comparison, and available filter operators.
 export const TYPE_GROUPS = {

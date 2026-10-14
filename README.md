@@ -68,7 +68,7 @@ written in Vanilla JS (ES modules, Shadow DOM). No external dependencies.
 | `src/core/` | DOM-free logic, unit-tested in Node: state (`state.js`), sorting, filtering, formatting, pagination, columns, translations (`i18n.js`), saved-view storage |
 | `src/export/` | CSV / XLSX / JSON export and the XLSX writer |
 | `src/panels/` | Filter panel, filter summary, export dialog, column chooser, record details, saved views |
-| `src/render/` | Toolbar and footer (pager) |
+| `src/render/` | Table, cards, values (links, copy buttons), context-menu entries, toolbar and footer (pager) |
 | `src/ui/` | DOM building blocks: `el()`, overlay (modal panels), live-region announcer, context menu, clipboard, keyboard navigation, column drag, pinned layout, styles, [Lucide](https://lucide.dev) icons |
 | `src/types.js` | JSDoc types of the config, columns, state and adapters (no runtime code) |
 | `demo.html` | Runnable demo |
@@ -1244,7 +1244,10 @@ How the sources fit together, for maintainers.
 **Layers.** `src/core/` and `src/export/` are DOM-free (except the download in
 `export.js`) and tested in Node. `src/ui/`, `src/render/` and `src/panels/`
 build DOM; panels and render modules get plain data and callbacks, never the
-component itself. `src/jwDataTable.js` wires everything together.
+component itself — e.g. `render/table.js` and `render/grid.js` take a view
+object (`_tableView()`, `_gridView()`) with the rows, state and callbacks, and
+`render/menuItems.js` returns the context-menu entries as plain data.
+`src/jwDataTable.js` wires everything together: state, events, panels.
 
 **State flow.** The component holds one state object (shape in
 `src/core/state.js`, types in `src/types.js`). Every change — from the UI or

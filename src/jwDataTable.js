@@ -11,8 +11,8 @@
 // ui/. The public API is `datatable.js`.
 
 import { getTranslations } from "./core/i18n.js";
-import { getCellValue, clamp, debounce, uid, typeGroup, safeUrl } from "./core/util.js";
-import { formatValue, toText } from "./core/formatters.js";
+import { getCellValue, clamp, debounce, uid, truncate } from "./core/util.js";
+import { toText } from "./core/formatters.js";
 import { sortData, toggleSort } from "./core/comparators.js";
 import { distinctValues, isActiveFilter, describeFilter } from "./core/filtering.js";
 import { normalizeColumns } from "./core/columns.js";
@@ -26,15 +26,13 @@ import {
     EXPORT_DEFAULTS, EXPORT_FORMATS, buildExport, exportColumns, defaultNames,
     defaultFilename, withExtension, downloadFile, neutralizeFormula
 } from "./export/export.js";
-import { el, iconEl, deepActiveElement, focusIsLost, truncate } from "./ui/dom.js";
+import { el, deepActiveElement, focusIsLost } from "./ui/dom.js";
 import { applyStyles } from "./ui/stylesheet.js";
 import { Announcer, getAnnouncer } from "./ui/announcer.js";
 import { Overlay } from "./ui/overlay.js";
 import { openContextMenu, closeContextMenu } from "./ui/contextMenu.js";
 import { writeClipboard, confirmOnButton, flashCopied } from "./ui/clipboard.js";
 import { waitForLongPress } from "./ui/longPress.js";
-import { initRoving, tableCellTarget, listItemTarget } from "./ui/keyboard.js";
-import { bindColumnMove } from "./ui/columnDrag.js";
 import { layoutPinned, updateScrollShadows } from "./ui/pinnedLayout.js";
 import { buildToolbar, buildFilterButtons } from "./render/toolbar.js";
 import { buildFooter } from "./render/footer.js";
@@ -44,6 +42,10 @@ import { buildExportDialog } from "./panels/exportDialog.js";
 import { buildColumnChooser } from "./panels/columnChooser.js";
 import { buildDetailsDialog } from "./panels/detailsDialog.js";
 import { buildViewsPanel } from "./panels/viewsPanel.js";
+import { buildTable, buildTbody, buildHeaderCell, ariaSort, sortIndicator, updateHeaderPin } from "./render/table.js";
+import { buildGrid } from "./render/grid.js";
+import { buildFields, linkHref } from "./render/values.js";
+import { contextMenuItems } from "./render/menuItems.js";
 
 /** @typedef {import("./types.js").NormalizedColumn} Column */
 /** @typedef {import("./types.js").Row} Row */
@@ -52,12 +54,8 @@ import { buildViewsPanel } from "./panels/viewsPanel.js";
 /** @typedef {import("./types.js").SortSpec} SortSpec */
 /** @typedef {import("./types.js").TableState} TableState */
 /** @typedef {import("./types.js").ExportOptions} ExportOptions */
-/** @typedef {import("./ui/contextMenu.js").MenuItem} MenuItem */
-/**
- * Record of a rendered cell, card, header or field (`_items`); a header has no row.
- * @typedef {{ column: Column, row: Row|null, value: any, index?: number }} ItemRecord
- */
-/** @typedef {{ row: Row, index: number }} RowRecord Record of a rendered table row. */
+/** @typedef {import("./render/values.js").ItemRecord} ItemRecord */
+/** @typedef {import("./render/values.js").RowRecord} RowRecord */
 /** @typedef {{ clientX: number, clientY: number, target: HTMLElement }} MenuPoint */
 
 // Saved view names are trimmed and must not be empty.
@@ -74,19 +72,6 @@ const MENU_HOSTS = "th.k-dt-th, td.k-dt-td, .k-dt-card";
 const VALUE_HOSTS = "td.k-dt-td, dd.k-dt-pair-value, .k-dt-card-title";
 // Controls inside a value host, handled by `_onClick`.
 const VALUE_CONTROLS = ".k-dt-copy, .k-dt-cell-action, .k-dt-link, .k-dt-details-btn";
-
-// Target of a column link: `link.url` as a string or (row, value) => string;
-// null when it uses an unsafe scheme (see `safeUrl`).
-/**
- * @param {import("./types.js").ColumnLink} link
- * @param {Row} row
- * @param {any} value
- * @returns {string|null}
- */
-function linkHref(link, row, value) {
-    const url = typeof link.url === "function" ? link.url(row, value) : link.url;
-    return safeUrl(url);
-}
 
 // Opt-in features default to `false` and must be enabled explicitly via
 // `config.features`. Always-on basics (pagination, context menu, copy buttons)
@@ -581,7 +566,7 @@ class JwDataTable extends HTMLElement {
     _renderBody() {
         const body = el("div", { class: "k-dt-body", part: "body", onscroll: (e) => updateScrollShadows(/** @type {HTMLElement} */ (e.currentTarget.parentElement)) });
         if (this._config.maxHeight) body.style.maxHeight = this._config.maxHeight;
-        body.appendChild(this._currentLayout() === "grid" ? this._renderGrid() : this._renderTable());
+        body.appendChild(this._currentLayout() === "grid" ? buildGrid(this._gridView()) : buildTable(this._tableView()));
         return body;
     }
 
@@ -641,343 +626,78 @@ class JwDataTable extends HTMLElement {
         else if (next) right.prepend(next);
     }
 
-    _renderTable() {
-        const wrap = el("div", { class: "k-dt-scroll" });
-        const table = el("table", {
-            class: "k-dt-table",
-            part: "table",
-            // The toolbar title names the table for assistive tech.
-            "aria-labelledby": this._config.title ? this._hintId("title") : null
-        });
-        const columns = this._tableColumns();
-        const compact = this._isCompact();
-        if (compact) table.classList.add("k-dt-table--compact");
-
-        // Header
-        const thead = el("thead");
-        const headRow = el("tr");
-        columns.forEach((column, i) => headRow.appendChild(this._pinCell(this._renderHeaderCell(column), i, columns)));
-        if (compact) {
-            headRow.appendChild(el("th", { class: "k-dt-th k-dt-details-col", scope: "col" }, [
-                el("span", { class: "k-dt-sr-only", text: this._t.details })
-            ]));
-        }
-        thead.appendChild(headRow);
-        table.appendChild(thead);
-
-        table.appendChild(this._renderTbody(columns));
-        if (this._pageData.length > 0) {
-            table.setAttribute("aria-describedby", this._hintId("table"));
-            wrap.appendChild(el("p", {
-                id: this._hintId("table"),
-                class: "k-dt-sr-only",
-                text: compact ? this._t.compactKeyboardHint : this._t.tableKeyboardHint
-            }));
-        }
-        wrap.appendChild(table);
-        return wrap;
-    }
-
     // No data at all, or nothing left after filtering.
     _emptyMessage() {
         return this._sourceData.length === 0 ? this._config.emptyText : this._config.noResultsText;
     }
 
-    /** @param {Column[]} columns */
-    _renderTbody(columns) {
-        const tbody = el("tbody");
-        if (this._pageData.length === 0) {
-            tbody.appendChild(el("tr", {}, [
-                el("td", { class: "k-dt-empty", colSpan: (columns.length + (this._isCompact() ? 1 : 0)) || 1 }, [this._emptyMessage()])
-            ]));
-        } else {
-            this._pageData.forEach((row, index) => tbody.appendChild(this._renderRow(row, index, columns)));
-            this._initRoving(tbody, ".k-dt-td", (event, cell) => this._onCellKey(event, /** @type {HTMLTableCellElement} */ (cell)));
-        }
-        return tbody;
-    }
-
-    /** @param {Column} column */
-    _renderHeaderCell(column) {
-        const th = el("th", {
-            class: "k-dt-th k-dt-align-" + column.align + (column.minWidth ? " k-dt-has-min" : ""),
-            scope: "col",
-            "data-key": column.key,
-            "aria-sort": this._ariaSort(column),
-            style: (column.width ? `width:${column.width};` : "")
-                + (column.minWidth ? `--k-dt-col-min:${column.minWidth};` : "") || null
-        });
-
-        const inner = el("div", { class: "k-dt-th-inner" });
-        const labelBtn = el(column.sortable ? "button" : "span", {
-            class: "k-dt-th-label",
-            type: column.sortable ? "button" : null,
-            "data-fk": column.sortable ? `sort:${column.key}` : null,
-            title: column.sortable ? this._t.sortHint : null,
-            onclick: column.sortable
-                ? (e) => this._applySort(column.key, { additive: e.shiftKey && this._features.multiSort })
-                : undefined
-        }, [el("span", { text: column.label })]);
-
-        if (column.sortable) labelBtn.appendChild(this._sortIndicator(column));
-        inner.appendChild(labelBtn);
-
-        if (column.filterable) {
-            const active = isActiveFilter(this._state.filters[column.key]);
-            inner.appendChild(el("button", {
-                type: "button",
-                class: "k-dt-filter-btn" + (active ? " is-active" : ""),
-                "data-fk": `filter:${column.key}`,
-                "aria-haspopup": "dialog",
-                "aria-expanded": String(this._overlay.openerKey === `filter:${column.key}`),
-                title: active ? this._t.filterActive : this._t.filter,
-                "aria-label": this._t.filterPanelTitle(column.label),
-                onclick: (e) => this._openFilterPanel(column, e.currentTarget)
-            }, [iconEl("list-filter")]));
-        }
-
-        if (this._isPinned(column)) inner.appendChild(this._unpinButton(column));
-
-        th.appendChild(inner);
-
-        this._items.set(th, { column, row: null, value: null });
-        if (this._features.columnReorder) {
-            bindColumnMove(th, {
-                key: column.key,
-                label: column.label,
+    // What the table layout shows, with the callbacks it needs (render/table.js).
+    /** @returns {import("./render/table.js").TableView} */
+    _tableView() {
+        const config = this._config;
+        const compact = this._isCompact();
+        const titleColumn = this._titleColumn();
+        return {
+            t: this._t,
+            locale: config.locale,
+            columns: this._tableColumns(),
+            rows: this._pageData,
+            compact,
+            sort: this._state.sort,
+            filters: this._state.filters,
+            isPinned: (column) => this._isPinned(column),
+            openerKey: this._overlay.openerKey,
+            labelledBy: config.title ? this._hintId("title") : null,
+            hintId: this._hintId("table"),
+            emptyText: this._emptyMessage(),
+            cellOverflow: config.cellOverflow,
+            rowClass: config.rowClass,
+            // Compact layout: the whole row opens the details (see `_onClick`).
+            rowsClickable: compact || typeof config.onRowClick === "function",
+            cellsActivatable: compact || !!config.onCellClick || !!config.onRowClick,
+            recordTitle: (row) => this._recordTitle(row, titleColumn),
+            register: (node, record) => this._items.set(node, record),
+            roving: this._roving(),
+            multiSort: this._features.multiSort,
+            onSort: (key, additive) => this._applySort(key, { additive }),
+            onFilter: (column, anchor) => this._openFilterPanel(column, anchor),
+            onUnpin: (key) => this._togglePin(key, false),
+            reorder: this._features.columnReorder ? {
                 drag: this._drag,
                 canDrag: () => !this._isMobile() && !window.matchMedia?.("(pointer: coarse)").matches,
-                onStep: (step) => this._moveColumn(column.key, this._tableColumns().findIndex((c) => c.key === column.key) + step),
-                onDrop: (key, after) => {
+                onStep: (key, step) => this._moveColumn(key, this._tableColumns().findIndex((c) => c.key === key) + step),
+                onDrop: (key, targetKey, after) => {
                     const keys = this._tableColumns().map((c) => c.key);
-                    const point = keys.indexOf(column.key) + (after ? 1 : 0);
+                    const point = keys.indexOf(targetKey) + (after ? 1 : 0);
                     this._moveColumn(key, point > keys.indexOf(key) ? point - 1 : point);
                 }
-            });
-        }
-        return th;
+            } : null
+        };
     }
 
-    /** @param {Column} column */
-    _ariaSort(column) {
-        const sort = this._state.sort.find((s) => s.key === column.key);
-        return sort ? (sort.direction === "asc" ? "ascending" : "descending") : "none";
+    // What the card layout shows (render/grid.js).
+    /** @returns {import("./render/grid.js").GridView} */
+    _gridView() {
+        const config = this._config;
+        return {
+            t: this._t,
+            locale: config.locale,
+            columns: this._visibleColumns(),
+            rows: this._pageData,
+            titleColumn: config.grid?.titleColumn,
+            minWidth: config.grid?.minWidth || "240px",
+            labelledBy: config.title ? this._hintId("title") : null,
+            hintId: this._hintId("grid"),
+            emptyText: this._emptyMessage(),
+            cardsClickable: typeof config.onRowClick === "function",
+            register: (node, record) => this._items.set(node, record),
+            roving: this._roving()
+        };
     }
 
-    // Sort icon, plus rank (visual) and priority (screen readers) for multi-sort.
-    /** @param {Column} column */
-    _sortIndicator(column) {
-        const sortIndex = this._state.sort.findIndex((s) => s.key === column.key);
-        const sort = sortIndex >= 0 ? this._state.sort[sortIndex] : null;
-        const icon = sort ? (sort.direction === "asc" ? "arrow-up" : "arrow-down") : "arrow-up-down";
-        const wrap = el("span", { class: "k-dt-sort-ind" }, [
-            iconEl(icon, "k-dt-sort-ic" + (sort ? " is-active" : ""))
-        ]);
-        if (sort && this._state.sort.length > 1) {
-            wrap.appendChild(el("span", { class: "k-dt-sort-rank", "aria-hidden": "true", text: String(sortIndex + 1) }));
-            wrap.appendChild(el("span", { class: "k-dt-sr-only", text: this._t.sortPriority(sortIndex + 1) }));
-        }
-        return wrap;
-    }
-
-    // Shown in the header of pinned columns.
-    /** @param {Column} column */
-    _unpinButton(column) {
-        return el("button", {
-            type: "button",
-            class: "k-dt-pin-btn",
-            "data-fk": `pin:${column.key}`,
-            title: this._t.unpinColumn,
-            "aria-label": this._t.unpinColumnNamed(column.label),
-            onclick: (event) => {
-                // This button goes away: move focus to the column's header
-                // button first, so it stays on the same element while the
-                // column moves.
-                /** @type {HTMLElement|null|undefined} */
-                const headerButton = event.currentTarget.closest("th")?.querySelector("button.k-dt-th-label, .k-dt-filter-btn");
-                headerButton?.focus();
-                this._togglePin(column.key, false);
-            }
-        }, [iconEl("pin")]);
-    }
-
-    /**
-     * @param {Row} row
-     * @param {number} index
-     * @param {Column[]} columns
-     */
-    _renderRow(row, index, columns) {
-        const tr = el("tr", { class: "k-dt-tr" });
-        if (typeof this._config.rowClass === "function") {
-            const cls = this._config.rowClass(row, index);
-            if (cls) tr.classList.add(...String(cls).split(/\s+/));
-        }
-        const compact = this._isCompact();
-        // Compact layout: the whole row opens the details (see `_onClick`).
-        if (compact || typeof this._config.onRowClick === "function") tr.classList.add("k-dt-clickable");
-        this._items.set(tr, { row, index });
-        columns.forEach((column, i) => tr.appendChild(this._pinCell(this._renderCell(column, row, index), i, columns)));
-        if (compact) tr.appendChild(this._renderDetailsCell(row, index));
-        return tr;
-    }
-
-    // Last cell of a compact row: the button that opens the record's details.
-    /**
-     * @param {Row} row
-     * @param {number} index
-     */
-    _renderDetailsCell(row, index) {
-        const td = el("td", { class: "k-dt-td k-dt-details-col", tabIndex: -1, "data-fk": `cell:${index}:#details` });
-        const button = el("button", {
-            type: "button",
-            class: "k-dt-details-btn",
-            "data-fk": `details:${index}`,
-            "aria-haspopup": "dialog",
-            "aria-expanded": "false",
-            title: this._t.showDetails,
-            "aria-label": this._t.showDetailsFor(this._recordTitle(row))
-        }, [iconEl("maximize-2")]);
-        td.appendChild(button);
-        // Its context menu is the one of the row's first column.
-        const column = this._tableColumns()[0];
-        this._items.set(td, { column, row, value: getCellValue(row, column), index });
-        return td;
-    }
-
-    /**
-     * @param {Column} column
-     * @param {Row} row
-     * @param {number} index
-     */
-    _renderCell(column, row, index) {
-        const value = getCellValue(row, column);
-        const fk = `cell:${index}:${column.key}`;
-        const td = el("td", { class: "k-dt-td k-dt-align-" + column.align, tabIndex: -1, "data-fk": fk });
-        if (typeGroup(column.type) !== "text") td.classList.add("k-dt-nowrap");
-        if (typeof column.cellClass === "function") {
-            const cls = column.cellClass(value, row);
-            if (cls) td.classList.add(...String(cls).split(/\s+/));
-        }
-
-        const content = el("div", { class: "k-dt-cell" }, [this._valueNode(column, row, value, fk)]);
-        if (column.copyable) content.appendChild(this._copyButton(column, fk));
-        td.appendChild(content);
-        // Single-line cell with an ellipsis; the full text shows as a tooltip
-        // (`_onPointerOver`) and while the cell has focus (CSS `:focus-within`).
-        if ((column.overflow || this._config.cellOverflow) === "ellipsis") {
-            td.classList.add("k-dt-truncate");
-            if (column.maxWidth) td.style.setProperty("--k-dt-cell-max-width", column.maxWidth);
-        }
-        this._items.set(td, { column, row, value, index });
-        return td;
-    }
-
-    // Builds the display node including link logic (href / SPA / custom handler).
-    // `fk`: focus-key prefix of the containing cell/card (keeps focus across re-renders).
-    /**
-     * @param {Column} column
-     * @param {Row} row
-     * @param {any} value
-     * @param {string|null} fk
-     */
-    _valueNode(column, row, value, fk) {
-        const display = formatValue(value, column, this._config.locale, row);
-        const content = display instanceof Node ? display : document.createTextNode(display);
-        // An empty value gets no link or button: it would be a focus stop without a name.
-        if (typeof display === "string" && !display.trim()) return el("span", { class: "k-dt-value" }, [content]);
-
-        // Clicks are handled in `_onClick`.
-        // A link whose only purpose is an unsafe URL is shown as plain text.
-        const link = column.link;
-        const href = link ? linkHref(link, row, value) : null;
-        if (link && ((link.url && href !== null) || link.spa || typeof link.handler === "function")) {
-            return el("a", { class: "k-dt-link", href: href || "#", "data-fk": fk ? `${fk}:link` : null }, [content]);
-        }
-        if (typeof column.action === "function") {
-            return el("button", { type: "button", class: "k-dt-cell-action", "data-fk": fk ? `${fk}:action` : null }, [content]);
-        }
-        return el("span", { class: "k-dt-value" }, [content]);
-    }
-
-    // Copies the value of its cell or field (see `_onClick`).
-    /**
-     * @param {Column} column
-     * @param {string|null} fk
-     */
-    _copyButton(column, fk) {
-        return el("button", {
-            type: "button",
-            class: "k-dt-copy",
-            "data-fk": fk ? `${fk}:copy` : null,
-            title: this._t.copyValue,
-            "aria-label": `${this._t.copyValue}: ${column.label}`
-        }, [iconEl("copy")]);
-    }
-
-    _renderGrid() {
-        const columns = this._visibleColumns();
-        const grid = el("div", {
-            class: "k-dt-grid",
-            part: "grid",
-            role: "list",
-            "aria-labelledby": this._config.title ? this._hintId("title") : null
-        });
-        const min = (this._config.grid && this._config.grid.minWidth) || "240px";
-        grid.style.gridTemplateColumns = `repeat(auto-fill, minmax(${min}, 1fr))`;
-
-        if (this._pageData.length === 0) {
-            grid.appendChild(el("div", { class: "k-dt-empty", text: this._emptyMessage() }));
-            return grid;
-        }
-
-        const titleKey = this._config.grid && this._config.grid.titleColumn;
-        this._pageData.forEach((row, index) => {
-            const fk = `card:${index}`;
-            const card = el("div", { class: "k-dt-card", part: "card", role: "listitem", tabIndex: -1, "data-fk": fk });
-            if (typeof this._config.onRowClick === "function") card.classList.add("k-dt-clickable");
-            const titleColumn = titleKey ? columns.find((c) => c.key === titleKey) : null;
-            if (titleColumn) {
-                const value = getCellValue(row, titleColumn);
-                const title = el("div", { class: "k-dt-card-title" }, [
-                    this._valueNode(titleColumn, row, value, `${fk}:${titleColumn.key}`)
-                ]);
-                this._items.set(title, { column: titleColumn, row, value });
-                card.appendChild(title);
-            }
-            card.appendChild(this._renderFields(columns.filter((c) => c !== titleColumn), row, fk));
-            // Its context menu is the one of the first column.
-            this._items.set(card, { column: columns[0], row, value: getCellValue(row, columns[0]), index });
-            grid.appendChild(card);
-        });
-        this._initRoving(grid, ".k-dt-card", (event, card) => this._onCardKey(event, card));
-        grid.setAttribute("aria-describedby", this._hintId("grid"));
-        // The hint sits next to the list (a list may only contain list items).
-        const fragment = document.createDocumentFragment();
-        fragment.append(grid, el("p", { id: this._hintId("grid"), class: "k-dt-sr-only", text: this._t.gridKeyboardHint }));
-        return fragment;
-    }
-
-    // Label/value pairs of one record as a description list (cards, detail dialog).
-    // `fk`: focus-key prefix, or null where focus keys are not needed.
-    /**
-     * @param {Column[]} columns
-     * @param {Row} row
-     * @param {string|null} fk
-     */
-    _renderFields(columns, row, fk) {
-        const list = el("dl", { class: "k-dt-fields" });
-        columns.forEach((column) => {
-            const value = getCellValue(row, column);
-            const key = fk ? `${fk}:${column.key}` : null;
-            const val = el("dd", { class: "k-dt-pair-value k-dt-card-val" }, [this._valueNode(column, row, value, key)]);
-            if (column.copyable) val.appendChild(this._copyButton(column, key));
-            this._items.set(val, { column, row, value });
-            list.appendChild(el("div", { class: "k-dt-pair k-dt-card-row" }, [
-                el("dt", { class: "k-dt-pair-label k-dt-card-label", text: column.label }),
-                val
-            ]));
-        });
-        return list;
+    // The body's roving tab stop is remembered across re-renders (ui/keyboard.js).
+    _roving() {
+        return { key: this._rovingKey, onFocus: (/** @type {string|undefined} */ key) => { this._rovingKey = key; } };
     }
 
     _renderFooter() {
@@ -1018,14 +738,14 @@ class JwDataTable extends HTMLElement {
         const table = this.shadow.querySelector(".k-dt-table");
         if (!table?.tHead) { this._render(); return; }   // cards: no header to keep
         const focusKey = this._focusKey();
-        const columns = this._tableColumns();
+        const view = this._tableView();
         for (const th of Array.from(table.tHead.rows[0].cells)) {
-            const column = columns.find((c) => c.key === th.dataset.key);
+            const column = view.columns.find((c) => c.key === th.dataset.key);
             if (!column) continue;
-            th.setAttribute("aria-sort", this._ariaSort(column));
-            th.querySelector(".k-dt-sort-ind")?.replaceWith(this._sortIndicator(column));
+            th.setAttribute("aria-sort", ariaSort(view.sort, column));
+            th.querySelector(".k-dt-sort-ind")?.replaceWith(sortIndicator(view, column));
         }
-        table.tBodies[0].replaceWith(this._renderTbody(columns));
+        table.tBodies[0].replaceWith(buildTbody(view));
         this._refreshFooter();
         this._layoutPinned();
         if (focusIsLost()) this._restoreFocus(focusKey);
@@ -1041,14 +761,15 @@ class JwDataTable extends HTMLElement {
         const table = this.shadow.querySelector(".k-dt-table");
         if (!table?.tHead) { this._render(); return; }   // cards: rebuilt as a whole
         const focusKey = this._focusKey();
-        const columns = this._tableColumns();
+        const view = this._tableView();
+        const { columns } = view;
         const headRow = table.tHead.rows[0];
         /** @type {Map<string|undefined, HTMLTableCellElement>} */
         const existing = new Map(Array.from(headRow.cells).filter((th) => th.dataset.key).map((th) => [th.dataset.key, th]));
         const cells = columns.map((column, i) => {
-            const th = existing.get(column.key) || this._renderHeaderCell(column);
+            const th = existing.get(column.key) || buildHeaderCell(view, column);
             existing.delete(column.key);
-            this._setHeaderPin(th, column, i, columns);
+            updateHeaderPin(view, th, i, columns);
             return th;
         });
         /** @type {HTMLTableCellElement|null} */
@@ -1064,7 +785,7 @@ class JwDataTable extends HTMLElement {
             else if (i > at) headRow.appendChild(th);
         });
 
-        table.tBodies[0].replaceWith(this._renderTbody(columns));
+        table.tBodies[0].replaceWith(buildTbody(view));
         // The column count decides the page sizes offered (and may force pagination).
         this._refreshFooter();
         this._layoutPinned();
@@ -1078,25 +799,6 @@ class JwDataTable extends HTMLElement {
         if (!this._paginated()) footer?.remove();
         else if (footer) footer.replaceWith(this._renderFooter());
         else root?.appendChild(this._renderFooter());
-    }
-
-    // Brings a reused header cell's pinned state (sticky offset, unpin button) up to date.
-    /**
-     * @param {HTMLTableCellElement} th
-     * @param {Column} column
-     * @param {number} index
-     * @param {Column[]} columns
-     */
-    _setHeaderPin(th, column, index, columns) {
-        th.classList.remove("k-dt-pinned", "k-dt-pinned-last");
-        th.style.removeProperty("--k-dt-pin-left");
-        this._pinCell(th, index, columns);
-        const button = th.querySelector(".k-dt-pin-btn");
-        if (this._isPinned(column)) {
-            if (!button) th.querySelector(".k-dt-th-inner")?.appendChild(this._unpinButton(column));
-        } else {
-            button?.remove();
-        }
     }
 
     // ---- Pinned columns & scroll shadows ----------------------------------
@@ -1118,22 +820,6 @@ class JwDataTable extends HTMLElement {
         /** @type {HTMLElement|null} */
         const viewport = this.shadow.querySelector(".k-dt-viewport");
         this._pausedPins = viewport ? layoutPinned(viewport) : [];
-    }
-
-    // Marks the cell at `index` as pinned (sticky offset + last-pinned edge).
-    /**
-     * @template {HTMLTableCellElement} T
-     * @param {T} cell
-     * @param {number} index
-     * @param {Column[]} columns
-     * @returns {T}
-     */
-    _pinCell(cell, index, columns) {
-        if (!this._isPinned(columns[index])) return cell;
-        cell.classList.add("k-dt-pinned");
-        cell.style.setProperty("--k-dt-pin-left", `var(--k-dt-pin-${index})`);
-        if (!this._isPinned(columns[index + 1])) cell.classList.add("k-dt-pinned-last");
-        return cell;
     }
 
     /**
@@ -1228,61 +914,6 @@ class JwDataTable extends HTMLElement {
     /** @param {string} kind */
     _hintId(kind) {
         return `${this._instanceId}-${kind}-hint`;
-    }
-
-    // Roving tabindex (see ui/keyboard.js); the last focused item is
-    // remembered across re-renders.
-    /**
-     * @param {HTMLElement} container
-     * @param {string} selector
-     * @param {(event: KeyboardEvent, item: HTMLElement) => void} onKey
-     */
-    _initRoving(container, selector, onKey) {
-        initRoving(container, selector, {
-            rememberedKey: this._rovingKey,
-            onFocus: (key) => { this._rovingKey = key; },
-            onKey
-        });
-    }
-
-    /**
-     * @param {KeyboardEvent} event
-     * @param {HTMLTableCellElement} cell
-     */
-    _onCellKey(event, cell) {
-        if (event.key === "Enter") {
-            // Activate the cell's link/action/details button, else the row's click.
-            /** @type {HTMLElement|null} */
-            const inner = cell.querySelector(".k-dt-link, .k-dt-cell-action, .k-dt-details-btn");
-            if (inner) inner.click();
-            else if (this._isCompact() || this._config.onCellClick || this._config.onRowClick) cell.click();
-            else return;
-            event.preventDefault();
-            return;
-        }
-        const target = tableCellTarget(event, cell);
-        if (!target) return;
-        event.preventDefault();
-        target.focus();
-    }
-
-    /**
-     * @param {KeyboardEvent} event
-     * @param {HTMLElement} card
-     */
-    _onCardKey(event, card) {
-        if (event.key === "Enter") {
-            if (!this._config.onRowClick) return;
-            event.preventDefault();
-            card.click();
-            return;
-        }
-        /** @type {HTMLElement[]} */
-        const cards = Array.from(card.parentElement?.querySelectorAll(".k-dt-card") ?? []);
-        const target = listItemTarget(event, card, cards);
-        if (!target) return;
-        event.preventDefault();
-        target.focus();
     }
 
     // Polite screen-reader announcement (status messages, WCAG 4.1.3).
@@ -1514,80 +1145,36 @@ class JwDataTable extends HTMLElement {
      * @param {any} value
      */
     _openContextMenu(event, column, row, value) {
-        /** @type {MenuItem[]} */
-        const items = [];
         // Where focus returns after the menu (or a panel opened from it) closes.
         const returnKey = this._focusKey();
-        const group = typeGroup(column.type);
-
-        if (row && this._detailsEnabled()) {
-            items.push({ label: this._t.showDetails, icon: "maximize-2", onSelect: () => this._openDetails(row, { returnKey }) });
-            items.push({ separator: true });
-        }
-
-        if (column.sortable) {
-            items.push({ label: this._t.sortAsc, icon: "arrow-up", onSelect: () => this._setSortDirection(column.key, "asc") });
-            items.push({ label: this._t.sortDesc, icon: "arrow-down", onSelect: () => this._setSortDirection(column.key, "desc") });
-            if (this._features.multiSort) {
-                items.push({ label: this._t.addSortKey, icon: "arrow-up-down", onSelect: () => this._setSortDirection(column.key, "asc", true) });
+        const keys = this._tableColumns().map((c) => c.key);
+        const items = contextMenuItems({
+            t: this._t,
+            locale: this._config.locale,
+            column,
+            row,
+            value,
+            features: this._features,
+            details: this._detailsEnabled(),
+            sorted: this._state.sort.some((s) => s.key === column.key),
+            filtered: isActiveFilter(this._state.filters[column.key]),
+            pinned: this._isPinned(column),
+            order: { index: keys.indexOf(column.key), count: keys.length, changed: this._orderChanged() },
+            on: {
+                details: () => { if (row) this._openDetails(row, { returnKey }); },
+                sort: (direction, additive) => this._setSortDirection(column.key, direction, additive),
+                filter: (filter) => this._setFilter(column.key, filter),
+                openFilter: () => this._openFilterPanel(column, event.target, returnKey),
+                copyCell: (text) => this._copyText(neutralizeFormula(text), null, text),
+                copyRow: () => { if (row) this._copyRow(row); },
+                copyColumn: () => this._copyColumn(column),
+                move: (index) => this._moveColumn(column.key, index),
+                resetOrder: () => this._resetColumnOrder(),
+                pin: (pinned) => this._togglePin(column.key, pinned),
+                hide: () => this._toggleColumn(column.key, false),
+                exportData: () => this._openExportDialog(null, returnKey)
             }
-            if (this._state.sort.some((s) => s.key === column.key)) {
-                items.push({ label: this._t.removeSortKey, icon: "x", onSelect: () => this._setSortDirection(column.key, null, true) });
-            }
-            items.push({ separator: true });
-        }
-
-        if (column.filterable) {
-            if (row) {
-                const label = toText(value, column, this._config.locale, row);
-                items.push({
-                    label: this._t.filterByValue(truncate(label)),
-                    icon: "list-filter",
-                    onSelect: () => this._setFilter(column.key, { kind: "value", values: [value] })
-                });
-                if (group === "text" || group === "number") {
-                    items.push({
-                        label: this._t.excludeValue(truncate(label)),
-                        icon: "x",
-                        // Numbers compare the raw value; text compares the displayed text.
-                        onSelect: () => this._setFilter(column.key, {
-                            kind: "pattern", operator: "notEquals", operand: group === "number" ? value : label, arity: 1
-                        })
-                    });
-                }
-            }
-            items.push({ label: this._t.openFilter, icon: "list-filter", onSelect: () => this._openFilterPanel(column, event.target, returnKey) });
-            if (isActiveFilter(this._state.filters[column.key])) {
-                items.push({ label: this._t.clearColumnFilter, icon: "x", onSelect: () => this._setFilter(column.key, null) });
-            }
-            items.push({ separator: true });
-        }
-
-        if (row) {
-            items.push({ label: this._t.copyCell, icon: "copy", onSelect: () => {
-                const text = toText(value, column, this._config.locale, row);
-                this._copyText(neutralizeFormula(text), null, text);
-            } });
-            items.push({ label: this._t.copyRow, icon: "copy", onSelect: () => this._copyRow(row) });
-        }
-        items.push({ label: this._t.copyColumn, icon: "copy", onSelect: () => this._copyColumn(column) });
-
-        if (this._features.columnVisibility || this._features.columnPinning || this._features.columnReorder) items.push({ separator: true });
-        if (this._features.columnReorder) items.push(...this._moveMenuItems(column));
-        if (this._features.columnPinning) {
-            items.push(this._isPinned(column)
-                ? { label: this._t.unpinColumn, icon: "pin-off", onSelect: () => this._togglePin(column.key, false) }
-                : { label: this._t.pinColumn, icon: "pin", onSelect: () => this._togglePin(column.key, true) });
-        }
-        if (this._features.columnVisibility) {
-            items.push({ label: this._t.hideColumn, icon: "eye-off", onSelect: () => this._toggleColumn(column.key, false) });
-        }
-
-        if (this._features.export) {
-            items.push({ separator: true });
-            items.push({ label: this._t.exportMenu, icon: "download", onSelect: () => this._openExportDialog(null, returnKey) });
-        }
-
+        });
         openContextMenu(this.shadow, {
             x: event.clientX,
             y: event.clientY,
@@ -1749,27 +1336,6 @@ class JwDataTable extends HTMLElement {
         });
     }
 
-    /**
-     * @param {Column} column
-     * @returns {MenuItem[]}
-     */
-    _moveMenuItems(column) {
-        const keys = this._tableColumns().map((c) => c.key);
-        const i = keys.indexOf(column.key);
-        /** @type {MenuItem[]} */
-        const items = [];
-        if (i > 0) {
-            items.push({ label: this._t.moveLeft, icon: "arrow-left", onSelect: () => this._moveColumn(column.key, i - 1) });
-            items.push({ label: this._t.moveToStart, icon: "arrow-left-to-line", onSelect: () => this._moveColumn(column.key, 0) });
-        }
-        if (i >= 0 && i < keys.length - 1) {
-            items.push({ label: this._t.moveRight, icon: "arrow-right", onSelect: () => this._moveColumn(column.key, i + 1) });
-            items.push({ label: this._t.moveToEnd, icon: "arrow-right-to-line", onSelect: () => this._moveColumn(column.key, keys.length - 1) });
-        }
-        if (this._orderChanged()) items.push({ label: this._t.resetColumnOrder, onSelect: () => this._resetColumnOrder() });
-        return items;
-    }
-
     _resetColumnOrder() {
         this._commit({ columnOrder: normalizeOrder(undefined, this._columns.map((c) => c.key)) }, {
             update: "columns",
@@ -1789,11 +1355,18 @@ class JwDataTable extends HTMLElement {
         return [...visible, ...this._columns.filter((c) => !visible.includes(c))];
     }
 
-    // Short name of a record: the card title column, else the first visible column.
-    /** @param {Row} row */
-    _recordTitle(row) {
+    // The column that names a record: the card title column, else the first visible column.
+    _titleColumn() {
         const key = this._config.grid?.titleColumn;
-        const column = (key && this._columns.find((c) => c.key === key)) || this._visibleColumns()[0];
+        return (key && this._columns.find((c) => c.key === key)) || this._visibleColumns()[0];
+    }
+
+    // Short name of a record ("" without columns).
+    /**
+     * @param {Row} row
+     * @param {Column|undefined} [column] `_titleColumn()`, when already known.
+     */
+    _recordTitle(row, column = this._titleColumn()) {
         return column ? toText(getCellValue(row, column), column, this._config.locale, row) : "";
     }
 
@@ -1814,7 +1387,14 @@ class JwDataTable extends HTMLElement {
             rows: () => this._viewData,
             index,
             title: (record) => this._recordTitle(record),
-            fields: (record) => this._renderFields(this._detailColumns(), record, null),
+            fields: (record) => buildFields({
+                t: this._t,
+                locale: this._config.locale,
+                columns: this._detailColumns(),
+                row: record,
+                fk: null,
+                register: (node, item) => this._items.set(node, item)
+            }),
             onNavigate: (record, message) => {
                 this._followDetails(record);
                 this._announce(message);
