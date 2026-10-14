@@ -1260,6 +1260,17 @@ object (`_tableView()`, `_gridView()`) with the rows, state and callbacks, and
 `render/menuItems.js` returns the context-menu entries as plain data.
 `src/jwDataTable.js` wires everything together: state, events, panels.
 
+**Why the component stays large (decided, 2026-10).** What remains in
+`jwDataTable.js` is orchestration: saved views, export, the filter summary and
+responsive switching all read the state, change it through `_commit()`, open
+overlays and announce. Moving them into controller modules would either hand
+those modules the component (breaking "never the component" and reaching into
+`_private` members) or wire 6–10 callbacks per area for a few hundred lines
+less — more indirection, no less complexity. So the class stays the
+orchestrator; its methods stay short and grouped in sections. Revisit only
+when one area grows a lot (e.g. shared or server-synced views): then extract
+it with a narrow callback interface, like the panels.
+
 **State flow.** The component holds one state object (shape in
 `src/core/state.js`, types in `src/types.js`). Every change — from the UI or
 `setState()` — goes through `_commit(patch, { update, announce })`: apply the
