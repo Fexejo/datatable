@@ -1,25 +1,20 @@
 // Lightweight, reusable context menu.
 // Rendered in the table shadow root, positioned with `position: fixed` at the pointer.
-// Supports separators, icons, disabled/checked items, and one level of submenus.
+// Supports separators and icons.
 //
 // Keyboard (WAI-ARIA menu pattern): ArrowUp/ArrowDown move, Home/End jump,
-// ArrowRight/ArrowLeft open/close a submenu, Enter/Space activate,
-// Escape/Tab close. On close via keyboard or activation, focus returns to the
-// opener (see `restoreFocus`).
+// Enter/Space activate, Escape/Tab close. On close via keyboard or
+// activation, focus returns to the opener (see `restoreFocus`).
 
 import { createIcon } from "./icons.js";
-import { deepActiveElement, focusIsLost, placePopup } from "./dom.js";
+import { deepActiveElement, el, focusIsLost, placePopup } from "./dom.js";
 
 /**
  * @typedef {object} MenuItem
  * @property {boolean} [separator]
  * @property {string} [label]
  * @property {string} [icon]
- * @property {boolean} [danger]
- * @property {boolean} [disabled]
- * @property {boolean|null} [checked]
  * @property {(event: MouseEvent) => void} [onSelect]
- * @property {(MenuItem|null|false|undefined)[]} [submenu]
  */
 
 /** @type {{ el: HTMLElement, restoreFocus?: () => void, cleanup: () => void }|null} */
@@ -27,7 +22,7 @@ let activeMenu = null;
 
 // items: array of
 //   { separator: true }
-//   { label, icon?, danger?, disabled?, checked?, onSelect?, submenu?: items[] }
+//   { label, icon?, onSelect? }
 //   (null/false entries are skipped)
 //
 // options:
@@ -57,7 +52,7 @@ export function openContextMenu(root, { x, y, items, label, onClose, restoreFocu
 
     // Position synchronously (so the menu can take focus right away).
     if (!sheet) placePopup(menu, x, y);
-    focusItem(menuItems(menu)[0]);
+    focusItem(menu, menuItems(menu)[0]);
 
     /** @param {PointerEvent} event */
     const handleOutside = (event) => {
@@ -114,82 +109,49 @@ export function closeContextMenu({ restoreFocus = false } = {}) {
 // ---- Keyboard -------------------------------------------------------------
 
 /**
- * @param {Element|null} menu
+ * @param {Element} menu
  * @returns {HTMLElement[]}
  */
 function menuItems(menu) {
-    if (!menu) return [];
-    // Direct items of this menu level only (submenu items belong to their own level).
-    return Array.from(menu.querySelectorAll('[role^="menuitem"]'))
-        .filter((item) => item.closest('[role="menu"]') === menu)
-        .map((item) => /** @type {HTMLElement} */ (item));
+    return Array.from(/** @type {NodeListOf<HTMLElement>} */ (menu.querySelectorAll('[role="menuitem"]')));
 }
 
-/** @param {HTMLElement|null|undefined} item */
-function focusItem(item) {
+/**
+ * @param {HTMLElement} menu
+ * @param {HTMLElement|undefined} item
+ */
+function focusItem(menu, item) {
     if (!item) return;
-    const menu = item.closest('[role="menu"]');
     menuItems(menu).forEach((i) => { i.tabIndex = -1; });
     item.tabIndex = 0;
     item.focus();
 }
 
-/** @param {HTMLElement} entry */
-function openSubmenu(entry) {
-    const wrap = /** @type {HTMLElement} */ (entry.parentElement);
-    wrap.classList.add("is-open");
-    entry.setAttribute("aria-expanded", "true");
-    focusItem(menuItems(wrap.querySelector('[role="menu"]'))[0]);
-}
-
-/** @param {Element} submenu */
-function closeSubmenu(submenu) {
-    const wrap = /** @type {HTMLElement} */ (submenu.parentElement);
-    /** @type {HTMLElement|null} */
-    const entry = wrap.querySelector(':scope > [role^="menuitem"]');
-    wrap.classList.remove("is-open");
-    entry?.setAttribute("aria-expanded", "false");
-    focusItem(entry);
-}
-
 /**
  * @param {KeyboardEvent} event
- * @param {HTMLElement} rootMenu
+ * @param {HTMLElement} menu
  */
-function handleMenuKey(event, rootMenu) {
+function handleMenuKey(event, menu) {
     /** @type {HTMLElement|null} */
-    const item = /** @type {Element} */ (event.target).closest('[role^="menuitem"]');
+    const item = /** @type {Element} */ (event.target).closest('[role="menuitem"]');
     if (!item) return;
-    const menu = /** @type {HTMLElement} */ (item.closest('[role="menu"]'));
     const items = menuItems(menu);
     const index = items.indexOf(item);
-    const isSub = menu !== rootMenu;
 
     switch (event.key) {
         case "ArrowDown":
-            focusItem(items[(index + 1) % items.length]);
+            focusItem(menu, items[(index + 1) % items.length]);
             break;
         case "ArrowUp":
-            focusItem(items[(index - 1 + items.length) % items.length]);
+            focusItem(menu, items[(index - 1 + items.length) % items.length]);
             break;
         case "Home":
-            focusItem(items[0]);
+            focusItem(menu, items[0]);
             break;
         case "End":
-            focusItem(items[items.length - 1]);
-            break;
-        case "ArrowRight":
-            if (item.getAttribute("aria-haspopup") === "menu") openSubmenu(item);
-            else return;
-            break;
-        case "ArrowLeft":
-            if (isSub) closeSubmenu(menu);
-            else return;
+            focusItem(menu, items[items.length - 1]);
             break;
         case "Escape":
-            if (isSub) closeSubmenu(menu);
-            else closeContextMenu({ restoreFocus: true });
-            break;
         case "Tab":
             closeContextMenu({ restoreFocus: true });
             break;
@@ -207,68 +169,16 @@ function handleMenuKey(event, rootMenu) {
  * @param {() => void} requestClose
  * @returns {HTMLElement}
  */
-function buildMenu(items, requestClose, isSubmenu = false) {
-    const menu = document.createElement("div");
-    menu.className = "k-ctx-menu" + (isSubmenu ? " k-ctx-submenu" : "");
-    menu.setAttribute("role", "menu");
-
-    (items || []).forEach((item) => {
-        if (!item) return;
-        if (item.separator) {
-            const sep = document.createElement("div");
-            sep.className = "k-ctx-sep";
-            sep.setAttribute("role", "separator");
-            menu.appendChild(sep);
-            return;
-        }
-
-        const entry = document.createElement("button");
-        entry.type = "button";
-        entry.className = "k-ctx-item" + (item.danger ? " k-ctx-danger" : "");
-        entry.setAttribute("role", item.checked != null ? "menuitemcheckbox" : "menuitem");
-        if (item.checked != null) entry.setAttribute("aria-checked", String(!!item.checked));
-        entry.tabIndex = -1;
-        if (item.disabled) entry.setAttribute("aria-disabled", "true");
-
-        const icon = document.createElement("span");
-        icon.className = "k-ctx-icon";
-        if (item.icon) icon.appendChild(createIcon(item.icon));
-        else if (item.checked) icon.appendChild(createIcon("check"));
-        entry.appendChild(icon);
-
-        const label = document.createElement("span");
-        label.className = "k-ctx-label";
-        label.textContent = item.label ?? "";
-        entry.appendChild(label);
-
-        if (item.submenu && item.submenu.length) {
-            const arrow = document.createElement("span");
-            arrow.className = "k-ctx-arrow";
-            arrow.setAttribute("aria-hidden", "true");
-            arrow.textContent = "›";
-            entry.appendChild(arrow);
-            entry.setAttribute("aria-haspopup", "menu");
-            entry.setAttribute("aria-expanded", "false");
-
-            const sub = buildMenu(item.submenu, requestClose, true);
-            sub.setAttribute("aria-label", item.label ?? "");
-            const wrap = document.createElement("div");
-            wrap.className = "k-ctx-haschild";
-            wrap.appendChild(entry);
-            wrap.appendChild(sub);
-            // Click/tap toggles the submenu (hover opens it via CSS on desktop).
-            entry.addEventListener("click", (event) => {
-                event.preventDefault();
-                event.stopPropagation();
-                if (wrap.classList.contains("is-open")) closeSubmenu(sub);
-                else openSubmenu(entry);
-            });
-            menu.appendChild(wrap);
-            return;
-        }
-
-        if (!item.disabled) {
-            entry.addEventListener("click", (event) => {
+function buildMenu(items, requestClose) {
+    return el("div", { class: "k-ctx-menu", role: "menu" }, items.map((item) => {
+        if (!item) return null;
+        if (item.separator) return el("div", { class: "k-ctx-sep", role: "separator" });
+        return el("button", {
+            type: "button",
+            class: "k-ctx-item",
+            role: "menuitem",
+            tabIndex: -1,
+            onclick: (event) => {
                 event.preventDefault();
                 event.stopPropagation();
                 // Close first so the action may move focus (e.g. open a panel);
@@ -277,10 +187,10 @@ function buildMenu(items, requestClose, isSubmenu = false) {
                 requestClose();
                 item.onSelect?.(event);
                 if (focusIsLost()) restore?.();
-            });
-        }
-        menu.appendChild(entry);
-    });
-
-    return menu;
+            }
+        }, [
+            el("span", { class: "k-ctx-icon" }, [item.icon ? createIcon(item.icon) : null]),
+            el("span", { class: "k-ctx-label", text: item.label ?? "" })
+        ]);
+    }));
 }

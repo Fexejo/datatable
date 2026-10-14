@@ -434,22 +434,10 @@ span.k-dt-th-label { cursor: default; }
 }
 .k-ctx-item:hover, .k-ctx-item:focus-visible, .k-ctx-item:active { background: var(--k-dt-hover); }
 .k-ctx-item:focus-visible { outline: 2px solid var(--k-color-text, #222); outline-offset: -2px; }
-.k-ctx-item[aria-disabled="true"] { opacity: 0.4; cursor: default; }
-.k-ctx-danger { color: var(--k-color-schicht-vertretung-bg, #c0392b); }
 .k-ctx-icon { display: inline-flex; width: 1.1em; }
 .k-ctx-icon svg { width: 1.1em; height: 1.1em; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .k-ctx-label { flex: 1; }
-.k-ctx-arrow { color: var(--k-color-text-muted, #666); }
 .k-ctx-sep { height: 1px; background: var(--k-dt-border); margin: var(--k-space-2xs, 4px) 0; }
-.k-ctx-haschild { position: relative; }
-.k-ctx-haschild > .k-ctx-submenu {
-    position: absolute;
-    left: 100%;
-    top: 0;
-    display: none;
-}
-.k-ctx-haschild:hover > .k-ctx-submenu,
-.k-ctx-haschild.is-open > .k-ctx-submenu { display: flex; }
 
 /* Context menu as a bottom sheet (mobile, toggled from JS) */
 .k-ctx-menu--sheet {

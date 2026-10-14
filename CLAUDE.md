@@ -60,7 +60,7 @@ python3 -m http.server 8000       # /demo.html, /tests/browser/
 ```
 
 - New logic in `src/core`/`src/export` → `tests/unit/<module>.test.js`. New UI
-  behavior → `tests/browser/datatable.test.js` incl. keyboard and ARIA; real keys
+  behavior → `tests/browser/datatable.test.js` incl. keyboard and ARIA; real keys,
   touch and viewport only via `input.press()` / `input.longPress()` /
   `input.viewport()` with `{ cdp: true }`.
   A new layout, panel or popup state → an `axe: …` test (`assertNoAxeViolations()`).
