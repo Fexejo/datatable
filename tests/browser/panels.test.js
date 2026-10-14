@@ -34,8 +34,8 @@ async function openNameFilter(/** @type {HTMLElement} */ table) {
 async function type(/** @type {string} */ text) {
     for (const ch of text) await input.press(ch);
 }
-const valueBox = (/** @type {HTMLElement} */ table, /** @type {any} */ value) => $(table, `.k-dt-overlay .k-dt-check[data-value="${value}"] input`);
-const visibleValues = (/** @type {HTMLElement} */ table) => $$(table, ".k-dt-overlay .k-dt-check[data-value]")
+const valueBox = (/** @type {HTMLElement} */ table, /** @type {any} */ value) => $(table, `.jw-dt-overlay .jw-dt-check[data-value="${value}"] input`);
+const visibleValues = (/** @type {HTMLElement} */ table) => $$(table, ".jw-dt-overlay .jw-dt-check[data-value]")
     .filter((l) => l.style.display !== "none").map((l) => l.dataset.value);
 
 test("Enter in the value filter search applies only the matches", async () => {
@@ -55,7 +55,7 @@ test("Enter in a pattern operand applies the condition", async () => {
     const table = mount({ features: { filtering: true } });
     await openNameFilter(table);
     $(table, '[role="tab"]:last-child').click();
-    $(table, ".k-dt-overlay .k-dt-operands input").focus();
+    $(table, ".jw-dt-overlay .jw-dt-operands input").focus();
     await type("ann");
     await input.press("Enter");
 
@@ -69,8 +69,8 @@ test("value search checks the matches and restores the selection when cleared", 
     const table = mount({ features: { filtering: true } });
     table.setState({ filters: { name: { kind: "value", values: ["Ben"] } } });
     await openNameFilter(table);
-    const mode = $(table, ".k-dt-search-mode");
-    const toggleAll = $(table, ".k-dt-check-all");
+    const mode = $(table, ".jw-dt-search-mode");
+    const toggleAll = $(table, ".jw-dt-check-all");
     assert.ok(mode.hidden, "result options hidden without a search");
     assert.equal(accessibleName(toggleAll), "Select all");
 
@@ -93,7 +93,7 @@ test("value search checks the matches and restores the selection when cleared", 
     assert.ok(valueBox(table, "Ben").checked, "values hidden by the search keep their state");
     toggleAll.querySelector("input").click();
 
-    const field = $(table, '.k-dt-overlay input[type="search"]');
+    const field = $(table, '.jw-dt-overlay input[type="search"]');
     field.value = "";
     field.dispatchEvent(new Event("input"));
     assert.ok(mode.hidden);
@@ -108,7 +108,7 @@ test("value search can add the matches to the existing filter", async () => {
     assert.deepEqual(visibleValues(table), ["Clara"]);
 
     // Keyboard: Tab from the search field to the radio group, arrow to "add".
-    const radios = $$(table, '.k-dt-search-mode input[type="radio"]');
+    const radios = $$(table, '.jw-dt-search-mode input[type="radio"]');
     radios[0].focus();
     await input.press("ArrowDown");
     assert.ok(radios[1].checked, "arrow keys select the option");
@@ -124,8 +124,8 @@ test("value search add keeps earlier values even if unchecked in the results", a
     await type("a");
     valueBox(table, "Anna").click();     // unchecked in the results, but part of the earlier filter
     valueBox(table, "David").click();    // unchecked, not part of it
-    $(table, '.k-dt-search-mode input[value="add"]').click();
-    $(table, ".k-dt-panel-actions .k-dt-btn-primary").click();
+    $(table, '.jw-dt-search-mode input[value="add"]').click();
+    $(table, ".jw-dt-panel-actions .jw-dt-btn-primary").click();
     assert.deepEqual(/** @type {any} */ (table.getState().filters.name)?.values, ["Anna", "Ben", "Clara", "Emma"]);
 }, { cdp: true });
 
@@ -143,14 +143,14 @@ test("filter tabs follow the tabs pattern", async () => {
     const panels = $$(table, '[role="tabpanel"]');
     assert.deepEqual(panels.map((p) => p.hidden), [true, false]);
     assert.equal(panels[1].getAttribute("aria-labelledby"), tabs[1].id);
-    assert.ok($(table, ".k-dt-overlay select").labels.length === 1, "operator select has a label");
+    assert.ok($(table, ".jw-dt-overlay select").labels.length === 1, "operator select has a label");
 }, { cdp: true });
 
 test("Tab is trapped inside an open panel", async () => {
     const table = mount({ features: { columnVisibility: true } });
     $(table, '[data-fk="tb:columns"]').focus();
     await input.press("Enter");
-    const boxes = $$(table, '.k-dt-overlay input[type="checkbox"]');
+    const boxes = $$(table, '.jw-dt-overlay input[type="checkbox"]');
     assert.equal(deepActiveElement(), boxes[0]);
     boxes.at(-1).focus();
     await input.press("Tab");
@@ -162,7 +162,7 @@ test("Tab is trapped inside an open panel", async () => {
 test("column chooser: one switch per column, named by the column", () => {
     const table = mount({ features: { columnVisibility: true }, initial: { hiddenColumns: ["fee"] } });
     $(table, '[data-fk="tb:columns"]').click();
-    const switches = $$(table, '.k-dt-overlay input[type="checkbox"]');
+    const switches = $$(table, '.jw-dt-overlay input[type="checkbox"]');
     assert.ok(switches.every((s) => s.getAttribute("role") === "switch"), "role=switch");
     assert.deepEqual(switches.map((s) => s.labels[0].textContent), COLUMNS.map((c) => c.label));
     assert.deepEqual(switches.map((s) => s.checked), [true, true, false, true, true], "on = visible");
@@ -171,17 +171,17 @@ test("column chooser: one switch per column, named by the column", () => {
 test("value search mode is a segmented radio group", async () => {
     const table = mount({ features: { filtering: true } });
     await openNameFilter(table);
-    const mode = $(table, ".k-dt-search-mode");
+    const mode = $(table, ".jw-dt-search-mode");
     assert.equal(mode.tagName, "FIELDSET");
     assert.equal(mode.querySelector("legend").textContent, "Search results");
-    assert.ok(mode.querySelector(".k-dt-segmented"), "drawn as segments");
-    assert.equal($$(table, '.k-dt-search-mode input[type="radio"]').length, 2);
+    assert.ok(mode.querySelector(".jw-dt-segmented"), "drawn as segments");
+    assert.equal($$(table, '.jw-dt-search-mode input[type="radio"]').length, 2);
 });
 
 test("column chooser stays open while toggling columns", () => {
     const table = mount({ features: { columnVisibility: true } });
     $(table, '[data-fk="tb:columns"]').click();
-    const box = $$(table, '.k-dt-overlay input[type="checkbox"]')[1];
+    const box = $$(table, '.jw-dt-overlay input[type="checkbox"]')[1];
     box.focus();
     box.click();
     assert.ok($(table, '[role="dialog"]'), "still open");
@@ -194,11 +194,11 @@ test("applying a filter closes the panel and returns focus to the filter button"
     const table = mount({ features: { filtering: true } });
     $(table, '[data-fk="filter:fee"]').focus();
     $(table, '[data-fk="filter:fee"]').click();
-    const [operand] = $$(table, ".k-dt-overlay .k-dt-operands input");
-    $(table, ".k-dt-overlay select").value = "gt";
-    $(table, ".k-dt-overlay select").dispatchEvent(new Event("change"));
+    const [operand] = $$(table, ".jw-dt-overlay .jw-dt-operands input");
+    $(table, ".jw-dt-overlay select").value = "gt";
+    $(table, ".jw-dt-overlay select").dispatchEvent(new Event("change"));
     operand.value = "150";
-    $$(table, ".k-dt-overlay .k-dt-panel-actions button").at(-1).click();   // Apply
+    $$(table, ".jw-dt-overlay .jw-dt-panel-actions button").at(-1).click();   // Apply
     assert.equal($(table, '[role="dialog"]'), null);
     assert.equal(deepActiveElement()?.dataset.fk, "filter:fee");
     await announced(table, `${$$(table, "tbody tr").length} rows`);
@@ -217,7 +217,7 @@ function mountFiltered() {
     });
     return table;
 }
-const summaryEntries = (/** @type {HTMLElement} */ table) => $$(table, ".k-dt-overlay .k-dt-fsum-edit").map((b) => b.getAttribute("aria-label"));
+const summaryEntries = (/** @type {HTMLElement} */ table) => $$(table, ".jw-dt-overlay .jw-dt-fsum-edit").map((b) => b.getAttribute("aria-label"));
 
 test("filter summary: \"Filter (n)\" opens the active filters with their values", async () => {
     const table = mountFiltered();
@@ -238,16 +238,16 @@ test("filter summary: \"Filter (n)\" opens the active filters with their values"
         "Edit filter Fee: > €50.00"
     ]);
     assert.equal(deepActiveElement()?.dataset.fk, "fsum:edit:search", "focus on the first entry");
-    assert.deepEqual($$(table, '.k-dt-overlay [data-fk^="fsum:remove:"]').map(accessibleName),
+    assert.deepEqual($$(table, '.jw-dt-overlay [data-fk^="fsum:remove:"]').map(accessibleName),
         ["Remove filter: Search", "Remove filter: Name", "Remove filter: Fee"]);
-    assert.ok($$(table, ".k-dt-overlay .k-dt-fsum-item").every((li) => li.getBoundingClientRect().height >= 44), "touch targets");
+    assert.ok($$(table, ".jw-dt-overlay .jw-dt-fsum-item").every((li) => li.getBoundingClientRect().height >= 44), "touch targets");
 
     await input.press("Escape");
     assert.equal($(table, '[role="dialog"]'), null);
     assert.equal(deepActiveElement()?.dataset.fk, "tb:filters", "focus back on the opener");
 
     await input.press("Enter");
-    assert.deepEqual($$(table, ".k-dt-overlay .k-dt-panel-actions button").map(accessibleName), ["Clear all filters", "Close"]);
+    assert.deepEqual($$(table, ".jw-dt-overlay .jw-dt-panel-actions button").map(accessibleName), ["Clear all filters", "Close"]);
     $(table, '[data-fk="fsum:close"]').focus();
     await input.press("Enter");
     assert.equal($(table, '[role="dialog"]'), null, "Close closes the panel");
@@ -257,7 +257,7 @@ test("filter summary: \"Filter (n)\" opens the active filters with their values"
 
 test("typing in the search field updates \"Filter (n)\" and keeps focus in the field", async () => {
     const table = mount({ features: { filtering: true, globalSearch: true } });
-    const field = $(table, ".k-dt-search-input");
+    const field = $(table, ".jw-dt-search-input");
     field.focus();
     await type("an");
     await waitFor(() => $(table, '[data-fk="tb:filters"]'), { message: "filter buttons shown" });
@@ -285,7 +285,7 @@ test("filter summary: removing one filter keeps the panel open, the last one clo
     assert.equal(deepActiveElement()?.dataset.fk, "fsum:remove:search", "the last one left");
     $(table, '[data-fk="fsum:remove:search"]').click();
     assert.equal(table.getState().globalSearch, "");
-    assert.equal($(table, ".k-dt-search-input").value, "");
+    assert.equal($(table, ".jw-dt-search-input").value, "");
     assert.equal($(table, '[role="dialog"]'), null, "closed with the last filter");
     assert.equal($(table, '[data-fk="tb:filters"]'), null);
     assert.ok(root(table).contains(deepActiveElement()), "focus stays in the table");
@@ -314,17 +314,17 @@ test("filter summary: an entry opens its column filter, which comes back to the 
     assert.equal($(table, '[data-fk="tb:filters"]').getAttribute("aria-expanded"), "true");
 
     await input.press("Escape");
-    assert.ok(dialog().classList.contains("k-dt-fsum-panel"), "Escape steps back to the summary");
+    assert.ok(dialog().classList.contains("jw-dt-fsum-panel"), "Escape steps back to the summary");
     assert.equal(deepActiveElement()?.dataset.fk, "fsum:edit:column:fee");
 
     await input.press("Enter");
-    const operand = $(table, ".k-dt-overlay .k-dt-operands input");
+    const operand = $(table, ".jw-dt-overlay .jw-dt-operands input");
     operand.focus();
     operand.select();
     await type("100");
     await input.press("Enter");
     assert.equal(/** @type {any} */ (table.getState().filters.fee).operand, "100");
-    assert.ok(dialog().classList.contains("k-dt-fsum-panel"), "Apply comes back to the summary");
+    assert.ok(dialog().classList.contains("jw-dt-fsum-panel"), "Apply comes back to the summary");
     assert.equal(summaryEntries(table)[2], "Edit filter Fee: > €100.00");
     assert.equal(deepActiveElement()?.dataset.fk, "fsum:edit:column:fee");
 
@@ -332,7 +332,7 @@ test("filter summary: an entry opens its column filter, which comes back to the 
     table.setState({ globalSearch: "", filters: { fee: table.getState().filters.fee } });
     $(table, '[data-fk="tb:filters"]').click();
     $(table, '[data-fk="fsum:edit:column:fee"]').click();
-    $$(table, ".k-dt-overlay .k-dt-panel-actions button")[0].click();   // Reset
+    $$(table, ".jw-dt-overlay .jw-dt-panel-actions button")[0].click();   // Reset
     assert.equal(dialog(), null);
     assert.deepEqual(table.getState().filters, {});
 }, { cdp: true });

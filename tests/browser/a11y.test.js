@@ -44,18 +44,18 @@ test("form controls have accessible names", () => {
 test("form controls inside panels have accessible names", async () => {
     const table = mount({ features: ALL_FEATURES });
     const check = (/** @type {string} */ what) => {
-        const unnamed = $$(table, ".k-dt-overlay input, .k-dt-overlay select")
+        const unnamed = $$(table, ".jw-dt-overlay input, .jw-dt-overlay select")
             .filter((c) => !c.getAttribute("aria-label") && !c.labels?.length);
         assert.deepEqual(unnamed.map((c) => c.outerHTML), [], what);
     };
     $(table, '[data-fk="filter:fee"]').click();          // number column → pattern tab
     check("filter panel (pattern)");
-    $(table, '.k-dt-overlay [role="tab"]').click();     // values tab
+    $(table, '.jw-dt-overlay [role="tab"]').click();     // values tab
     check("filter panel (values)");
     $(table, '[data-fk="tb:columns"]').click();
     check("column chooser");
     $(table, '[data-fk="tb:saved-views"]').click();
-    await waitFor(() => $(table, ".k-dt-overlay .k-dt-views-save"));
+    await waitFor(() => $(table, ".jw-dt-overlay .jw-dt-views-save"));
     check("saved views panel");
 });
 
@@ -79,7 +79,7 @@ test("Tab moves from the search field into the toolbar buttons", async () => {
     await input.press("Tab");
     const active = deepActiveElement();
     assert.equal(active?.tagName, "BUTTON");
-    assert.ok(active.closest(".k-dt-toolbar"), "focus stays in toolbar");
+    assert.ok(active.closest(".jw-dt-toolbar"), "focus stays in toolbar");
 }, { cdp: true });
 
 // ---- Focus management -----------------------------------------------------
@@ -96,7 +96,7 @@ test("pagination keeps focus on the pressed button, then on the current page", (
 
 test("empty state spans all columns", () => {
     const table = mount({ data: [] });
-    assert.equal($(table, ".k-dt-empty").colSpan, COLUMNS.length);
+    assert.equal($(table, ".jw-dt-empty").colSpan, COLUMNS.length);
 });
 
 // ---- Table cells: roving focus -------------------------------------------
@@ -173,10 +173,10 @@ test("record details: copy buttons and links in the dialog act on the shown reco
     rightClick($$(table, "tbody td")[0]);
     Array.from($$(table, '[role="menuitem"]')).find((i) => i.textContent.includes("details")).click();
     const dialog = $(table, '[role="dialog"]');
-    dialog.querySelector(".k-dt-link").click();
+    dialog.querySelector(".jw-dt-link").click();
     assert.deepEqual(linked, [1]);
-    dialog.querySelector(".k-dt-copy").click();
-    await waitFor(() => dialog.querySelector(".k-dt-copy.is-copied"), { message: "copy feedback" });
+    dialog.querySelector(".jw-dt-copy").click();
+    await waitFor(() => dialog.querySelector(".jw-dt-copy.is-copied"), { message: "copy feedback" });
 });
 
 test("empty values get no link or action button", () => {
@@ -203,7 +203,7 @@ test("links with an unsafe URL scheme render as text; SPA links get a safe href"
     });
     assert.equal($(table, '[data-fk="cell:0:site:link"]').getAttribute("href"), "https://example.org");
     assert.equal($(table, '[data-fk="cell:1:site:link"]'), null, "unsafe URL: no link");
-    assert.equal($(table, '[data-fk="cell:1:site"] .k-dt-value').textContent, evil, "value still shown");
+    assert.equal($(table, '[data-fk="cell:1:site"] .jw-dt-value').textContent, evil, "value still shown");
     const spa = $(table, '[data-fk="cell:1:name:link"]');
     assert.equal(spa.getAttribute("href"), "#", "SPA link keeps working without the unsafe href");
     /** @type {any} */
@@ -217,8 +217,8 @@ test("cards: single tab stop, arrow navigation, Enter triggers onRowClick", asyn
     /** @type {any} */
     let clicked = null;
     const table = mount({ features: { grid: true }, defaultLayout: "grid", onRowClick: (/** @type {any} */ row) => { clicked = row.id; } });
-    assert.equal($(table, ".k-dt-grid").getAttribute("role"), "list");
-    assert.equal($$(table, ".k-dt-card").filter((c) => c.tabIndex === 0).length, 1);
+    assert.equal($(table, ".jw-dt-grid").getAttribute("role"), "list");
+    assert.equal($$(table, ".jw-dt-card").filter((c) => c.tabIndex === 0).length, 1);
     $(table, '[data-fk="card:0"]').focus();
     await input.press("ArrowDown");
     await input.press("ArrowRight");
@@ -239,7 +239,7 @@ test("cards: single tab stop, arrow navigation, Enter triggers onRowClick", asyn
 test("cards without onRowClick ignore Enter", async () => {
     const table = mount({ features: { grid: true }, defaultLayout: "grid" });
     const card = $(table, '[data-fk="card:0"]');
-    assert.ok(!card.classList.contains("k-dt-clickable"));
+    assert.ok(!card.classList.contains("jw-dt-clickable"));
     let clicks = 0;
     card.addEventListener("click", () => { clicks += 1; });
     card.focus();
@@ -379,10 +379,10 @@ test("announcements while a panel is open go to the panel's live region", async 
         list: () => [], get: () => null, save: () => {}, rename: () => {}, delete: () => {}
     } } });
     $(table, '[data-fk="tb:saved-views"]').click();
-    const nameInput = await waitFor(() => $(table, ".k-dt-overlay .k-dt-views-save input"));
+    const nameInput = await waitFor(() => $(table, ".jw-dt-overlay .jw-dt-views-save input"));
     nameInput.value = "Mine";
     nameInput.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
-    await waitFor(() => $(table, ".k-dt-overlay [data-live]")?.textContent.startsWith("View “Mine” saved"), {
+    await waitFor(() => $(table, ".jw-dt-overlay [data-live]")?.textContent.startsWith("View “Mine” saved"), {
         message: "expected the announcement inside the open dialog"
     });
 });

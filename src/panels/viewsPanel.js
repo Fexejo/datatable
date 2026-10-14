@@ -51,26 +51,26 @@ import { uid } from "../core/util.js";
 export function buildViewsPanel({ t, views, announce, close }) {
     /** @type {PanelState} */
     const ui = { names: null, step: null, error: null, busy: false, renameDraft: "" };
-    const errorId = uid("kdt-verr");
+    const errorId = uid("jwdt-verr");
 
     const nameInput = el("input", {
         type: "text",
-        class: "k-dt-input",
+        class: "jw-dt-input",
         placeholder: t.viewNamePlaceholder,
         "aria-label": t.viewNamePlaceholder,
         "data-vk": "name",
         "data-autofocus": "",
         onkeydown: (e) => { if (e.key === "Enter") { e.preventDefault(); save(); } }
     });
-    const activeSection = el("div", { class: "k-dt-views-active-wrap" });
-    const saveExtra = el("div", { class: "k-dt-views-extra" });
-    const listSection = el("div", { class: "k-dt-views-list" });
-    const panel = el("div", { class: "k-dt-panel k-dt-views-panel" }, [
-        el("h2", { class: "k-dt-panel-head", text: t.savedViews }),
+    const activeSection = el("div", { class: "jw-dt-views-active-wrap" });
+    const saveExtra = el("div", { class: "jw-dt-views-extra" });
+    const listSection = el("div", { class: "jw-dt-views-list" });
+    const panel = el("div", { class: "jw-dt-panel jw-dt-views-panel" }, [
+        el("h2", { class: "jw-dt-panel-head", text: t.savedViews }),
         activeSection,
-        el("div", { class: "k-dt-views-save" }, [
+        el("div", { class: "jw-dt-views-save" }, [
             nameInput,
-            el("button", { type: "button", class: "k-dt-btn k-dt-btn-primary", text: t.save, "data-vk": "save", onclick: () => save() })
+            el("button", { type: "button", class: "jw-dt-btn jw-dt-btn-primary", text: t.save, "data-vk": "save", onclick: () => save() })
         ]),
         saveExtra,
         listSection
@@ -256,7 +256,7 @@ export function buildViewsPanel({ t, views, announce, close }) {
  * @param {string} errorId
  */
 function errorText(ui, at, errorId) {
-    return ui.error?.at === at ? el("p", { class: "k-dt-views-error", id: errorId, text: ui.error.text }) : null;
+    return ui.error?.at === at ? el("p", { class: "jw-dt-views-error", id: errorId, text: ui.error.text }) : null;
 }
 
 // Escape inside a question or the rename field steps back, not out of the panel.
@@ -283,13 +283,13 @@ function stepBackOnEscape(actions, focusKey) {
  * @param {Actions} actions
  */
 function question(t, text, okText, onOk, cancelKey, actions) {
-    const id = uid("kdt-vq");
-    return el("div", { class: "k-dt-views-confirm", role: "group", "aria-labelledby": id, onkeydown: stepBackOnEscape(actions, cancelKey) }, [
-        el("p", { class: "k-dt-views-question", id, text }),
-        el("div", { class: "k-dt-panel-actions" }, [
-            el("button", { type: "button", class: "k-dt-btn k-dt-btn-primary", text: okText, "aria-describedby": id, onclick: onOk }),
+    const id = uid("jwdt-vq");
+    return el("div", { class: "jw-dt-views-confirm", role: "group", "aria-labelledby": id, onkeydown: stepBackOnEscape(actions, cancelKey) }, [
+        el("p", { class: "jw-dt-views-question", id, text }),
+        el("div", { class: "jw-dt-panel-actions" }, [
+            el("button", { type: "button", class: "jw-dt-btn jw-dt-btn-primary", text: okText, "aria-describedby": id, onclick: onOk }),
             el("button", {
-                type: "button", class: "k-dt-btn", text: t.cancel, "data-vk": "step-cancel", "aria-describedby": id,
+                type: "button", class: "jw-dt-btn", text: t.cancel, "data-vk": "step-cancel", "aria-describedby": id,
                 // A failed action's message stays until the next attempt.
                 onclick: () => actions.cancelStep(cancelKey, false)
             })
@@ -304,15 +304,15 @@ function question(t, text, okText, onOk, cancelKey, actions) {
  * @param {Actions} actions
  */
 function activeView(t, active, actions) {
-    const id = uid("kdt-vact");
-    return el("div", { class: "k-dt-views-active" }, [
+    const id = uid("jwdt-vact");
+    return el("div", { class: "jw-dt-views-active" }, [
         el("p", { id }, [
             `${t.activeView}: `,
             el("strong", { text: active.name }),
-            active.modified && el("span", { class: "k-dt-views-badge", text: ` (${t.viewModified})` })
+            active.modified && el("span", { class: "jw-dt-views-badge", text: ` (${t.viewModified})` })
         ]),
         active.modified && el("button", {
-            type: "button", class: "k-dt-btn", text: t.updateView, "data-vk": "update", "aria-describedby": id,
+            type: "button", class: "jw-dt-btn", text: t.updateView, "data-vk": "update", "aria-describedby": id,
             onclick: () => actions.update(active.name)
         })
     ]);
@@ -332,16 +332,16 @@ function listContent(t, ui, errorId, activeName, actions) {
     /** @type {HTMLElement} */
     let content;
     if (ui.names === null && ui.error?.at === "list") {
-        content = el("button", { type: "button", class: "k-dt-btn", text: t.retry, "data-vk": "retry", onclick: () => actions.retry() });
+        content = el("button", { type: "button", class: "jw-dt-btn", text: t.retry, "data-vk": "retry", onclick: () => actions.retry() });
     } else if (ui.names === null) {
-        content = el("p", { class: "k-dt-views-empty", text: t.viewsLoading });
+        content = el("p", { class: "jw-dt-views-empty", text: t.viewsLoading });
     } else if (ui.names.length === 0) {
-        content = el("p", { class: "k-dt-views-empty", text: t.noSavedViews });
+        content = el("p", { class: "jw-dt-views-empty", text: t.noSavedViews });
     } else {
-        content = el("ul", { class: "k-dt-views-items", "aria-label": t.savedViews }, ui.names.map((name) => {
+        content = el("ul", { class: "jw-dt-views-items", "aria-label": t.savedViews }, ui.names.map((name) => {
             const step = ui.step?.name === name ? ui.step.kind : null;
             if (step === "delete") {
-                return el("li", { class: "k-dt-views-item is-step" }, [
+                return el("li", { class: "jw-dt-views-item is-step" }, [
                     question(t, t.confirmDelete(name), t.deleteView, () => actions.remove(name), `delete:${name}`, actions)
                 ]);
             }
@@ -360,22 +360,22 @@ function listContent(t, ui, errorId, activeName, actions) {
  * @param {Actions} actions
  */
 function viewItem(t, name, isActive, actions) {
-    return el("li", { class: "k-dt-views-item" }, [
+    return el("li", { class: "jw-dt-views-item" }, [
         el("button", {
             type: "button",
-            class: "k-dt-views-load",
+            class: "jw-dt-views-load",
             title: t.loadView,
             "data-vk": `load:${name}`,
             "aria-current": isActive ? "true" : null,
             onclick: () => actions.load(name)
-        }, [isActive ? iconEl("check") : el("span", { class: "k-dt-ic" }), el("span", { class: "k-dt-views-name", text: name })]),
+        }, [isActive ? iconEl("check") : el("span", { class: "jw-dt-ic" }), el("span", { class: "jw-dt-views-name", text: name })]),
         el("button", {
-            type: "button", class: "k-dt-icon-btn", title: t.renameView,
+            type: "button", class: "jw-dt-icon-btn", title: t.renameView,
             "aria-label": t.renameViewNamed(name), "data-vk": `rename:${name}`,
             onclick: () => actions.startRename(name)
         }, [iconEl("pencil")]),
         el("button", {
-            type: "button", class: "k-dt-icon-btn", title: t.deleteView,
+            type: "button", class: "jw-dt-icon-btn", title: t.deleteView,
             "aria-label": t.deleteViewNamed(name), "data-vk": `delete:${name}`,
             onclick: () => actions.startDelete(name)
         }, [iconEl("trash")])
@@ -392,10 +392,10 @@ function viewItem(t, name, isActive, actions) {
  */
 function renameItem(t, ui, errorId, name, actions) {
     const invalid = ui.error?.at === "rename";
-    return el("li", { class: "k-dt-views-item is-step", onkeydown: stepBackOnEscape(actions, `rename:${name}`) }, [
+    return el("li", { class: "jw-dt-views-item is-step", onkeydown: stepBackOnEscape(actions, `rename:${name}`) }, [
         el("input", {
             type: "text",
-            class: "k-dt-input",
+            class: "jw-dt-input",
             value: ui.renameDraft,
             "aria-label": t.newViewName(name),
             "data-vk": "rename-input",
@@ -405,9 +405,9 @@ function renameItem(t, ui, errorId, name, actions) {
             onkeydown: (e) => { if (e.key === "Enter") { e.preventDefault(); actions.rename(name); } }
         }),
         errorText(ui, "rename", errorId),
-        el("div", { class: "k-dt-panel-actions" }, [
-            el("button", { type: "button", class: "k-dt-btn k-dt-btn-primary", text: t.renameView, onclick: () => actions.rename(name) }),
-            el("button", { type: "button", class: "k-dt-btn", text: t.cancel, onclick: () => actions.cancelStep(`rename:${name}`) })
+        el("div", { class: "jw-dt-panel-actions" }, [
+            el("button", { type: "button", class: "jw-dt-btn jw-dt-btn-primary", text: t.renameView, onclick: () => actions.rename(name) }),
+            el("button", { type: "button", class: "jw-dt-btn", text: t.cancel, onclick: () => actions.cancelStep(`rename:${name}`) })
         ])
     ]);
 }

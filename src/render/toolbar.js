@@ -33,13 +33,13 @@ export function buildToolbar({
     t, title, titleId, search, filterCount, onShowFilters, onClearFilters,
     layouts, currentLayout, onLayout, panels, openerKey
 }) {
-    const left = el("div", { class: "k-dt-toolbar-left" }, [
-        title && el("div", { class: "k-dt-title", id: titleId, text: title }),
-        search && el("div", { class: "k-dt-search" }, [
-            iconEl("search", "k-dt-search-ic"),
+    const left = el("div", { class: "jw-dt-toolbar-left" }, [
+        title && el("div", { class: "jw-dt-title", id: titleId, text: title }),
+        search && el("div", { class: "jw-dt-search" }, [
+            iconEl("search", "jw-dt-search-ic"),
             el("input", {
                 type: "search",
-                class: "k-dt-search-input",
+                class: "jw-dt-search-input",
                 "data-fk": "search",
                 placeholder: search.placeholder,
                 value: search.value,
@@ -49,13 +49,13 @@ export function buildToolbar({
         ])
     ]);
 
-    const right = el("div", { class: "k-dt-toolbar-right" }, [
+    const right = el("div", { class: "jw-dt-toolbar-right" }, [
         buildFilterButtons({ t, filterCount, onShowFilters, onClearFilters, openerKey }),
         // One toggle button per layout; the current one is pressed.
-        layouts.length > 1 && el("div", { class: "k-dt-layout-switch", role: "group", "aria-label": t.layoutSwitch },
+        layouts.length > 1 && el("div", { class: "jw-dt-layout-switch", role: "group", "aria-label": t.layoutSwitch },
             layouts.map(({ layout, icon, label }) => el("button", {
                 type: "button",
-                class: "k-dt-btn",
+                class: "jw-dt-btn",
                 "data-fk": `tb:layout:${layout}`,
                 title: label,
                 "aria-label": label,
@@ -64,7 +64,7 @@ export function buildToolbar({
             }, [iconEl(icon)]))),
         ...panels.map(({ fk, icon, label, open }) => el("button", {
             type: "button",
-            class: "k-dt-btn",
+            class: "jw-dt-btn",
             "data-fk": fk,
             "aria-haspopup": "dialog",
             "aria-expanded": String(openerKey === fk),
@@ -74,7 +74,7 @@ export function buildToolbar({
         }, [iconEl(icon)]))
     ]);
 
-    return el("div", { class: "k-dt-toolbar", part: "toolbar" }, [left, right]);
+    return el("div", { class: "jw-dt-toolbar", part: "toolbar" }, [left, right]);
 }
 
 // "Filter (n)" joined with its "x", or null without active filters. Also
@@ -82,10 +82,10 @@ export function buildToolbar({
 /** @param {FilterButtonsOptions} options */
 export function buildFilterButtons({ t, filterCount, onShowFilters, onClearFilters, openerKey }) {
     if (!(filterCount > 0)) return null;
-    return el("div", { class: "k-dt-btn-group" }, [
+    return el("div", { class: "jw-dt-btn-group" }, [
         el("button", {
             type: "button",
-            class: "k-dt-btn",
+            class: "jw-dt-btn",
             "data-fk": "tb:filters",
             "aria-haspopup": "dialog",
             "aria-expanded": String(openerKey === "tb:filters"),
@@ -95,7 +95,7 @@ export function buildFilterButtons({ t, filterCount, onShowFilters, onClearFilte
         }),
         el("button", {
             type: "button",
-            class: "k-dt-btn",
+            class: "jw-dt-btn",
             "data-fk": "tb:clear",
             title: t.clearFilters,
             "aria-label": t.clearFilters,

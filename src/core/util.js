@@ -86,7 +86,7 @@ export function debounce(fn, wait = 200) {
 }
 
 let counter = 0;
-export function uid(prefix = "k") {
+export function uid(prefix = "jwdt") {
     counter += 1;
     return `${prefix}-${Date.now().toString(36)}-${counter}`;
 }

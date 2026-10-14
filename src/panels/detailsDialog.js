@@ -17,9 +17,9 @@ import { clamp } from "../core/util.js";
  */
 export function buildDetailsDialog({ t, rows, index, title, fields, onNavigate, onOpen, onClose }) {
     let current = index;
-    const head = el("h2", { class: "k-dt-panel-head", tabIndex: -1, "data-autofocus": "" });
-    const position = el("p", { class: "k-dt-details-pos" });
-    const body = el("div", { class: "k-dt-details-body" });
+    const head = el("h2", { class: "jw-dt-panel-head", tabIndex: -1, "data-autofocus": "" });
+    const position = el("p", { class: "jw-dt-details-pos" });
+    const body = el("div", { class: "jw-dt-details-body" });
     /**
      * @param {string} icon
      * @param {string} text
@@ -28,17 +28,17 @@ export function buildDetailsDialog({ t, rows, index, title, fields, onNavigate, 
      */
     const navButton = (icon, text, label, step) => el("button", {
         type: "button",
-        class: "k-dt-btn",
+        class: "jw-dt-btn",
         "aria-label": label,
         onclick: () => show(current + step, true)
     }, step < 0 ? [iconEl(icon), el("span", { text })] : [el("span", { text }), iconEl(icon)]);
     const prev = navButton("chevron-left", t.previous, t.prevRecord, -1);
     const next = navButton("chevron-right", t.next, t.nextRecord, 1);
-    const actions = el("div", { class: "k-dt-panel-actions k-dt-details-actions" }, [prev, next]);
+    const actions = el("div", { class: "jw-dt-panel-actions jw-dt-details-actions" }, [prev, next]);
     if (onOpen) {
         actions.prepend(el("button", {
             type: "button",
-            class: "k-dt-btn k-dt-btn-primary k-dt-details-open",
+            class: "jw-dt-btn jw-dt-btn-primary jw-dt-details-open",
             text: t.openRecord,
             onclick: () => onOpen(rows()[current])
         }));
@@ -65,12 +65,12 @@ export function buildDetailsDialog({ t, rows, index, title, fields, onNavigate, 
         onNavigate(record, name ? `${position.textContent}: ${name}` : position.textContent);
     };
 
-    const panel = el("div", { class: "k-dt-panel k-dt-details" }, [
-        el("div", { class: "k-dt-details-head" }, [
+    const panel = el("div", { class: "jw-dt-panel jw-dt-details" }, [
+        el("div", { class: "jw-dt-details-head" }, [
             head,
             el("button", {
                 type: "button",
-                class: "k-dt-icon-btn",
+                class: "jw-dt-icon-btn",
                 title: t.close,
                 "aria-label": t.close,
                 onclick: onClose

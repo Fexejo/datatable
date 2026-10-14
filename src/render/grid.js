@@ -32,10 +32,10 @@ import { buildFields, valueNode } from "./values.js";
  */
 export function buildGrid(view) {
     const { t, columns, locale } = view;
-    const grid = el("div", { class: "k-dt-grid", part: "grid", role: "list", "aria-labelledby": view.labelledBy });
+    const grid = el("div", { class: "jw-dt-grid", part: "grid", role: "list", "aria-labelledby": view.labelledBy });
     grid.style.gridTemplateColumns = `repeat(auto-fill, minmax(${view.minWidth}, 1fr))`;
     if (view.rows.length === 0) {
-        grid.appendChild(el("div", { class: "k-dt-empty", text: view.emptyText }));
+        grid.appendChild(el("div", { class: "jw-dt-empty", text: view.emptyText }));
         return grid;
     }
 
@@ -44,7 +44,7 @@ export function buildGrid(view) {
     view.rows.forEach((row, index) => {
         const fk = `card:${index}`;
         const card = el("div", {
-            class: "k-dt-card" + (view.cardsClickable ? " k-dt-clickable" : ""),
+            class: "jw-dt-card" + (view.cardsClickable ? " jw-dt-clickable" : ""),
             part: "card",
             role: "listitem",
             tabIndex: -1,
@@ -52,7 +52,7 @@ export function buildGrid(view) {
         });
         if (titleColumn) {
             const value = getCellValue(row, titleColumn);
-            const title = el("div", { class: "k-dt-card-title" }, [
+            const title = el("div", { class: "jw-dt-card-title" }, [
                 valueNode(titleColumn, row, value, `${fk}:${titleColumn.key}`, locale)
             ]);
             view.register(title, { column: titleColumn, row, value });
@@ -63,7 +63,7 @@ export function buildGrid(view) {
         view.register(card, { column: columns[0], row, value: getCellValue(row, columns[0]), index });
         grid.appendChild(card);
     });
-    initRoving(grid, ".k-dt-card", {
+    initRoving(grid, ".jw-dt-card", {
         rememberedKey: view.roving.key,
         onFocus: view.roving.onFocus,
         onKey: (event, card) => onCardKey(view, event, card)
@@ -71,7 +71,7 @@ export function buildGrid(view) {
     grid.setAttribute("aria-describedby", view.hintId);
     // The hint sits next to the list (a list may only contain list items).
     const fragment = document.createDocumentFragment();
-    fragment.append(grid, el("p", { id: view.hintId, class: "k-dt-sr-only", text: t.gridKeyboardHint }));
+    fragment.append(grid, el("p", { id: view.hintId, class: "jw-dt-sr-only", text: t.gridKeyboardHint }));
     return fragment;
 }
 
@@ -89,7 +89,7 @@ function onCardKey(view, event, card) {
         return;
     }
     /** @type {HTMLElement[]} */
-    const cards = Array.from(card.parentElement?.querySelectorAll(".k-dt-card") ?? []);
+    const cards = Array.from(card.parentElement?.querySelectorAll(".jw-dt-card") ?? []);
     const target = listItemTarget(event, card, cards);
     if (!target) return;
     event.preventDefault();

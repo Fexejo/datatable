@@ -1,7 +1,7 @@
 // Pinned columns and horizontal scroll shadows of the table viewport.
 //
 // Pinned cells are `position: sticky`; each one's `left` is the summed width
-// of the sticky columns before it (`--k-dt-pin-<index>` on the viewport). When
+// of the sticky columns before it (`--dt-pin-<index>` on the viewport). When
 // they don't all fit, the most recently pinned ones (the last ones) stay
 // sticky and older ones are paused (`left: auto`, they scroll along).
 //
@@ -34,12 +34,12 @@ export function firstStickyPin(widths, limit) {
  */
 export function layoutPinned(viewport) {
     /** @type {HTMLElement|null} */
-    const body = viewport.querySelector(".k-dt-body");
+    const body = viewport.querySelector(".jw-dt-body");
     /** @type {HTMLTableElement|null} */
-    const table = viewport.querySelector(".k-dt-table");
+    const table = viewport.querySelector(".jw-dt-table");
     // Read …
     const pinned = table?.tHead
-        ? Array.from(table.tHead.rows[0].cells).filter((th) => th.classList.contains("k-dt-pinned"))
+        ? Array.from(table.tHead.rows[0].cells).filter((th) => th.classList.contains("jw-dt-pinned"))
         : [];
     const widths = pinned.map((th) => th.getBoundingClientRect().width);
     const first = body && pinned.length ? firstStickyPin(widths, body.clientWidth * MAX_PINNED_SHARE) : 0;
@@ -57,7 +57,7 @@ export function layoutPinned(viewport) {
             value = `${offset}px`;
             offset += widths[i];
         }
-        const name = `--k-dt-pin-${i}`;
+        const name = `--dt-pin-${i}`;
         if (viewport.style.getPropertyValue(name) !== value) viewport.style.setProperty(name, value);
     });
     viewport.classList.toggle("has-pins", pinned.length - first > 0);
@@ -68,7 +68,7 @@ export function layoutPinned(viewport) {
 // Shadows on the edges that have more content to scroll to.
 /** @param {HTMLElement} viewport */
 export function updateScrollShadows(viewport) {
-    applyScrollShadows(viewport, scrollShadows(viewport.querySelector(".k-dt-body")));
+    applyScrollShadows(viewport, scrollShadows(viewport.querySelector(".jw-dt-body")));
 }
 
 /** @param {Element|null} body */

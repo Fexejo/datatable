@@ -16,15 +16,15 @@ import { uid } from "../core/util.js";
  *     onSubmit: (options: ExportOptions) => void, onCancel: () => void }} options
  */
 export function buildExportDialog({ t, defaults, baseName, scopes, hasHiddenColumns, onSubmit, onCancel }) {
-    const id = uid("kdt-exp");
+    const id = uid("jwdt-exp");
     /** @param {HTMLElement} label */
     const inputOf = (label) => /** @type {HTMLInputElement} */ (label.querySelector("input"));
     /**
      * @param {string} text
      * @param {HTMLElement} control
      */
-    const field = (text, control) => el("div", { class: "k-dt-field" }, [
-        el("label", { class: "k-dt-field-label", for: control.id, text }),
+    const field = (text, control) => el("div", { class: "jw-dt-field" }, [
+        el("label", { class: "jw-dt-field-label", for: control.id, text }),
         control
     ]);
     /**
@@ -57,7 +57,7 @@ export function buildExportDialog({ t, defaults, baseName, scopes, hasHiddenColu
         defaults.destination === "clipboard" && EXPORT_FORMATS[format].text ? "clipboard" : "download");
     const filename = el("input", {
         type: "text",
-        class: "k-dt-input",
+        class: "jw-dt-input",
         id: `${id}-name`,
         autocomplete: "off",
         value: defaultFilename(baseName, format)
@@ -79,10 +79,10 @@ export function buildExportDialog({ t, defaults, baseName, scopes, hasHiddenColu
     const delimiterNames = { ";": "semicolon", ",": "comma", "\t": "tab", "|": "pipe" };
     const delimiterOptions = Object.entries(delimiterNames).map(([value, key]) => [value, t.delimiters[key]]);
     if (!delimiterNames[defaults.delimiter]) delimiterOptions.push([defaults.delimiter, defaults.delimiter]);
-    const delimiter = el("select", { class: "k-dt-select", id: `${id}-delimiter` },
+    const delimiter = el("select", { class: "jw-dt-select", id: `${id}-delimiter` },
         delimiterOptions.map(([value, text]) => el("option", { value, text, selected: value === defaults.delimiter })));
     const delimiterField = field(t.exportDelimiter, delimiter);
-    const more = el("div", { class: "k-dt-export-more", id: `${id}-more`, hidden: true },
+    const more = el("div", { class: "jw-dt-export-more", id: `${id}-more`, hidden: true },
         [scopeGroup, allColumns, localized, headers, namesGroup, metadata, delimiterField]);
 
     // Column names and the delimiter follow format and destination until
@@ -92,7 +92,7 @@ export function buildExportDialog({ t, defaults, baseName, scopes, hasHiddenColu
     namesGroup.addEventListener("change", () => { namesSet = true; });
     delimiter.addEventListener("change", () => { delimiterSet = true; });
 
-    const submit = el("button", { type: "submit", class: "k-dt-btn k-dt-btn-primary" });
+    const submit = el("button", { type: "submit", class: "jw-dt-btn jw-dt-btn-primary" });
     const sync = () => {
         const clipboard = radioValue(destinationGroup) === "clipboard";
         // XLSX cannot go to the clipboard.
@@ -127,7 +127,7 @@ export function buildExportDialog({ t, defaults, baseName, scopes, hasHiddenColu
 
     const toggle = el("button", {
         type: "button",
-        class: "k-dt-btn k-dt-disclosure",
+        class: "jw-dt-btn jw-dt-disclosure",
         "aria-expanded": "false",
         "aria-controls": more.id,
         onclick: () => {
@@ -138,7 +138,7 @@ export function buildExportDialog({ t, defaults, baseName, scopes, hasHiddenColu
 
     // Enter in the file name or on an option submits the form.
     const form = el("form", {
-        class: "k-dt-export-form",
+        class: "jw-dt-export-form",
         onsubmit: (event) => {
             event.preventDefault();
             onSubmit({
@@ -160,14 +160,14 @@ export function buildExportDialog({ t, defaults, baseName, scopes, hasHiddenColu
         filenameField,
         toggle,
         more,
-        el("div", { class: "k-dt-panel-actions" }, [
-            el("button", { type: "button", class: "k-dt-btn", text: t.cancel, onclick: onCancel }),
+        el("div", { class: "jw-dt-panel-actions" }, [
+            el("button", { type: "button", class: "jw-dt-btn", text: t.cancel, onclick: onCancel }),
             submit
         ])
     ]);
 
-    return el("div", { class: "k-dt-panel k-dt-export" }, [
-        el("h2", { class: "k-dt-panel-head", text: t.exportTitle }),
+    return el("div", { class: "jw-dt-panel jw-dt-export" }, [
+        el("h2", { class: "jw-dt-panel-head", text: t.exportTitle }),
         form
     ]);
 }

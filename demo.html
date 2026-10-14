@@ -7,43 +7,39 @@
     <title>jw-datatable – Demo</title>
     <style>
         :root {
-            --k-font-family-base: system-ui, Arial, sans-serif;
-            --k-color-text: #222;
-            --k-color-text-muted: #595959;
-            --k-color-page: #fff;
-            --k-color-surface: #f0f0f0;
-            --k-color-surface-muted: #f8f8f8;
-            --k-color-hover: #e8e8e8;
-            --k-color-border: #d8d8d8;
-            --k-color-schicht-meine-bg: #1f7a3a;
-            --k-color-schicht-meine-text: #fff;
-            --k-color-schicht-vertretung-bg: #c0392b;
-            --k-space-2xs: 4px;
-            --k-space-xs: 6px;
-            --k-space-s: 8px;
-            --k-space-m: 10px;
-            --k-space-l: 12px;
-            --k-space-xl: 14px;
-            --k-space-2xl: 18px;
-            --k-space-3xl: 20px;
-            --k-space-4xl: 24px;
-            --k-radius-s: 8px;
-            --k-radius-m: 10px;
-            --k-radius-l: 12px;
+            --jw-dt-font-family: system-ui, Arial, sans-serif;
+            --jw-dt-color-text: #222;
+            --jw-dt-color-text-muted: #595959;
+            --jw-dt-color-page: #fff;
+            --jw-dt-color-surface: #f0f0f0;
+            --jw-dt-color-surface-muted: #f8f8f8;
+            --jw-dt-color-hover: #e8e8e8;
+            --jw-dt-color-border: #d8d8d8;
+            --jw-dt-color-accent: #1f7a3a;
+            --jw-dt-color-accent-text: #fff;
+            --jw-dt-color-error: #c0392b;
+            --jw-dt-space-2xs: 4px;
+            --jw-dt-space-xs: 6px;
+            --jw-dt-space-s: 8px;
+            --jw-dt-space-l: 12px;
+            --jw-dt-space-4xl: 24px;
+            --jw-dt-radius-s: 8px;
+            --jw-dt-radius-m: 10px;
+            --jw-dt-radius-l: 12px;
             /* Demo page only */
             --demo-control-border: #767676;
             color-scheme: light;
         }
 
         [data-theme="dark"] {
-            --k-color-text: #f4f4f4;
-            --k-color-text-muted: #b8b8b8;
-            --k-color-page: #171717;
-            --k-color-surface: #242424;
-            --k-color-surface-muted: #1f1f1f;
-            --k-color-hover: #333;
-            --k-color-border: #4a4a4a;
-            --k-color-schicht-meine-bg: #1f7a3a;
+            --jw-dt-color-text: #f4f4f4;
+            --jw-dt-color-text-muted: #b8b8b8;
+            --jw-dt-color-page: #171717;
+            --jw-dt-color-surface: #242424;
+            --jw-dt-color-surface-muted: #1f1f1f;
+            --jw-dt-color-hover: #333;
+            --jw-dt-color-border: #4a4a4a;
+            --jw-dt-color-accent: #1f7a3a;
             --demo-control-border: #8f8f8f;
             color-scheme: dark;
         }
@@ -52,9 +48,9 @@
 
         body {
             margin: 0;
-            font-family: var(--k-font-family-base);
-            background: var(--k-color-page);
-            color: var(--k-color-text);
+            font-family: var(--jw-dt-font-family);
+            background: var(--jw-dt-color-page);
+            color: var(--jw-dt-color-text);
             padding: 16px;
         }
         @media (min-width: 640px) { body { padding: 20px 24px; } }
@@ -79,22 +75,22 @@
             padding: 6px 12px;
             border: 1px solid var(--demo-control-border);
             border-radius: 8px;
-            background: var(--k-color-page);
-            color: var(--k-color-text);
+            background: var(--jw-dt-color-page);
+            color: var(--jw-dt-color-text);
         }
         button.ctrl { cursor: pointer; }
-        button.ctrl:hover, select.ctrl:hover { background: var(--k-color-hover); }
-        button.ctrl[aria-pressed="true"] { background: var(--k-color-surface); font-weight: 600; }
+        button.ctrl:hover, select.ctrl:hover { background: var(--jw-dt-color-hover); }
+        button.ctrl[aria-pressed="true"] { background: var(--jw-dt-color-surface); font-weight: 600; }
         input.ctrl { min-width: 0; }
         .inline-label { display: inline-flex; align-items: center; gap: 6px; font-size: 0.875rem; }
-        .inline-label > span { color: var(--k-color-text-muted); white-space: nowrap; }
+        .inline-label > span { color: var(--jw-dt-color-text-muted); white-space: nowrap; }
 
         /* Width control */
         .width-ctrl { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
-        .width-ctrl input[type="range"] { width: min(16rem, 50vw); min-height: 44px; accent-color: var(--k-color-schicht-meine-bg); }
+        .width-ctrl input[type="range"] { width: min(16rem, 50vw); min-height: 44px; accent-color: var(--jw-dt-color-accent); }
         .width-ctrl output { font-variant-numeric: tabular-nums; min-width: 4.5em; font-size: 0.875rem; }
         .check { display: inline-flex; align-items: center; gap: 6px; font-size: 0.875rem; min-height: 44px; cursor: pointer; }
-        .check input { width: 18px; height: 18px; margin: 0; cursor: pointer; accent-color: var(--k-color-schicht-meine-bg); }
+        .check input { width: 18px; height: 18px; margin: 0; cursor: pointer; accent-color: var(--jw-dt-color-accent); }
 
         /* ── Stage: the table with an adjustable width ─────────────────── */
         .stage {
@@ -112,20 +108,20 @@
             bottom: 0;
             width: 10px;
             border-radius: 5px;
-            background: var(--k-color-surface);
-            border: 1px solid var(--k-color-border);
+            background: var(--jw-dt-color-surface);
+            border: 1px solid var(--jw-dt-color-border);
             cursor: ew-resize;
             touch-action: none;
         }
-        .grip:hover, .grip.is-dragging { background: var(--k-color-hover); border-color: var(--demo-control-border); }
-        .hint { font-size: 0.8rem; color: var(--k-color-text-muted); margin: 4px 0 0; }
+        .grip:hover, .grip.is-dragging { background: var(--jw-dt-color-hover); border-color: var(--demo-control-border); }
+        .hint { font-size: 0.8rem; color: var(--jw-dt-color-text-muted); margin: 4px 0 0; }
 
         /* ── Collapsible panels ────────────────────────────────────────── */
         details.panel {
-            border: 1px solid var(--k-color-border);
+            border: 1px solid var(--jw-dt-color-border);
             border-radius: 10px;
             margin-bottom: 12px;
-            background: var(--k-color-page);
+            background: var(--jw-dt-color-page);
         }
         details.panel > summary {
             cursor: pointer;
@@ -149,7 +145,7 @@
             flex: none;
         }
         details.panel[open] > summary::before { transform: rotate(45deg); }
-        details.panel > summary .summary-note { font-weight: 400; font-size: 0.85rem; color: var(--k-color-text-muted); }
+        details.panel > summary .summary-note { font-weight: 400; font-size: 0.85rem; color: var(--jw-dt-color-text-muted); }
         .panel-body { padding: 0 16px 16px; }
 
         .cfg-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
@@ -162,7 +158,7 @@
         .cfg-grid fieldset, fieldset.cfg-wide {
             margin: 0;
             padding: 8px 12px 12px;
-            border: 1px solid var(--k-color-border);
+            border: 1px solid var(--jw-dt-color-border);
             border-radius: 8px;
             min-width: 0;
         }
@@ -174,11 +170,11 @@
             font-weight: 700;
             text-transform: uppercase;
             letter-spacing: 0.03em;
-            color: var(--k-color-text-muted);
+            color: var(--jw-dt-color-text-muted);
             padding: 0 6px;
         }
         .field { display: grid; gap: 4px; margin-top: 8px; font-size: 0.875rem; }
-        .field > span { color: var(--k-color-text-muted); }
+        .field > span { color: var(--jw-dt-color-text-muted); }
         .field code, .check code { font-size: 0.8rem; }
         .field .ctrl { width: 100%; }
         .check.is-sub { margin-left: 24px; }
@@ -189,21 +185,21 @@
             padding: 8px;
             border: 1px solid var(--demo-control-border);
             border-radius: 8px;
-            background: var(--k-color-page);
-            color: var(--k-color-text);
+            background: var(--jw-dt-color-page);
+            color: var(--jw-dt-color-text);
             resize: vertical;
         }
 
         /* Column options table */
         .col-scroll { overflow-x: auto; }
         table.cols { border-collapse: collapse; font-size: 0.85rem; width: 100%; }
-        table.cols th, table.cols td { padding: 2px 6px; border-bottom: 1px solid var(--k-color-border); text-align: center; white-space: nowrap; }
-        table.cols th { font-weight: 600; color: var(--k-color-text-muted); }
-        table.cols th[scope="row"], table.cols th:first-child { text-align: left; color: var(--k-color-text); }
+        table.cols th, table.cols td { padding: 2px 6px; border-bottom: 1px solid var(--jw-dt-color-border); text-align: center; white-space: nowrap; }
+        table.cols th { font-weight: 600; color: var(--jw-dt-color-text-muted); }
+        table.cols th[scope="row"], table.cols th:first-child { text-align: left; color: var(--jw-dt-color-text); }
         table.cols td .check { justify-content: center; min-height: 40px; }
         table.cols select.ctrl, table.cols input.ctrl { min-height: 36px; padding: 4px 8px; }
         table.cols input.ctrl { width: 6.5rem; }
-        .col-key { color: var(--k-color-text-muted); font-weight: 400; font-size: 0.8rem; }
+        .col-key { color: var(--jw-dt-color-text-muted); font-weight: 400; font-size: 0.8rem; }
 
         pre.code {
             margin: 0;
@@ -211,15 +207,15 @@
             max-height: 24rem;
             overflow: auto;
             font-size: 0.8rem;
-            background: var(--k-color-surface-muted);
-            border: 1px solid var(--k-color-border);
+            background: var(--jw-dt-color-surface-muted);
+            border: 1px solid var(--jw-dt-color-border);
             border-radius: 8px;
         }
 
         /* Event log */
         .log { list-style: none; margin: 0; padding: 0; max-height: 14rem; overflow: auto; font: 0.8rem/1.5 ui-monospace, monospace; }
-        .log li { padding: 2px 0; border-bottom: 1px solid var(--k-color-border); white-space: pre-wrap; word-break: break-word; }
-        .log time { color: var(--k-color-text-muted); margin-right: 8px; }
+        .log li { padding: 2px 0; border-bottom: 1px solid var(--jw-dt-color-border); white-space: pre-wrap; word-break: break-word; }
+        .log time { color: var(--jw-dt-color-text-muted); margin-right: 8px; }
         .log .ev { font-weight: 700; margin-right: 6px; }
         .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
         /* The width control is pointless on phones: the table already fills the screen. */
@@ -478,7 +474,7 @@
 .demo-status-paused { font-style: italic; }
 .demo-status-left { text-decoration: line-through; }
 /* Used by rowClass */
-.demo-row-left .k-dt-td { font-style: italic; }`;
+.demo-row-left .jw-dt-td { font-style: italic; }`;
 
         // ── Demo configuration (plain data, persisted) ──────────────────────
         const FEATURE_DEFS = [

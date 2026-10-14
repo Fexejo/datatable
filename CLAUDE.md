@@ -31,8 +31,9 @@ internals: "Architecture").
 - State changes go through `_commit()`; interactive elements get a stable `data-fk`;
   panels open via `_showOverlay()`; status messages via `_announce()`; row/cell
   events are delegated (records in `_items`). Details: README "Architecture".
-- DOM via `el()` from `src/ui/dom.js`. CSS prefix `k-dt-` (context menu `k-ctx-`),
-  tokens `--k-*` with fallbacks, events `jw-datatable:<name>` (bubbles, composed),
+- DOM via `el()` from `src/ui/dom.js`. CSS prefix `jw-dt-` (context menu `jw-ctx-`),
+  theme variables `--jw-dt-*` read with a fallback (listed in README "Theming"),
+  internal variables `--dt-*`, events `jw-datatable:<name>` (bubbles, composed),
   private members `_name`. JSDoc types on every function (public ones in
   `src/types.js`); `npm run typecheck` (tsc `strict`, also over tests and
   tools) must pass, prefer narrowing over casts.

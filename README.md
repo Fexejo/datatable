@@ -22,7 +22,7 @@ written in Vanilla JS (ES modules, Shadow DOM). No external dependencies.
 - **Copy button** – per column when `copyable` is set (shown on hover on desktop, always visible on touch)
 - **Runtime data** – replace data anytime via `setData()` / `.data`
 - **Saved views** – save, load, rename and delete views (sort, filters, columns, layout, …); stored in `localStorage` or through your own adapter (e.g. a backend), with events for each action
-- **Theming** – CSS variables (`--k-*`), `part` selectors, custom CSS
+- **Theming** – CSS variables (`--jw-dt-*`), `part` selectors, custom CSS
 
 ---
 
@@ -257,7 +257,7 @@ opportunities (e-mail addresses, URLs) wrap anywhere instead of overflowing.
 A floor against squeezed columns is described in
 [Column widths](#column-widths). With `cellOverflow: "ellipsis"`
 (or `overflow: "ellipsis"` per column) cells stay on one line, are capped at
-`maxWidth` (default `16rem`, CSS variable `--k-dt-cell-max-width`) and end in
+`maxWidth` (default `16rem`, CSS variable `--jw-dt-cell-max-width`) and end in
 “…” when cut off:
 
 - **Mouse:** hovering a cut-off value shows the full text as a tooltip
@@ -511,8 +511,8 @@ Horizontal **scroll shadows** appear on the edges that have more content
 (with pinned columns, on the edge of the last pinned column). This is
 independent of pinning and always on.
 
-Pinned cells need an opaque background. They use `--k-color-page` (header:
-`--k-color-surface`); if you color rows via `rowClass`, set the color on the
+Pinned cells need an opaque background. They use `--jw-dt-color-page` (header:
+`--jw-dt-color-surface`); if you color rows via `rowClass`, set the color on the
 cells (`.my-row > td`), not on the `<tr>`, so pinned cells match.
 
 ---
@@ -819,14 +819,31 @@ stored before the column configuration changed.
 
 ## Theming & styling
 
-The component reads global design tokens (`--k-*`) with built-in fallbacks
-and supports dark mode (`[data-theme="dark"]`). Three ways to customize:
+Three ways to customize:
 
-**1. CSS variables** on `:root` or a parent:
+**1. CSS variables** (`--jw-dt-*`) on `jw-datatable`, a parent or `:root`;
+each has a built-in default, so none is required:
 
-`--k-color-text`, `--k-color-page`, `--k-color-surface`, `--k-color-surface-muted`,
-`--k-color-border`, `--k-color-hover`, `--k-color-schicht-meine-bg` (accent),
-`--k-radius-s/m/l`, `--k-space-*`, `--k-font-family-base`.
+| Variable | Default | Used for |
+|---|---|---|
+| `--jw-dt-font-family` | `system-ui, sans-serif` | Text |
+| `--jw-dt-color-text` | `#222` | Text |
+| `--jw-dt-color-text-muted` | `#666` | Secondary text, icons |
+| `--jw-dt-color-page` | `#fff` | Background of table, panels, menu |
+| `--jw-dt-color-surface` | `#f0f0f0` | Column headers |
+| `--jw-dt-color-surface-muted` | `#f8f8f8` | Toolbar, footer, tabs, row hover |
+| `--jw-dt-color-border` | `#d8d8d8` | Borders |
+| `--jw-dt-color-hover` | `#e8e8e8` | Hovered buttons and menu items |
+| `--jw-dt-color-accent` | `#1f7a3a` | Active sort and layout, pinned and filter buttons, primary buttons |
+| `--jw-dt-color-accent-text` | `#fff` | Text on the accent color |
+| `--jw-dt-color-error` | `#c0392b` | Error messages |
+| `--jw-dt-space-2xs` / `-xs` / `-s` / `-l` / `-4xl` | `4px` / `6px` / `8px` / `12px` / `24px` | Spacing |
+| `--jw-dt-radius-s` / `-m` / `-l` | `8px` / `10px` / `12px` | Corner radius |
+| `--jw-dt-cell-max-width` | `16rem` | Width of truncated cells (see `cellOverflow`) |
+
+**Dark mode:** set the color variables for it, e.g. under your own
+`[data-theme="dark"]` or `@media (prefers-color-scheme: dark)` (the demo does
+the former).
 
 **2. `part` selectors** from outside:
 
@@ -841,8 +858,8 @@ Parts: `root`, `toolbar`, `body`, `table`, `grid`, `card`, `footer`.
 
 ```js
 createDataTable("#c", { /* … */ styles: `
-    .k-dt-th { text-transform: uppercase; }
-    .k-dt-tr:hover .k-dt-td { background: #fffbe6; }
+    .jw-dt-th { text-transform: uppercase; }
+    .jw-dt-tr:hover .jw-dt-td { background: #fffbe6; }
 ` });
 ```
 
@@ -872,7 +889,7 @@ wide screen keeps the table layout and scrolls horizontally.
 All icons are [Lucide](https://lucide.dev/icons) icons (ISC license), bundled
 in `src/ui/icons.js` — no icon package or `.svg` files are loaded at runtime. They use
 `stroke="currentColor"`, so they follow the text color of their control, and
-are sized via CSS (`.k-dt-ic svg`, `.k-ctx-icon svg`).
+are sized via CSS (`.jw-dt-ic svg`, `.jw-ctx-icon svg`).
 
 Icons are decorative (`aria-hidden="true"`); every icon-only button carries its
 own `aria-label` from the i18n bundle.
@@ -1140,7 +1157,7 @@ focus in place.
 - Touch targets ≥ 44px on touch layouts; on desktop at least 24px or spaced
   apart (WCAG 2.5.8), e.g. the filter and unpin buttons in a header cell.
 - Default colors meet contrast requirements (muted text fallback `#666`, 5.7:1
-  on white). When overriding `--k-*` tokens, keep ≥ 4.5:1 for text and ≥ 3:1
+  on white). When overriding `--jw-dt-*` variables, keep ≥ 4.5:1 for text and ≥ 3:1
   for UI components and focus indicators.
 
 **Checked automatically:** the browser tests run [axe-core](https://github.com/dequelabs/axe-core)
@@ -1279,7 +1296,7 @@ emit `jw-datatable:change`, then announce. `update` picks the smallest refresh:
 `"full"` (re-render the table root), `"body"` (rows and footer, keeps a focused
 search field), `"sort"` / `"columns"` (update the header in place, so the
 focused header button stays the same element). `_render()` only replaces the
-`.k-dt` root; open panels and the context menu stay.
+`.jw-dt` root; open panels and the context menu stay.
 
 **Events.** Rows, cells, cards and headers have no listeners of their own.
 Click, context menu, `Shift+F10`, long-press and the truncation tooltip are
@@ -1295,7 +1312,10 @@ Status messages go through `_announce()` to the shared live region under
 
 **Styles.** `src/ui/styles.js` is one CSS string (Mobile First, breakpoint
 640px), parsed once into a constructed stylesheet shared by all tables. Class
-prefix `k-dt-` (context menu `k-ctx-`), design tokens `--k-*` with fallbacks.
+prefix `jw-dt-` (context menu `jw-ctx-`). Theme variables `--jw-dt-*` are read
+with their default as fallback (never set inside, so they inherit from the
+page); internal variables are `--dt-*` (set on `:host` or by JS, e.g. the
+pinned column offsets).
 
 ---
 

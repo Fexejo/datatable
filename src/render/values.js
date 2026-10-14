@@ -44,18 +44,18 @@ export function valueNode(column, row, value, fk, locale) {
     const display = formatValue(value, column, locale, row);
     const content = display instanceof Node ? display : document.createTextNode(display);
     // An empty value gets no link or button: it would be a focus stop without a name.
-    if (typeof display === "string" && !display.trim()) return el("span", { class: "k-dt-value" }, [content]);
+    if (typeof display === "string" && !display.trim()) return el("span", { class: "jw-dt-value" }, [content]);
 
     // A link whose only purpose is an unsafe URL is shown as plain text.
     const link = column.link;
     const href = link ? linkHref(link, row, value) : null;
     if (link && ((link.url && href !== null) || link.spa || typeof link.handler === "function")) {
-        return el("a", { class: "k-dt-link", href: href || "#", "data-fk": fk ? `${fk}:link` : null }, [content]);
+        return el("a", { class: "jw-dt-link", href: href || "#", "data-fk": fk ? `${fk}:link` : null }, [content]);
     }
     if (typeof column.action === "function") {
-        return el("button", { type: "button", class: "k-dt-cell-action", "data-fk": fk ? `${fk}:action` : null }, [content]);
+        return el("button", { type: "button", class: "jw-dt-cell-action", "data-fk": fk ? `${fk}:action` : null }, [content]);
     }
-    return el("span", { class: "k-dt-value" }, [content]);
+    return el("span", { class: "jw-dt-value" }, [content]);
 }
 
 // Copies the value of its cell or field.
@@ -67,7 +67,7 @@ export function valueNode(column, row, value, fk, locale) {
 export function copyButton(t, column, fk) {
     return el("button", {
         type: "button",
-        class: "k-dt-copy",
+        class: "jw-dt-copy",
         "data-fk": fk ? `${fk}:copy` : null,
         title: t.copyValue,
         "aria-label": `${t.copyValue}: ${column.label}`
@@ -79,14 +79,14 @@ export function copyButton(t, column, fk) {
  * @param {{ t: Translations, locale: string, columns: Column[], row: Row, fk: string|null, register: Register }} options
  */
 export function buildFields({ t, locale, columns, row, fk, register }) {
-    return el("dl", { class: "k-dt-fields" }, columns.map((column) => {
+    return el("dl", { class: "jw-dt-fields" }, columns.map((column) => {
         const value = getCellValue(row, column);
         const key = fk ? `${fk}:${column.key}` : null;
-        const val = el("dd", { class: "k-dt-pair-value k-dt-card-val" }, [valueNode(column, row, value, key, locale)]);
+        const val = el("dd", { class: "jw-dt-pair-value jw-dt-card-val" }, [valueNode(column, row, value, key, locale)]);
         if (column.copyable) val.appendChild(copyButton(t, column, key));
         register(val, { column, row, value });
-        return el("div", { class: "k-dt-pair k-dt-card-row" }, [
-            el("dt", { class: "k-dt-pair-label k-dt-card-label", text: column.label }),
+        return el("div", { class: "jw-dt-pair jw-dt-card-row" }, [
+            el("dt", { class: "jw-dt-pair-label jw-dt-card-label", text: column.label }),
             val
         ]);
     }));

@@ -7,7 +7,7 @@ import { COLUMNS, mount, $, $$, columnTexts, rightClick, announced, headerKeys, 
 
 const cellLeft = (/** @type {HTMLElement} */ table, /** @type {string} */ key, /** @type {any} */ row = 0) => {
     const cell = $(table, `[data-fk="cell:${row}:${key}"]`);
-    return cell.getBoundingClientRect().left - $(table, ".k-dt-body").getBoundingClientRect().left;
+    return cell.getBoundingClientRect().left - $(table, ".jw-dt-body").getBoundingClientRect().left;
 };
 
 test("pinned columns move to the front, stick with summed offsets and are part of the state", async () => {
@@ -21,13 +21,13 @@ test("pinned columns move to the front, stick with summed offsets and are part o
 
     table.setState({ pinnedColumns: ["fee", "name"] });
     assert.deepEqual(headerKeys(table), ["fee", "name", "id", "active", "joined", "note"]);
-    const pinned = $$(table, "thead th.k-dt-pinned");
+    const pinned = $$(table, "thead th.jw-dt-pinned");
     assert.equal(pinned.length, 2);
-    assert.ok(pinned[1].classList.contains("k-dt-pinned-last"), "edge on the last pinned column");
+    assert.ok(pinned[1].classList.contains("jw-dt-pinned-last"), "edge on the last pinned column");
     assert.equal(getComputedStyle(pinned[0]).position, "sticky");
 
     // Scrolled horizontally, pinned cells keep their place; others move.
-    const body = $(table, ".k-dt-body");
+    const body = $(table, ".jw-dt-body");
     await waitFor(() => body.scrollWidth > body.clientWidth + 40, { message: "table should overflow" });
     const feeWidth = $$(table, "thead th")[0].getBoundingClientRect().width;
     const idLeft = cellLeft(table, "id");
@@ -56,7 +56,7 @@ test("context menu pins and unpins a column with an announcement", async () => {
 test("column chooser offers pin toggle buttons with aria-pressed", () => {
     const table = mount({ features: { columnVisibility: true, columnPinning: true } });
     $(table, '[data-fk="tb:columns"]').click();
-    const toggles = $$(table, ".k-dt-overlay .k-dt-pin-toggle");
+    const toggles = $$(table, ".jw-dt-overlay .jw-dt-pin-toggle");
     assert.equal(toggles.length, COLUMNS.length);
     assert.equal(accessibleName(toggles[1]), "Pin column: Name");
     assert.equal(toggles[1].getAttribute("aria-pressed"), "false");
@@ -81,7 +81,7 @@ test("without room for all pins, the most recent ones stick and older ones scrol
     const columns = [...COLUMNS, { key: "note", label: "A deliberately long column label that forces horizontal scrolling" }];
     const table = mount({ columns, features: { columnPinning: true }, initial: { pinnedColumns: ["joined"] } });
     table.style.width = "300px";
-    const body = $(table, ".k-dt-body");
+    const body = $(table, ".jw-dt-body");
     await waitFor(() => body.scrollWidth > body.clientWidth + 100, { message: "table should overflow" });
 
     // Pinning "name" leaves no room for both: "name" sticks at the left edge, "joined" pauses.
@@ -89,8 +89,8 @@ test("without room for all pins, the most recent ones stick and older ones scrol
     menuItem(table, "Pin column").click();
     assert.deepEqual(headerKeys(table).slice(0, 2), ["joined", "name"]);
     await announced(table, "Column “Name” pinned. Not enough room for all pinned columns; scrolling with the table for now: Joined.");
-    assert.ok($(table, ".k-dt-viewport").classList.contains("has-pins"));
-    $(table, ".k-dt-body").scrollLeft = 150;   // the body was re-rendered
+    assert.ok($(table, ".jw-dt-viewport").classList.contains("has-pins"));
+    $(table, ".jw-dt-body").scrollLeft = 150;   // the body was re-rendered
     await nextFrame();
     assert.ok(Math.abs(cellLeft(table, "name")) < 1.5, `name sticks at the edge (${cellLeft(table, "name")})`);
     assert.ok(cellLeft(table, "joined") < -50, "joined scrolls away");
@@ -103,8 +103,8 @@ test("without room for all pins, the most recent ones stick and older ones scrol
 test("scroll shadows mark the edges with more content", async () => {
     const table = mount();
     table.style.width = "300px";
-    const viewport = $(table, ".k-dt-viewport");
-    const body = $(table, ".k-dt-body");
+    const viewport = $(table, ".jw-dt-viewport");
+    const body = $(table, ".jw-dt-body");
     await waitFor(() => viewport.classList.contains("is-overflow-right"), { message: "right shadow" });
     assert.ok(!viewport.classList.contains("is-overflow-left"));
     body.scrollLeft = body.scrollWidth;
@@ -120,7 +120,7 @@ test("as a grid item the table stays inside its track and scrolls", async () => 
     fixture.style.cssText = "display:grid;grid-template-columns:1fr;width:300px";
     try {
         const table = mount();
-        const body = $(table, ".k-dt-body");
+        const body = $(table, ".jw-dt-body");
         await waitFor(() => body.scrollWidth > body.clientWidth, { message: "body overflows" });
         assert.ok(table.getBoundingClientRect().width <= 300.5, "host keeps the track width");
     } finally {
@@ -226,7 +226,7 @@ test("Ctrl+Shift+Arrow on a header button moves the column and keeps focus", asy
 test("column chooser: up/down buttons reorder, keep focus and follow the pinned block", async () => {
     const table = mount({ features: { columnVisibility: true, columnReorder: true, columnPinning: true }, initial: { pinnedColumns: ["joined"] } });
     $(table, '[data-fk="tb:columns"]').click();
-    const rowKeys = () => $$(table, ".k-dt-overlay .k-dt-col-row").map((r) => r.dataset.key);
+    const rowKeys = () => $$(table, ".jw-dt-overlay .jw-dt-col-row").map((r) => r.dataset.key);
     assert.deepEqual(rowKeys(), ["joined", "id", "name", "fee", "active"], "listed in display order");
     const up = (/** @type {string} */ key) => $(table, `[data-fk="colmove:up:${key}"]`);
     const down = (/** @type {string} */ key) => $(table, `[data-fk="colmove:down:${key}"]`);
@@ -238,7 +238,7 @@ test("column chooser: up/down buttons reorder, keep focus and follow the pinned 
     button.click();   // first unpinned → into the pinned block
     assert.deepEqual(rowKeys(), ["id", "joined", "name", "fee", "active"]);
     assert.equal(deepActiveElement(), down("id"), "Up got disabled: focus moves to Down");
-    assert.equal($(table, '.k-dt-col-row[data-key="id"] .k-dt-pin-toggle').getAttribute("aria-pressed"), "true");
+    assert.equal($(table, '.jw-dt-col-row[data-key="id"] .jw-dt-pin-toggle').getAttribute("aria-pressed"), "true");
     assert.deepEqual(headerKeys(table), ["id", "joined", "name", "fee", "active"]);
     await announced(table, "Column “ID” pinned, position 1 of 5");
     assert.ok($(table, '[role="dialog"]'), "chooser stays open");

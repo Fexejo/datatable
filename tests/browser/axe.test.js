@@ -68,10 +68,10 @@ test("axe: card and compact layouts, empty and no-result states", async () => {
 test("axe: two tables on one page have distinct pagination landmarks", async () => {
     const members = mount({ title: "Members" });
     const guests = mount({ title: "Guests" });
-    assert.equal($(members, ".k-dt-pager").getAttribute("aria-label"), "Pagination: Members");
-    assert.equal($(guests, ".k-dt-pager").getAttribute("aria-label"), "Pagination: Guests");
+    assert.equal($(members, ".jw-dt-pager").getAttribute("aria-label"), "Pagination: Members");
+    assert.equal($(guests, ".jw-dt-pager").getAttribute("aria-label"), "Pagination: Guests");
     const untitled = mount();
-    assert.equal($(untitled, ".k-dt-pager").getAttribute("aria-label"), "Pagination", "without a title");
+    assert.equal($(untitled, ".jw-dt-pager").getAttribute("aria-label"), "Pagination", "without a title");
     untitled.remove();
     await assertNoAxeViolations("two tables");
 });
@@ -84,17 +84,17 @@ test("axe: panels — filter (both tabs), filter summary, columns, saved views, 
     });
     $(table, '[data-fk="filter:fee"]').click();
     await assertNoAxeViolations("filter panel, pattern tab");
-    $(table, ".k-dt-overlay .k-dt-tab").click();
+    $(table, ".jw-dt-overlay .jw-dt-tab").click();
     await assertNoAxeViolations("filter panel, values tab");
     $(table, '[data-fk="tb:filters"]').click();
     await assertNoAxeViolations("filter summary");
     $(table, '[data-fk="tb:columns"]').click();
     await assertNoAxeViolations("column chooser");
     $(table, '[data-fk="tb:saved-views"]').click();
-    await waitFor(() => $(table, ".k-dt-overlay .k-dt-views-name"));
+    await waitFor(() => $(table, ".jw-dt-overlay .jw-dt-views-name"));
     await assertNoAxeViolations("saved views");
     table.openExportDialog();
-    $(table, ".k-dt-overlay .k-dt-disclosure").click();
+    $(table, ".jw-dt-overlay .jw-dt-disclosure").click();
     await assertNoAxeViolations("export dialog, more options");
 });
 
@@ -102,18 +102,18 @@ test("axe: context menu and the record details dialog", async () => {
     const table = mount({ features: { ...ALL_FEATURES, columnPinning: true, rowDetails: true } });
     rightClick($(table, '[data-fk="cell:0:name"]'));
     await assertNoAxeViolations("context menu");
-    $$(table, ".k-ctx-item").find((item) => item.textContent === "Show details").click();
-    await waitFor(() => $(table, ".k-dt-details"));
+    $$(table, ".jw-ctx-item").find((item) => item.textContent === "Show details").click();
+    await waitFor(() => $(table, ".jw-dt-details"));
     await assertNoAxeViolations("details dialog");
 });
 
 test("axe: mobile — cards, bottom sheet and context menu", async () => {
     await input.viewport(390, 800);
     const table = mount({ features: { ...ALL_FEATURES }, responsive: { enabled: true } });
-    await waitFor(() => $(table, ".k-dt-grid"));
+    await waitFor(() => $(table, ".jw-dt-grid"));
     await assertNoAxeViolations("mobile cards");
     $(table, '[data-fk="tb:columns"]').click();
     await assertNoAxeViolations("mobile bottom sheet");
-    rightClick($(table, ".k-dt-card"));
+    rightClick($(table, ".jw-dt-card"));
     await assertNoAxeViolations("mobile context menu");
 }, { cdp: true });

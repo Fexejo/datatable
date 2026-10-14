@@ -52,7 +52,7 @@ export function el(tag, props = {}, children = []) {
 
 // A decorative Lucide icon in a sizing wrapper.
 /** @param {string} name */
-export function iconEl(name, className = "k-dt-ic") {
+export function iconEl(name, className = "jw-dt-ic") {
     return el("span", { class: className }, [createIcon(name)]);
 }
 
@@ -66,16 +66,16 @@ export function iconEl(name, className = "k-dt-ic") {
  * @param {string} value
  */
 export function segmentedEl(name, legend, options, value) {
-    return el("fieldset", { class: "k-dt-fieldset" }, [
-        el("legend", { class: "k-dt-field-label", text: legend }),
-        el("div", { class: "k-dt-segmented" }, options.map(([optionValue, text, detail]) =>
-            el("label", { class: "k-dt-segment", "data-value": optionValue }, [
+    return el("fieldset", { class: "jw-dt-fieldset" }, [
+        el("legend", { class: "jw-dt-field-label", text: legend }),
+        el("div", { class: "jw-dt-segmented" }, options.map(([optionValue, text, detail]) =>
+            el("label", { class: "jw-dt-segment", "data-value": optionValue }, [
                 el("input", { type: "radio", name, value: optionValue, checked: optionValue === value }),
-                el("span", { class: "k-dt-segment-text" }, [
+                el("span", { class: "jw-dt-segment-text" }, [
                     text,
                     // The space keeps the accessible name readable ("Current page 10 rows").
                     detail && " ",
-                    detail && el("span", { class: "k-dt-segment-detail", text: detail })
+                    detail && el("span", { class: "jw-dt-segment-detail", text: detail })
                 ])
             ])))
     ]);
@@ -90,8 +90,8 @@ export function segmentedEl(name, legend, options, value) {
  * @param {Record<string, any>} [props]
  */
 export function switchEl(text, checked, props = {}) {
-    return el("label", { class: "k-dt-switch" }, [
-        el("span", { class: "k-dt-switch-label", text }),
+    return el("label", { class: "jw-dt-switch" }, [
+        el("span", { class: "jw-dt-switch-label", text }),
         el("input", { type: "checkbox", role: "switch", checked, ...props })
     ]);
 }

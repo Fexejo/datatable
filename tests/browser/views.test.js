@@ -7,11 +7,11 @@ import { mount, $, $$, columnTexts, announced, hasIcon, memoryAdapter, SORT_DESC
 
 const openViews = async (/** @type {HTMLElement} */ table) => {
     $(table, '[data-fk="tb:saved-views"]').click();
-    await waitFor(() => !$(table, ".k-dt-overlay").hasAttribute("aria-busy"), { message: "views panel did not load" });
-    return $(table, ".k-dt-overlay");
+    await waitFor(() => !$(table, ".jw-dt-overlay").hasAttribute("aria-busy"), { message: "views panel did not load" });
+    return $(table, ".jw-dt-overlay");
 };
-const viewNames = (/** @type {HTMLElement} */ table) => $$(table, ".k-dt-overlay .k-dt-views-name").map((n) => n.textContent);
-const vk = (/** @type {HTMLElement} */ table, /** @type {string} */ key) => $(table, `.k-dt-overlay [data-vk="${CSS.escape(key)}"]`);
+const viewNames = (/** @type {HTMLElement} */ table) => $$(table, ".jw-dt-overlay .jw-dt-views-name").map((n) => n.textContent);
+const vk = (/** @type {HTMLElement} */ table, /** @type {string} */ key) => $(table, `.jw-dt-overlay [data-vk="${CSS.escape(key)}"]`);
 
 test("saved views store the state without the page and fire events", async () => {
     const adapter = memoryAdapter();
@@ -111,7 +111,7 @@ test("saved views panel: saving an existing name asks before overwriting", async
     assert.ok(!adapter.calls.some(([m]) => m === "save"), "nothing saved yet");
 
     await input.press("Escape");
-    assert.ok($(table, ".k-dt-overlay"), "Escape steps back, the panel stays open");
+    assert.ok($(table, ".jw-dt-overlay"), "Escape steps back, the panel stays open");
     assert.equal(vk(table, "step-cancel"), null, "question gone");
     assert.equal(deepActiveElement(), vk(table, "name"), "focus back in the name field");
 
@@ -167,7 +167,7 @@ test("saved views panel: rename in place, existing names are refused", async () 
 
     vk(table, "rename:B").click();
     await input.press("Escape");
-    assert.ok($(table, ".k-dt-overlay"), "Escape leaves the rename, not the panel");
+    assert.ok($(table, ".jw-dt-overlay"), "Escape leaves the rename, not the panel");
     assert.equal(deepActiveElement(), vk(table, "rename:B"));
 }, { cdp: true });
 
@@ -177,7 +177,7 @@ test("saved views panel: current view, modified state and update", async () => {
     await table.loadView("Desc");
     table.setState({ sort: [] });
     await openViews(table);
-    const active = $(table, ".k-dt-overlay .k-dt-views-active p");
+    const active = $(table, ".jw-dt-overlay .jw-dt-views-active p");
     assert.equal(active.textContent, "Current view: Desc (modified)");
     assert.equal(vk(table, "load:Desc").getAttribute("aria-current"), "true");
     const update = vk(table, "update");
@@ -195,7 +195,7 @@ test("saved views panel: loading closes it and returns focus to the toolbar", as
     await openViews(table);
     vk(table, "load:Desc").click();
     await announced(table, "View “Desc” loaded");
-    assert.equal($(table, ".k-dt-overlay"), null, "panel closed");
+    assert.equal($(table, ".jw-dt-overlay"), null, "panel closed");
     assert.equal(deepActiveElement(), $(table, '[data-fk="tb:saved-views"]'));
     assert.equal(columnTexts(table, 1)[0], "Felix");
 });
@@ -205,7 +205,7 @@ test("saved views panel: adapter failures are shown and can be retried", async (
     const table = mountViews(adapter);
     $(table, '[data-fk="tb:saved-views"]').click();
     await announced(table, "The saved views could not be loaded.");
-    assert.ok($(table, ".k-dt-overlay"), "panel open despite the error");
+    assert.ok($(table, ".jw-dt-overlay"), "panel open despite the error");
     assert.equal(deepActiveElement(), vk(table, "retry"), "focus on Try again");
     adapter.list = () => [...adapter.saved.keys()];
     adapter.save = () => Promise.reject(new Error("offline"));
@@ -227,7 +227,7 @@ test("saved views panel: a view deleted elsewhere or failing to load stays in th
     vk(table, "load:A").click();
     await announced(table, "The view “A” no longer exists.");
     assert.deepEqual(viewNames(table), ["B"], "list refreshed");
-    assert.ok($(table, ".k-dt-overlay"), "panel stays open");
+    assert.ok($(table, ".jw-dt-overlay"), "panel stays open");
 
     adapter.get = () => Promise.reject(new Error("offline"));
     vk(table, "load:B").click();

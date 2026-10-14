@@ -67,11 +67,11 @@ function viewName(name) {
 }
 
 // Elements that open the context menu; each has a record in `_items`.
-const MENU_HOSTS = "th.k-dt-th, td.k-dt-td, .k-dt-card";
+const MENU_HOSTS = "th.jw-dt-th, td.jw-dt-td, .jw-dt-card";
 // Elements holding one value (with its link, action or copy button).
-const VALUE_HOSTS = "td.k-dt-td, dd.k-dt-pair-value, .k-dt-card-title";
+const VALUE_HOSTS = "td.jw-dt-td, dd.jw-dt-pair-value, .jw-dt-card-title";
 // Controls inside a value host, handled by `_onClick`.
-const VALUE_CONTROLS = ".k-dt-copy, .k-dt-cell-action, .k-dt-link, .k-dt-details-btn";
+const VALUE_CONTROLS = ".jw-dt-copy, .jw-dt-cell-action, .jw-dt-link, .jw-dt-details-btn";
 
 // Opt-in features default to `false` and must be enabled explicitly via
 // `config.features`. Always-on basics (pagination, context menu, copy buttons)
@@ -132,7 +132,7 @@ class JwDataTable extends HTMLElement {
         // { name, signature } of the saved view last saved or loaded.
         /** @type {{ name: string, signature: string }|null} */
         this._activeView = null;
-        this._instanceId = uid("kdt");
+        this._instanceId = uid("jwdt");
         // Responsive / touch state
         /** @type {MediaQueryList|null} */
         this._mql = null;
@@ -170,7 +170,7 @@ class JwDataTable extends HTMLElement {
         getAnnouncer();
         if (!this._configured) return;
         if (!this._mql) this._setupResponsive();
-        if (!this.shadow.querySelector(".k-dt")) this._render();
+        if (!this.shadow.querySelector(".jw-dt")) this._render();
     }
 
     disconnectedCallback() {
@@ -548,13 +548,13 @@ class JwDataTable extends HTMLElement {
         if (!this._configured) return;
         const focusKey = this._focusKey();
         // Replace only the table root; open panels and the context menu stay in place.
-        const previous = this.shadow.querySelector(".k-dt");
+        const previous = this.shadow.querySelector(".jw-dt");
 
-        const root = el("div", { class: "k-dt", part: "root" });
+        const root = el("div", { class: "jw-dt", part: "root" });
         root.appendChild(this._renderToolbar());
         // The viewport stays put while the body inside is replaced; it draws
         // the horizontal scroll shadows.
-        root.appendChild(el("div", { class: "k-dt-viewport" }, [this._renderBody()]));
+        root.appendChild(el("div", { class: "jw-dt-viewport" }, [this._renderBody()]));
 
         if (this._paginated()) root.appendChild(this._renderFooter());
         if (previous) previous.replaceWith(root);
@@ -564,7 +564,7 @@ class JwDataTable extends HTMLElement {
     }
 
     _renderBody() {
-        const body = el("div", { class: "k-dt-body", part: "body", onscroll: (e) => updateScrollShadows(/** @type {HTMLElement} */ (e.currentTarget.parentElement)) });
+        const body = el("div", { class: "jw-dt-body", part: "body", onscroll: (e) => updateScrollShadows(/** @type {HTMLElement} */ (e.currentTarget.parentElement)) });
         if (this._config.maxHeight) body.style.maxHeight = this._config.maxHeight;
         body.appendChild(this._currentLayout() === "grid" ? buildGrid(this._gridView()) : buildTable(this._tableView()));
         return body;
@@ -617,10 +617,10 @@ class JwDataTable extends HTMLElement {
     // "Filter (n)" and its "x" in place: typing in the search field changes
     // the count without re-rendering the toolbar.
     _refreshFilterButtons() {
-        const right = this.shadow.querySelector(".k-dt-toolbar-right");
+        const right = this.shadow.querySelector(".jw-dt-toolbar-right");
         if (!right) return;
         const next = buildFilterButtons({ t: this._t, ...this._filterButtonProps(), openerKey: this._overlay.openerKey });
-        const current = right.querySelector(":scope > .k-dt-btn-group");
+        const current = right.querySelector(":scope > .jw-dt-btn-group");
         if (current && next) current.replaceWith(next);
         else if (current) current.remove();
         else if (next) right.prepend(next);
@@ -719,11 +719,11 @@ class JwDataTable extends HTMLElement {
     // Replaces table body and footer only; of the toolbar only the filter
     // buttons (the search field stays).
     _refreshBody() {
-        const root = this.shadow.querySelector(".k-dt");
+        const root = this.shadow.querySelector(".jw-dt");
         if (!root) { this._render(); return; }
         const focusKey = this._focusKey();
 
-        root.querySelector(".k-dt-body")?.replaceWith(this._renderBody());
+        root.querySelector(".jw-dt-body")?.replaceWith(this._renderBody());
         this._refreshFilterButtons();
         this._refreshFooter();
         this._observeLayout();
@@ -735,7 +735,7 @@ class JwDataTable extends HTMLElement {
     // element, so screen readers don't re-announce the whole table context.
     _refreshSort() {
         /** @type {HTMLTableElement|null} */
-        const table = this.shadow.querySelector(".k-dt-table");
+        const table = this.shadow.querySelector(".jw-dt-table");
         if (!table?.tHead) { this._render(); return; }   // cards: no header to keep
         const focusKey = this._focusKey();
         const view = this._tableView();
@@ -743,7 +743,7 @@ class JwDataTable extends HTMLElement {
             const column = view.columns.find((c) => c.key === th.dataset.key);
             if (!column) continue;
             th.setAttribute("aria-sort", ariaSort(view.sort, column));
-            th.querySelector(".k-dt-sort-ind")?.replaceWith(sortIndicator(view, column));
+            th.querySelector(".jw-dt-sort-ind")?.replaceWith(sortIndicator(view, column));
         }
         table.tBodies[0].replaceWith(buildTbody(view));
         this._refreshFooter();
@@ -758,7 +758,7 @@ class JwDataTable extends HTMLElement {
     _refreshColumns() {
         this._syncColumnChooser();
         /** @type {HTMLTableElement|null} */
-        const table = this.shadow.querySelector(".k-dt-table");
+        const table = this.shadow.querySelector(".jw-dt-table");
         if (!table?.tHead) { this._render(); return; }   // cards: rebuilt as a whole
         const focusKey = this._focusKey();
         const view = this._tableView();
@@ -773,7 +773,7 @@ class JwDataTable extends HTMLElement {
             return th;
         });
         /** @type {HTMLTableCellElement|null} */
-        const detailsTh = headRow.querySelector(".k-dt-details-col");
+        const detailsTh = headRow.querySelector(".jw-dt-details-col");
         if (detailsTh) cells.push(detailsTh);
         existing.forEach((th) => th.remove());
         reorderAroundFocus(headRow, cells);
@@ -787,8 +787,8 @@ class JwDataTable extends HTMLElement {
 
     // Replaces, adds or removes the footer.
     _refreshFooter() {
-        const root = this.shadow.querySelector(".k-dt");
-        const footer = root?.querySelector(".k-dt-footer");
+        const root = this.shadow.querySelector(".jw-dt");
+        const footer = root?.querySelector(".jw-dt-footer");
         if (!this._paginated()) footer?.remove();
         else if (footer) footer.replaceWith(this._renderFooter());
         else root?.appendChild(this._renderFooter());
@@ -802,8 +802,8 @@ class JwDataTable extends HTMLElement {
         if (typeof ResizeObserver !== "function") return;
         this._resizeObserver ??= new ResizeObserver(() => this._layoutPinned());
         this._resizeObserver.disconnect();
-        const body = this.shadow.querySelector(".k-dt-body");
-        const table = this.shadow.querySelector(".k-dt-table");
+        const body = this.shadow.querySelector(".jw-dt-body");
+        const table = this.shadow.querySelector(".jw-dt-table");
         if (body) this._resizeObserver.observe(body);
         if (table) this._resizeObserver.observe(table);
     }
@@ -811,7 +811,7 @@ class JwDataTable extends HTMLElement {
     // Pinned columns that don't fit are paused (see ui/pinnedLayout.js).
     _layoutPinned() {
         /** @type {HTMLElement|null} */
-        const viewport = this.shadow.querySelector(".k-dt-viewport");
+        const viewport = this.shadow.querySelector(".jw-dt-viewport");
         this._pausedPins = viewport ? layoutPinned(viewport) : [];
     }
 
@@ -896,9 +896,9 @@ class JwDataTable extends HTMLElement {
         }
         target = target
             || find(`[data-fk="${CSS.escape(key)}"]`)
-            || (parts[0] === "page" && find('.k-dt-pager [aria-current="page"]'))
+            || (parts[0] === "page" && find('.jw-dt-pager [aria-current="page"]'))
             || find(`[data-fk^="${CSS.escape(parts[0])}:"]`)
-            || find('.k-dt-body [tabindex="0"]');
+            || find('.jw-dt-body [tabindex="0"]');
         if (!target) return false;
         target.focus();
         return true;
@@ -949,7 +949,7 @@ class JwDataTable extends HTMLElement {
         // Clicking a copy button must not move focus into the cell: screen
         // readers would read the whole table context instead of the message.
         root.addEventListener("mousedown", (event) => {
-            if (/** @type {Element|null} */ (event.target)?.closest?.(".k-dt-copy")) event.preventDefault();
+            if (/** @type {Element|null} */ (event.target)?.closest?.(".jw-dt-copy")) event.preventDefault();
         });
     }
 
@@ -985,18 +985,18 @@ class JwDataTable extends HTMLElement {
         const valueHost = control && this._host(control, VALUE_HOSTS);
         if (valueHost) {
             const { column, row, value } = this._record(valueHost);
-            if (control.matches(".k-dt-copy")) {
+            if (control.matches(".jw-dt-copy")) {
                 const text = toText(value, column, this._config.locale, row);
                 this._copyText(neutralizeFormula(text), control, text);
                 return;
             }
             if (!row) return;
-            if (control.matches(".k-dt-details-btn")) {
+            if (control.matches(".jw-dt-details-btn")) {
                 this._openDetails(row, { anchor: control });
                 return;
             }
             if (suppressed) { event.preventDefault(); return; }
-            if (control.matches(".k-dt-cell-action")) {
+            if (control.matches(".jw-dt-cell-action")) {
                 column.action?.(row, value, event);
                 return;
             }
@@ -1004,12 +1004,12 @@ class JwDataTable extends HTMLElement {
         }
         if (suppressed) return;
 
-        const cell = this._host(target, "td.k-dt-td");
+        const cell = this._host(target, "td.jw-dt-td");
         if (cell && typeof this._config.onCellClick === "function" && !this._isCompact()) {
             const { column, row, value } = this._record(cell);
             this._config.onCellClick(value, /** @type {Row} */ (row), column);
         }
-        const record = this._host(target, "tr.k-dt-tr, .k-dt-card");
+        const record = this._host(target, "tr.jw-dt-tr, .jw-dt-card");
         if (!record) return;
         const { row, index } = /** @type {RowRecord} */ (this._items.get(record));
         if (record.matches("tr") && this._isCompact()) {
@@ -1043,10 +1043,10 @@ class JwDataTable extends HTMLElement {
     // Truncated cells show the full text as a tooltip, only when it is cut off.
     /** @param {PointerEvent} event */
     _onPointerOver(event) {
-        const td = /** @type {Element|null} */ (event.target)?.closest?.("td.k-dt-truncate");
+        const td = /** @type {Element|null} */ (event.target)?.closest?.("td.jw-dt-truncate");
         if (!td || td.contains(/** @type {Node|null} */ (event.relatedTarget)) || !this._items.has(td)) return;
         /** @type {HTMLElement|null} */
-        const node = td.querySelector(".k-dt-cell > :first-child");
+        const node = td.querySelector(".jw-dt-cell > :first-child");
         if (!node) return;
         const { column, row, value } = this._record(td);
         if (node.scrollWidth > node.clientWidth) node.title = toText(value, column, this._config.locale, row);
@@ -1060,7 +1060,7 @@ class JwDataTable extends HTMLElement {
     // and so do panels.
     /** @param {MouseEvent} event */
     _onContextMenu(event) {
-        if (!this._features.contextMenu || !/** @type {Element|null} */ (event.target)?.closest?.(".k-dt")) return;
+        if (!this._features.contextMenu || !/** @type {Element|null} */ (event.target)?.closest?.(".jw-dt")) return;
         if (/** @type {Element|undefined} */ (event.composedPath()[0])?.matches?.("input, textarea, select")) return;
         event.preventDefault();
         const host = this._host(event.target, MENU_HOSTS);

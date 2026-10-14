@@ -18,18 +18,18 @@ import { el, iconEl, switchEl, deepActiveElement, reorderAroundFocus } from "../
  * @returns {{ panel: HTMLElement, sync: () => void }}
  */
 export function buildColumnChooser({ t, columns, isHidden, isPinned, pinning, reorder, onToggle, onPin, onMove }) {
-    const list = el("div", { class: "k-dt-check-list" });
+    const list = el("div", { class: "jw-dt-check-list" });
     for (const column of columns()) {
         const check = switchEl(column.label, !isHidden(column), {
             onchange: (/** @type {Event & { currentTarget: HTMLInputElement }} */ e) => onToggle(column.key, e.currentTarget.checked)
         });
         if (!pinning && !reorder) { list.appendChild(check); continue; }
-        const row = el("div", { class: "k-dt-col-row", "data-key": column.key }, [check]);
+        const row = el("div", { class: "jw-dt-col-row", "data-key": column.key }, [check]);
         if (pinning) {
             // Toggle button: constant name, state in aria-pressed.
             row.appendChild(el("button", {
                 type: "button",
-                class: "k-dt-pin-toggle",
+                class: "jw-dt-pin-toggle",
                 title: t.pinColumn,
                 "aria-label": t.pinColumnNamed(column.label),
                 "aria-pressed": String(isPinned(column)),
@@ -46,7 +46,7 @@ export function buildColumnChooser({ t, columns, isHidden, isPinned, pinning, re
              */
             const moveButton = (direction, step, icon, title, label) => el("button", {
                 type: "button",
-                class: "k-dt-icon-btn k-dt-move-btn",
+                class: "jw-dt-icon-btn jw-dt-move-btn",
                 "data-fk": `colmove:${direction}:${column.key}`,
                 title,
                 "aria-label": label,
@@ -57,8 +57,8 @@ export function buildColumnChooser({ t, columns, isHidden, isPinned, pinning, re
         }
         list.appendChild(row);
     }
-    const panel = el("div", { class: "k-dt-panel" }, [
-        el("div", { class: "k-dt-panel-head", text: t.columnsPanel }),
+    const panel = el("div", { class: "jw-dt-panel" }, [
+        el("div", { class: "jw-dt-panel-head", text: t.columnsPanel }),
         list
     ]);
 
@@ -72,15 +72,15 @@ export function buildColumnChooser({ t, columns, isHidden, isPinned, pinning, re
         const anchor = reorderAroundFocus(list, ordered);
         const byKey = new Map(columns().map((c) => [c.key, c]));
         ordered.forEach((row, i) => {
-            row.querySelector(".k-dt-pin-toggle")?.setAttribute("aria-pressed", String(isPinned(byKey.get(row.dataset.key ?? ""))));
+            row.querySelector(".jw-dt-pin-toggle")?.setAttribute("aria-pressed", String(isPinned(byKey.get(row.dataset.key ?? ""))));
             /** @type {NodeListOf<HTMLButtonElement>} */
-            const moveButtons = row.querySelectorAll(".k-dt-move-btn");
+            const moveButtons = row.querySelectorAll(".jw-dt-move-btn");
             const [up, down] = moveButtons;
             if (up) up.disabled = i === 0;
             if (down) down.disabled = i === ordered.length - 1;
         });
         // A move button that just got disabled hands focus to its neighbour.
-        if (active?.disabled && anchor) /** @type {HTMLElement|null} */ (anchor.querySelector(".k-dt-move-btn:not(:disabled)"))?.focus();
+        if (active?.disabled && anchor) /** @type {HTMLElement|null} */ (anchor.querySelector(".jw-dt-move-btn:not(:disabled)"))?.focus();
     };
     return { panel, sync };
 }

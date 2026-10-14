@@ -16,12 +16,12 @@ test(`public API is exported (${ENTRY})`, () => {
 
 test("tables share one parsed stylesheet; config.styles adds a per-table sheet", () => {
     const a = mount();
-    const b = mount({ styles: ".k-dt-title { color: rgb(1, 2, 3); }", title: "B" });
+    const b = mount({ styles: ".jw-dt-title { color: rgb(1, 2, 3); }", title: "B" });
     a.after(b);
     const [shared] = root(a).adoptedStyleSheets;
     assert.equal(root(a).adoptedStyleSheets.length, 1);
     assert.equal(root(b).adoptedStyleSheets[0], shared, "same sheet object");
-    assert.equal(getComputedStyle($(b, ".k-dt-title")).color, "rgb(1, 2, 3)");
+    assert.equal(getComputedStyle($(b, ".jw-dt-title")).color, "rgb(1, 2, 3)");
     assert.equal(root(a).querySelector("style"), null, "no <style> element per render");
     b.remove();
 });
@@ -83,18 +83,18 @@ test("clicking a sortable header cycles aria-sort and orders rows", () => {
     const th = () => $$(table, "thead th")[1];
     assert.equal(th().getAttribute("aria-sort"), "none");
 
-    th().querySelector("button.k-dt-th-label").click();
+    th().querySelector("button.jw-dt-th-label").click();
     assert.equal(th().getAttribute("aria-sort"), "ascending");
     assert.equal(columnTexts(table, 1)[0], "Anna");
 
-    th().querySelector("button.k-dt-th-label").click();
+    th().querySelector("button.jw-dt-th-label").click();
     assert.equal(th().getAttribute("aria-sort"), "descending");
     assert.equal(columnTexts(table, 1)[0], "Felix");
 });
 
 test("headers are not buttons when sorting is disabled", () => {
     const table = mount();
-    assert.equal($$(table, "thead button.k-dt-th-label").length, 0);
+    assert.equal($$(table, "thead button.jw-dt-th-label").length, 0);
 });
 
 // ---- Pagination -----------------------------------------------------------
@@ -128,7 +128,7 @@ test("page sizes are offered while a page stays within 5000 rendered cells", () 
     table.setState({ hiddenColumns: ["c0", "c1"] });
     assert.deepEqual(pageSizes(table), [10, 25, 50, 100, 250, 500], "hidden columns don't count");
     table.setState({ layout: "grid" });
-    assert.ok($(table, ".k-dt-card"), "cards");
+    assert.ok($(table, ".jw-dt-card"), "cards");
     assert.deepEqual(pageSizes(table), [10, 25, 50, 100, 250, 500], "cards: one field per visible column");
 });
 
@@ -141,7 +141,7 @@ test("showing more columns keeps the page size in use; only the choice goes", ()
         initial: { hiddenColumns: ["c0", "c1"] }
     });
     $(table, '[data-fk="tb:columns"]').click();
-    $$(table, '.k-dt-overlay input[type="checkbox"]')[0].click();
+    $$(table, '.jw-dt-overlay input[type="checkbox"]')[0].click();
     assert.equal($$(table, "tbody tr").length, 500, "not reduced");
     assert.deepEqual(pageSizes(table), [10, 25, 50, 100, 250, 500]);
     assert.equal($(table, '[data-fk="pagesize"]').value, "500");
@@ -159,13 +159,13 @@ test("pagination turned off comes back on above 5000 cells, with a console warni
     console.warn = (...args) => warnings.push(args.join(" "));
     try {
         const table = mount({ columns: WIDE, data: wideRows(500), features: { pagination: false } });
-        assert.ok($(table, ".k-dt-footer"), "pager shown");
+        assert.ok($(table, ".jw-dt-footer"), "pager shown");
         assert.equal($$(table, "tbody tr").length, 10);
         assert.equal(warnings.length, 1);
         assert.ok(warnings[0].includes("500 rows × 12 columns"), warnings[0]);
 
         table.setState({ hiddenColumns: ["c0", "c1"] });   // 500 × 10 = 5000 cells
-        assert.ok(!$(table, ".k-dt-footer"), "off again");
+        assert.ok(!$(table, ".jw-dt-footer"), "off again");
         assert.equal($$(table, "tbody tr").length, 500);
 
         table.setState({ hiddenColumns: [] });
@@ -185,7 +185,7 @@ test("a filter panel opened from the context menu sits at the right-clicked head
         const anchor = target.getBoundingClientRect();
         assert.ok(Math.abs(panel.left - anchor.left) < 2, `left ${panel.left} at ${anchor.left}`);
         assert.ok(Math.abs(panel.top - (anchor.bottom + 4)) < 2, `top ${panel.top} below ${anchor.bottom}`);
-        $(table, ".k-dt-backdrop").click();
+        $(table, ".jw-dt-backdrop").click();
     }
 });
 
@@ -221,20 +221,20 @@ test("global search filters rows (debounced)", async () => {
 
 test("layout switch is a named group of toggle buttons, one per available layout", () => {
     let table = mount();
-    assert.equal($(table, ".k-dt-layout-switch"), null, "no switch with only the table");
+    assert.equal($(table, ".jw-dt-layout-switch"), null, "no switch with only the table");
 
     table = mount({ features: { grid: true, compact: true } });
-    const group = $(table, ".k-dt-layout-switch");
+    const group = $(table, ".jw-dt-layout-switch");
     assert.equal(group.getAttribute("role"), "group");
     assert.equal(accessibleName(group), "Layout");
-    const buttons = () => $$(table, ".k-dt-layout-switch button");
+    const buttons = () => $$(table, ".jw-dt-layout-switch button");
     assert.deepEqual(buttons().map(accessibleName), ["Table", "Cards", "Compact"]);
     assert.deepEqual(buttons().map((b) => b.getAttribute("aria-pressed")), ["true", "false", "false"]);
 
     buttons()[1].focus();
     buttons()[1].click();
-    assert.ok($(table, ".k-dt-grid"), "grid rendered");
-    assert.equal($$(table, ".k-dt-card").length, 10);
+    assert.ok($(table, ".jw-dt-grid"), "grid rendered");
+    assert.equal($$(table, ".jw-dt-card").length, 10);
     assert.deepEqual(buttons().map((b) => b.getAttribute("aria-pressed")), ["false", "true", "false"]);
     assert.equal(deepActiveElement()?.dataset.fk, "tb:layout:grid", "focus stays on the pressed button");
     assert.equal(table.getState().layout, "grid");
@@ -245,7 +245,7 @@ test("layout switch is a named group of toggle buttons, one per available layout
 test("switches to card layout below the breakpoint", async () => {
     await input.viewport(390, 800);
     const table = mount({ features: { grid: true }, responsive: { enabled: true } });
-    await waitFor(() => $(table, ".k-dt-grid"), { message: "expected cards on mobile" });
+    await waitFor(() => $(table, ".jw-dt-grid"), { message: "expected cards on mobile" });
     await input.viewport(1280, 900);
     await waitFor(() => $(table, "table"), { message: "expected the table on desktop" });
 }, { cdp: true });
@@ -258,11 +258,11 @@ test("cellOverflow ellipsis: single line, tooltip only when cut off, full text o
     const data = [{ ...DATA[0], name: LONG }, { ...DATA[1] }];
     const columns = COLUMNS.map((c) => c.key === "name" ? { ...c, maxWidth: "80px" } : c);
     const table = mount({ data, columns, cellOverflow: "ellipsis" });
-    const value = (/** @type {any} */ row) => $(table, `[data-fk="cell:${row}:name"] .k-dt-cell > :first-child`);
+    const value = (/** @type {any} */ row) => $(table, `[data-fk="cell:${row}:name"] .jw-dt-cell > :first-child`);
     const style = getComputedStyle(value(0));
     assert.equal(style.whiteSpace, "nowrap");
     assert.equal(style.textOverflow, "ellipsis");
-    assert.ok($(table, '[data-fk="cell:0:name"] .k-dt-cell').getBoundingClientRect().width <= 80.5, "maxWidth caps the content");
+    assert.ok($(table, '[data-fk="cell:0:name"] .jw-dt-cell').getBoundingClientRect().width <= 80.5, "maxWidth caps the content");
 
     $(table, '[data-fk="cell:0:name"]').dispatchEvent(new PointerEvent("pointerover", { bubbles: true }));
     assert.equal(value(0).title, LONG, "tooltip with the full text");
@@ -276,11 +276,11 @@ test("cellOverflow ellipsis: single line, tooltip only when cut off, full text o
 test("cell overflow defaults to wrapping; columns can override the table setting", () => {
     const data = [{ ...DATA[0], name: LONG }];
     let table = mount({ data });
-    assert.equal($$(table, ".k-dt-truncate").length, 0);
+    assert.equal($$(table, ".jw-dt-truncate").length, 0);
     const columns = COLUMNS.map((c) => c.key === "name" ? { ...c, overflow: /** @type {const} */ ("wrap") } : c);
     table = mount({ data, columns, cellOverflow: "ellipsis" });
-    assert.ok(!$(table, '[data-fk="cell:0:name"]').classList.contains("k-dt-truncate"));
-    assert.ok($(table, '[data-fk="cell:0:fee"]').classList.contains("k-dt-truncate"));
+    assert.ok(!$(table, '[data-fk="cell:0:name"]').classList.contains("jw-dt-truncate"));
+    assert.ok($(table, '[data-fk="cell:0:fee"]').classList.contains("jw-dt-truncate"));
 });
 
 // ---- Column widths ------------------------------------------------------------
@@ -301,7 +301,7 @@ test("columnMinWidth keeps text columns readable; numbers keep their natural wid
     await nextFrame();
     for (const key of WIDE_KEYS) assert.ok(thWidth(table, key) >= 159.5, `${key} is at least 10rem`);
     assert.ok(thWidth(table, "id") < 100, "the number column gets no floor");
-    const body = $(table, ".k-dt-body");
+    const body = $(table, ".jw-dt-body");
     assert.ok(body.scrollWidth > body.clientWidth, "the table scrolls instead");
 });
 
@@ -319,7 +319,7 @@ test("column minWidth and width are floors that win over columnMinWidth", async 
 
 test("numbers, dates and booleans never wrap; text does", () => {
     const table = mount();
-    const whiteSpace = (/** @type {string} */ key) => getComputedStyle($(table, `[data-fk="cell:0:${key}"] .k-dt-value`)).whiteSpace;
+    const whiteSpace = (/** @type {string} */ key) => getComputedStyle($(table, `[data-fk="cell:0:${key}"] .jw-dt-value`)).whiteSpace;
     for (const key of ["id", "fee", "active", "joined"]) assert.equal(whiteSpace(key), "nowrap", key);
     assert.equal(whiteSpace("name"), "normal");
 });
@@ -329,16 +329,32 @@ test("numbers, dates and booleans never wrap; text does", () => {
 test("cards list their fields as label/value pairs (dl/dt/dd)", () => {
     const table = mount({ features: { grid: true }, defaultLayout: "grid", grid: { titleColumn: "name" } });
     const card = $(table, '[data-fk="card:0"]');
-    assert.equal(card.querySelector(".k-dt-card-title").textContent.trim(), "Anna");
+    assert.equal(card.querySelector(".jw-dt-card-title").textContent.trim(), "Anna");
     const labels = Array.from(card.querySelectorAll("dl > div > dt")).map((dt) => dt.textContent);
     assert.deepEqual(labels, ["ID", "Fee", "Active", "Joined"], "title column is not repeated");
     assert.equal(card.querySelector("dl > div > dd").textContent.trim(), "1");
 });
 
+test("theme variables set on an ancestor reach the table; unset ones fall back", () => {
+    const fixture = /** @type {HTMLElement} */ (document.getElementById("fixture"));
+    fixture.style.setProperty("--jw-dt-color-accent", "rgb(1, 2, 3)");
+    fixture.style.setProperty("--jw-dt-color-border", "rgb(4, 5, 6)");
+    try {
+        const table = mount({ features: { sorting: true, grid: true } });
+        const pressed = $(table, '.jw-dt-layout-switch [aria-pressed="true"]');
+        assert.equal(getComputedStyle(pressed).backgroundColor, "rgb(1, 2, 3)", "accent");
+        assert.equal(getComputedStyle($(table, ".jw-dt")).borderTopColor, "rgb(4, 5, 6)", "border");
+        assert.equal(getComputedStyle($(table, ".jw-dt")).backgroundColor, "rgb(255, 255, 255)", "page default");
+    } finally {
+        fixture.style.removeProperty("--jw-dt-color-accent");
+        fixture.style.removeProperty("--jw-dt-color-border");
+    }
+});
+
 test("cards without data show the empty text", () => {
     const table = mount({ data: [], features: { grid: true }, defaultLayout: "grid" });
-    assert.equal($(table, ".k-dt-grid .k-dt-empty").textContent, "No data.");
-    assert.equal($(table, ".k-dt-card"), null);
+    assert.equal($(table, ".jw-dt-grid .jw-dt-empty").textContent, "No data.");
+    assert.equal($(table, ".jw-dt-card"), null);
 });
 
 test("showing a column can force the pager in without a full re-render", () => {
@@ -350,11 +366,11 @@ test("showing a column can force the pager in without a full re-render", () => {
         // 500 rows × 10 columns = 5000 cells: still without pagination.
         const table = mount({ columns: WIDE, data: wideRows(500), features: { pagination: false, columnVisibility: true },
             initial: { hiddenColumns: ["c0", "c1"] } });
-        assert.ok(!$(table, ".k-dt-footer"));
+        assert.ok(!$(table, ".jw-dt-footer"));
         const tableElement = $(table, "table");
         $(table, '[data-fk="tb:columns"]').click();
-        $(table, ".k-dt-overlay .k-dt-switch input").click();   // show c0
-        assert.ok($(table, ".k-dt-footer"), "pager added");
+        $(table, ".jw-dt-overlay .jw-dt-switch input").click();   // show c0
+        assert.ok($(table, ".jw-dt-footer"), "pager added");
         assert.equal($(table, "table"), tableElement, "table updated in place");
         assert.equal(warnings.length, 1);
     } finally {
@@ -385,7 +401,7 @@ test("hiding and showing a column keeps the table element", () => {
     const table = mount({ features: { columnVisibility: true } });
     const tableEl = $(table, "table");
     $(table, '[data-fk="tb:columns"]').click();
-    const box = $$(table, '.k-dt-overlay input[type="checkbox"]')[2];
+    const box = $$(table, '.jw-dt-overlay input[type="checkbox"]')[2];
     box.click();
     assert.deepEqual(headerKeys(table), ["id", "name", "active", "joined"]);
     box.click();
@@ -397,7 +413,7 @@ test("text in cells with a copy button lines up with plain cells; compact rows a
     const table = mount({ features: { compact: true } });
     const rowTop = $(table, "tbody tr").getBoundingClientRect().top;
     const top = (/** @type {string} */ sel) => $(table, sel).getBoundingClientRect().top - rowTop;
-    assert.ok(Math.abs(top('[data-fk="cell:0:name"] .k-dt-value') - top('[data-fk="cell:0:fee"] .k-dt-value')) < 1,
+    assert.ok(Math.abs(top('[data-fk="cell:0:name"] .jw-dt-value') - top('[data-fk="cell:0:fee"] .jw-dt-value')) < 1,
         "copy button does not push the text down");
     const tableRow = $(table, "tbody tr").getBoundingClientRect().height;
     table.setState({ layout: "compact" });

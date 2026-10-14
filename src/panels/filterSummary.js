@@ -16,36 +16,36 @@ import { el, iconEl } from "../ui/dom.js";
  * @returns {{ panel: HTMLElement, refresh: (focusIndex: number) => void }}
  */
 export function buildFilterSummary({ t, entries, focusId = null, onEdit, onRemove, onClearAll, onClose }) {
-    const list = el("ul", { class: "k-dt-fsum-items", "aria-label": t.filterSummaryTitle });
-    const panel = el("div", { class: "k-dt-panel k-dt-fsum-panel" }, [
-        el("h2", { class: "k-dt-panel-head", text: t.filterSummaryTitle }),
+    const list = el("ul", { class: "jw-dt-fsum-items", "aria-label": t.filterSummaryTitle });
+    const panel = el("div", { class: "jw-dt-panel jw-dt-fsum-panel" }, [
+        el("h2", { class: "jw-dt-panel-head", text: t.filterSummaryTitle }),
         list,
-        el("div", { class: "k-dt-panel-actions" }, [
-            el("button", { type: "button", class: "k-dt-btn", "data-fk": "fsum:clear", onclick: () => onClearAll() }, [
+        el("div", { class: "jw-dt-panel-actions" }, [
+            el("button", { type: "button", class: "jw-dt-btn", "data-fk": "fsum:clear", onclick: () => onClearAll() }, [
                 iconEl("x"), el("span", { text: t.clearFilters })
             ]),
-            el("button", { type: "button", class: "k-dt-btn", "data-fk": "fsum:close", text: t.close, onclick: () => onClose() })
+            el("button", { type: "button", class: "jw-dt-btn", "data-fk": "fsum:close", text: t.close, onclick: () => onClose() })
         ])
     ]);
 
     /** @param {string|null} autofocusId */
     const render = (autofocusId) => {
-        list.replaceChildren(...entries().map(({ id, label, value }) => el("li", { class: "k-dt-fsum-item" }, [
+        list.replaceChildren(...entries().map(({ id, label, value }) => el("li", { class: "jw-dt-fsum-item" }, [
             el("button", {
                 type: "button",
-                class: "k-dt-fsum-edit",
+                class: "jw-dt-fsum-edit",
                 "data-fk": `fsum:edit:${id}`,
                 "aria-label": t.editFilterNamed(label, value),
                 title: value,
                 "data-autofocus": id === autofocusId ? "" : null,
                 onclick: () => onEdit(id)
             }, [
-                el("span", { class: "k-dt-fsum-label", text: label }),
-                el("span", { class: "k-dt-fsum-value", text: value })
+                el("span", { class: "jw-dt-fsum-label", text: label }),
+                el("span", { class: "jw-dt-fsum-value", text: value })
             ]),
             el("button", {
                 type: "button",
-                class: "k-dt-icon-btn",
+                class: "jw-dt-icon-btn",
                 "data-fk": `fsum:remove:${id}`,
                 title: t.removeFilterNamed(label),
                 "aria-label": t.removeFilterNamed(label),

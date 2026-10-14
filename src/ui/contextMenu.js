@@ -43,7 +43,7 @@ export function openContextMenu(root, { x, y, items, label, onClose, restoreFocu
 
     const menu = buildMenu(items, () => closeContextMenu());
     if (label) menu.setAttribute("aria-label", label);
-    if (sheet) menu.classList.add("k-ctx-menu--sheet");
+    if (sheet) menu.classList.add("jw-ctx-menu--sheet");
     // The menu lives outside the table root, so suppress the native menu here too
     // (e.g. long-press directly on an open menu item).
     menu.addEventListener("contextmenu", (event) => event.preventDefault());
@@ -170,12 +170,12 @@ function handleMenuKey(event, menu) {
  * @returns {HTMLElement}
  */
 function buildMenu(items, requestClose) {
-    return el("div", { class: "k-ctx-menu", role: "menu" }, items.map((item) => {
+    return el("div", { class: "jw-ctx-menu", role: "menu" }, items.map((item) => {
         if (!item) return null;
-        if (item.separator) return el("div", { class: "k-ctx-sep", role: "separator" });
+        if (item.separator) return el("div", { class: "jw-ctx-sep", role: "separator" });
         return el("button", {
             type: "button",
-            class: "k-ctx-item",
+            class: "jw-ctx-item",
             role: "menuitem",
             tabIndex: -1,
             onclick: (event) => {
@@ -189,8 +189,8 @@ function buildMenu(items, requestClose) {
                 if (focusIsLost()) restore?.();
             }
         }, [
-            el("span", { class: "k-ctx-icon" }, [item.icon ? createIcon(item.icon) : null]),
-            el("span", { class: "k-ctx-label", text: item.label ?? "" })
+            el("span", { class: "jw-ctx-icon" }, [item.icon ? createIcon(item.icon) : null]),
+            el("span", { class: "jw-ctx-label", text: item.label ?? "" })
         ]);
     }));
 }

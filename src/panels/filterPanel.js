@@ -26,18 +26,18 @@ export function buildFilterPanel({ t, column, filter, values, onApply }) {
     const group = typeGroup(column.type);
     let mode = filter ? filter.kind : (group === "text" ? "value" : "pattern");
 
-    const panel = el("div", { class: "k-dt-panel" });
-    panel.appendChild(el("div", { class: "k-dt-panel-head", text: t.filterPanelTitle(column.label) }));
+    const panel = el("div", { class: "jw-dt-panel" });
+    panel.appendChild(el("div", { class: "jw-dt-panel-head", text: t.filterPanelTitle(column.label) }));
 
     // Tabs: Left/Right/Home/End switch, one tab stop.
-    const id = uid("kdt-flt");
-    const tabs = el("div", { class: "k-dt-tabs", role: "tablist", "aria-label": t.filterMode });
+    const id = uid("jwdt-flt");
+    const tabs = el("div", { class: "jw-dt-tabs", role: "tablist", "aria-label": t.filterMode });
     /**
      * @param {string} name
      * @param {string} text
      */
     const makeTab = (name, text) => el("button", {
-        type: "button", class: "k-dt-tab", role: "tab", id: `${id}-${name}-tab`,
+        type: "button", class: "jw-dt-tab", role: "tab", id: `${id}-${name}-tab`,
         "aria-controls": `${id}-${name}`, text
     });
     const valueTab = makeTab("value", t.valuesTab);
@@ -81,12 +81,12 @@ export function buildFilterPanel({ t, column, filter, values, onApply }) {
 
     const applyButton = el("button", {
         type: "button",
-        class: "k-dt-btn k-dt-btn-primary",
+        class: "jw-dt-btn jw-dt-btn-primary",
         text: t.apply,
         onclick: () => onApply(mode === "value" ? bodyValue.collect() : bodyPattern.collect())
     });
-    panel.appendChild(el("div", { class: "k-dt-panel-actions" }, [
-        el("button", { type: "button", class: "k-dt-btn", text: t.reset, onclick: () => onApply(null) }),
+    panel.appendChild(el("div", { class: "jw-dt-panel-actions" }, [
+        el("button", { type: "button", class: "jw-dt-btn", text: t.reset, onclick: () => onApply(null) }),
         applyButton
     ]));
 
@@ -111,7 +111,7 @@ export function buildFilterPanel({ t, column, filter, values, onApply }) {
  * @returns {FilterBody}
  */
 function valueFilter(t, values, existing) {
-    const container = el("div", { class: "k-dt-filter-body" });
+    const container = el("div", { class: "jw-dt-filter-body" });
     const selected = new Set(
         existing && existing.kind === "value" ? existing.values.map((v) => String(v)) : values.map((v) => String(v.value))
     );
@@ -123,7 +123,7 @@ function valueFilter(t, values, existing) {
     /** @type {Map<HTMLElement, boolean>|null} */
     let baseline = null;   // captured when a search starts
     /** @returns {HTMLElement[]} */
-    const checkboxes = () => Array.from(list.querySelectorAll(".k-dt-check"));
+    const checkboxes = () => Array.from(list.querySelectorAll(".jw-dt-check"));
     /** @param {HTMLElement} label */
     const isVisible = (label) => label.style.display !== "none";
     /** @param {HTMLElement} label */
@@ -135,7 +135,7 @@ function valueFilter(t, values, existing) {
 
     const search = el("input", {
         type: "search",
-        class: "k-dt-input",
+        class: "jw-dt-input",
         placeholder: t.searchValues,
         "aria-label": t.searchValues,
         oninput: (e) => {
@@ -165,25 +165,25 @@ function valueFilter(t, values, existing) {
         }
     });
     const toggleAllText = el("span", { text: t.selectAll });
-    container.appendChild(el("label", { class: "k-dt-check k-dt-check-all" }, [toggleAllBox, toggleAllText]));
+    container.appendChild(el("label", { class: "jw-dt-check jw-dt-check-all" }, [toggleAllBox, toggleAllText]));
 
-    const list = el("div", { class: "k-dt-check-list", onchange: () => syncToggleAll() },
+    const list = el("div", { class: "jw-dt-check-list", onchange: () => syncToggleAll() },
         values.map((entry) => {
             const labelText = String(entry.label || t.emptyValue);
-            return el("label", { class: "k-dt-check", dataset: { label: labelText.toLowerCase(), value: String(entry.value) } }, [
+            return el("label", { class: "jw-dt-check", dataset: { label: labelText.toLowerCase(), value: String(entry.value) } }, [
                 el("input", { type: "checkbox", checked: selected.has(String(entry.value)) }),
-                el("span", { class: "k-dt-check-label", text: labelText }),
-                el("span", { class: "k-dt-check-count", text: String(entry.count) })
+                el("span", { class: "jw-dt-check-label", text: labelText }),
+                el("span", { class: "jw-dt-check-count", text: String(entry.count) })
             ]);
         }));
     container.appendChild(list);
 
     // Only shown while searching.
-    const searchMode = segmentedEl(uid("kdt-smode"), t.searchResultsMode, [
+    const searchMode = segmentedEl(uid("jwdt-smode"), t.searchResultsMode, [
         ["replace", t.searchResultsOnly],
         ["add", t.searchResultsAdd]
     ], "replace");
-    searchMode.classList.add("k-dt-search-mode");
+    searchMode.classList.add("jw-dt-search-mode");
     searchMode.hidden = true;
     container.appendChild(searchMode);
 
@@ -220,7 +220,7 @@ function valueFilter(t, values, existing) {
  * @returns {FilterBody}
  */
 function patternFilter(t, column, existing) {
-    const container = el("div", { class: "k-dt-filter-body" });
+    const container = el("div", { class: "jw-dt-filter-body" });
     const operators = operatorsForType(column.type);
     const current = existing && existing.kind === "pattern" ? existing : null;
     const group = typeGroup(column.type);
@@ -228,14 +228,14 @@ function patternFilter(t, column, existing) {
         : group === "date" ? (column.type === "datetime" ? "datetime-local" : column.type === "time" ? "time" : "date")
         : "text";
 
-    const operandWrap = el("div", { class: "k-dt-operands" });
-    const operand1 = el("input", { type: inputType, class: "k-dt-input", value: current ? (current.operand ?? "") : "" });
-    const operand2 = el("input", { type: inputType, class: "k-dt-input", value: current ? (current.operand2 ?? "") : "" });
-    const selectId = uid("kdt-op");
+    const operandWrap = el("div", { class: "jw-dt-operands" });
+    const operand1 = el("input", { type: inputType, class: "jw-dt-input", value: current ? (current.operand ?? "") : "" });
+    const operand2 = el("input", { type: inputType, class: "jw-dt-input", value: current ? (current.operand2 ?? "") : "" });
+    const selectId = uid("jwdt-op");
     const arity = () => operatorMeta(column.type, select.value)?.arity ?? 1;
 
     const select = el("select", {
-        class: "k-dt-select",
+        class: "jw-dt-select",
         id: selectId,
         onchange: () => renderOperands()
     }, operators.map((op) => el("option", {
@@ -253,7 +253,7 @@ function patternFilter(t, column, existing) {
     renderOperands();
 
     container.append(
-        el("label", { class: "k-dt-field-label", for: selectId, text: t.condition }),
+        el("label", { class: "jw-dt-field-label", for: selectId, text: t.condition }),
         select,
         operandWrap
     );

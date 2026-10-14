@@ -64,19 +64,19 @@ export class Overlay {
     show(panel, { anchor = null, returnKey = null, centered = false, sheet = false, onEscape = null } = {}) {
         this.close();
         closeContextMenu();
-        panel.classList.add("k-dt-overlay");
-        panel.appendChild(el("div", { "data-live": "", "aria-live": "polite", "aria-atomic": "true", class: "k-dt-sr-only" }));
+        panel.classList.add("jw-dt-overlay");
+        panel.appendChild(el("div", { "data-live": "", "aria-live": "polite", "aria-atomic": "true", class: "jw-dt-sr-only" }));
         panel.setAttribute("role", "dialog");
         panel.setAttribute("aria-modal", "true");
-        const head = panel.querySelector(".k-dt-panel-head");
+        const head = panel.querySelector(".jw-dt-panel-head");
         if (head) {
-            head.id = uid("kdt-dlg");
+            head.id = uid("jwdt-dlg");
             panel.setAttribute("aria-labelledby", head.id);
         }
 
-        if (sheet) panel.classList.add("k-dt-overlay--sheet");
-        else if (centered) panel.classList.add("k-dt-overlay--dialog");
-        const backdrop = el("div", { class: "k-dt-backdrop" + (centered ? " k-dt-backdrop--dim" : ""), "aria-hidden": "true" });
+        if (sheet) panel.classList.add("jw-dt-overlay--sheet");
+        else if (centered) panel.classList.add("jw-dt-overlay--dialog");
+        const backdrop = el("div", { class: "jw-dt-backdrop" + (centered ? " jw-dt-backdrop--dim" : ""), "aria-hidden": "true" });
         // Focus stays in the panel until the click closes it, then returns to the opener.
         backdrop.addEventListener("mousedown", (event) => event.preventDefault());
         backdrop.addEventListener("click", () => { if (this.panel === panel) this.close(); });

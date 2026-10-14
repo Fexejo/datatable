@@ -15,14 +15,14 @@ function captureExports(/** @type {HTMLElement} */ table, { cancel = true } = {}
     });
     return events;
 }
-const exportDialog = (/** @type {HTMLElement} */ table) => $(table, ".k-dt-export[role='dialog']");
+const exportDialog = (/** @type {HTMLElement} */ table) => $(table, ".jw-dt-export[role='dialog']");
 // Input of the option/switch labelled `text` (exact match first, then prefix).
 const exportControl = (/** @type {HTMLElement} */ table, /** @type {string} */ text) => {
-    const labels = $$(table, ".k-dt-export label");
+    const labels = $$(table, ".jw-dt-export label");
     return (labels.find((l) => l.textContent.trim() === text)
         ?? labels.find((l) => l.textContent.trim().startsWith(text)))?.querySelector("input");
 };
-const submitExport = (/** @type {HTMLElement} */ table) => $(table, ".k-dt-export button[type='submit']").click();
+const submitExport = (/** @type {HTMLElement} */ table) => $(table, ".jw-dt-export button[type='submit']").click();
 
 test("export: toolbar button opens a labelled dialog with format and file name", async () => {
     const table = mount({ title: "Members", features: { export: true } });
@@ -45,8 +45,8 @@ test("export: toolbar button opens a labelled dialog with format and file name",
     assert.match(filename.value, /^Members_\d{4}-\d\d-\d\d_\d\d-\d\d-\d\d\.csv$/);
 
     // Everything else waits behind "More options".
-    const toggle = $(table, ".k-dt-disclosure");
-    const more = $(table, ".k-dt-export-more");
+    const toggle = $(table, ".jw-dt-disclosure");
+    const more = $(table, ".jw-dt-export-more");
     assert.equal(accessibleName(toggle), "More options");
     assert.equal(toggle.getAttribute("aria-expanded"), "false");
     assert.equal(toggle.getAttribute("aria-controls"), more.id);
@@ -64,7 +64,7 @@ test("export: toolbar button opens a labelled dialog with format and file name",
     assert.equal(more.querySelector("select").value, ";", "delimiter");
     assert.equal(dialog.querySelector(`label[for="${more.querySelector("select").id}"]`)?.textContent, "Delimiter");
 
-    $$(table, ".k-dt-export button").find((b) => b.textContent === "Cancel").click();
+    $$(table, ".jw-dt-export button").find((b) => b.textContent === "Cancel").click();
     assert.equal(exportDialog(table), null, "closed");
     assert.equal(deepActiveElement(), button, "focus back on the button");
     assert.equal(button.getAttribute("aria-expanded"), "false");
@@ -93,7 +93,7 @@ test("export: options for scope, columns, formatting, header and delimiter", () 
     const events = captureExports(table);
     const run = (/** @type {any} */ setup) => {
         $(table, '[data-fk="tb:export"]').click();
-        $(table, ".k-dt-disclosure").click();
+        $(table, ".jw-dt-disclosure").click();
         setup();
         submitExport(table);
         return events.at(-1);
@@ -107,7 +107,7 @@ test("export: options for scope, columns, formatting, header and delimiter", () 
         exportControl(table, "Ausgeblendete Spalten einbeziehen").click();
         exportControl(table, "Werte wie angezeigt").click();
         exportControl(table, "Kopfzeile").click();
-        const select = $(table, ".k-dt-export select");
+        const select = $(table, ".jw-dt-export select");
         select.value = ",";
     });
     assert.equal(detail.rowCount, 30, "entire table");
@@ -119,13 +119,13 @@ test("export: JSON swaps the extension, uses keys and offers column info", () =>
     const table = mount({ features: { export: true } });
     const events = captureExports(table);
     $(table, '[data-fk="tb:export"]').click();
-    $(table, ".k-dt-disclosure").click();
-    const filename = $(table, '.k-dt-export input[type="text"]');
+    $(table, ".jw-dt-disclosure").click();
+    const filename = $(table, '.jw-dt-export input[type="text"]');
     const json = exportControl(table, "JSON");
     json.click();
     assert.match(filename.value, /\.json$/, "extension follows the format");
     assert.ok(exportControl(table, "Header row").closest("label").hidden, "no header option");
-    assert.ok($(table, ".k-dt-export select").closest(".k-dt-field").hidden, "no delimiter");
+    assert.ok($(table, ".jw-dt-export select").closest(".jw-dt-field").hidden, "no delimiter");
     assert.ok(exportControl(table, "Key").checked, "keys are the default names for JSON");
     const metadata = exportControl(table, "Include column info");
     assert.ok(!metadata.closest("label").hidden && !metadata.checked, "column info offered, off");
@@ -136,7 +136,7 @@ test("export: JSON swaps the extension, uses keys and offers column info", () =>
     assert.deepEqual(JSON.parse(detail.content)[0], { id: 1, name: "Anna", fee: 0, active: false, joined: "2020-01-15" });
 
     $(table, '[data-fk="tb:export"]').click();
-    $(table, ".k-dt-disclosure").click();
+    $(table, ".jw-dt-disclosure").click();
     exportControl(table, "JSON").click();
     exportControl(table, "Include column info").click();
     submitExport(table);
@@ -159,7 +159,7 @@ test("export: XLSX downloads a workbook with typed cells", async () => {
     const events = captureExports(table, { cancel: false });
     $(table, '[data-fk="tb:export"]').click();
     exportControl(table, "Excel").click();
-    assert.match($(table, '.k-dt-export input[type="text"]').value, /^Members_.*\.xlsx$/);
+    assert.match($(table, '.jw-dt-export input[type="text"]').value, /^Members_.*\.xlsx$/);
     assert.ok(!exportControl(table, "Header row").closest("label").hidden, "header row option");
     submitExport(table);
     const detail = events.at(-1);
@@ -190,14 +190,14 @@ test("export: clipboard destination copies text with tabs, hides XLSX and the fi
         const table = mount({ features: { export: true } });
         const events = captureExports(table, { cancel: false });
         $(table, '[data-fk="tb:export"]').click();
-        $(table, ".k-dt-disclosure").click();
+        $(table, ".jw-dt-disclosure").click();
         exportControl(table, "Excel").click();
         exportControl(table, "Clipboard").click();
         assert.ok(exportControl(table, "CSV").checked, "XLSX falls back to CSV");
         assert.ok(exportControl(table, "Excel").closest("label").hidden, "XLSX not offered");
-        assert.ok($(table, '.k-dt-export input[type="text"]').closest(".k-dt-field").hidden, "no file name");
-        assert.equal($(table, ".k-dt-export select").value, "\t", "tab for pasting into spreadsheets");
-        const submit = $(table, ".k-dt-export button[type='submit']");
+        assert.ok($(table, '.jw-dt-export input[type="text"]').closest(".jw-dt-field").hidden, "no file name");
+        assert.equal($(table, ".jw-dt-export select").value, "\t", "tab for pasting into spreadsheets");
+        const submit = $(table, ".jw-dt-export button[type='submit']");
         assert.equal(submit.textContent, "Copy");
         submit.click();
         assert.equal(events.at(-1).destination, "clipboard");
@@ -208,8 +208,8 @@ test("export: clipboard destination copies text with tabs, hides XLSX and the fi
         $(table, '[data-fk="tb:export"]').click();
         exportControl(table, "Clipboard").click();
         exportControl(table, "File").click();
-        assert.equal($(table, ".k-dt-export select").value, ";");
-        assert.equal($(table, ".k-dt-export button[type='submit']").textContent, "Export");
+        assert.equal($(table, ".jw-dt-export select").value, ";");
+        assert.equal($(table, ".jw-dt-export button[type='submit']").textContent, "Export");
     } finally {
         written.restore();
     }
@@ -312,7 +312,7 @@ test("export: segmented options and switches — roles, names, keyboard, touch t
     const table = mount({ features: { export: true } });
     $(table, '[data-fk="tb:export"]').focus();
     await input.press("Enter");
-    $(table, ".k-dt-disclosure").click();
+    $(table, ".jw-dt-disclosure").click();
 
     // Segments are native radios: one tab stop per group, arrows select.
     const csv = exportControl(table, "CSV");
@@ -338,7 +338,7 @@ test("export: segmented options and switches — roles, names, keyboard, touch t
     assert.ok(getComputedStyle(localized).outlineStyle !== "none", "visible focus");
 
     // Touch targets ≥ 44px on mobile.
-    for (const node of [...$$(table, ".k-dt-segment"), ...$$(table, ".k-dt-switch")].filter((n) => !n.hidden)) {
+    for (const node of [...$$(table, ".jw-dt-segment"), ...$$(table, ".jw-dt-switch")].filter((n) => !n.hidden)) {
         assert.ok(node.getBoundingClientRect().height >= 44, `${node.textContent.trim()}: ${node.getBoundingClientRect().height}px`);
     }
 }, { cdp: true });

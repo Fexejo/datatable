@@ -86,7 +86,7 @@ export const $$ = (table, sel) => Array.from(table.shadowRoot?.querySelectorAll(
  * @returns {string[]}
  */
 export const columnTexts = (table, index) =>
-    $$(table, "tbody tr").map((tr) => tr.children[index].querySelector(".k-dt-cell").textContent.trim());
+    $$(table, "tbody tr").map((tr) => tr.children[index].querySelector(".jw-dt-cell").textContent.trim());
 
 /** @param {Element} node */
 export function rightClick(node) {
@@ -97,7 +97,7 @@ export function rightClick(node) {
 }
 
 // Active live region: the open panel's own region, else the shared one in <body>.
-export const status = (/** @type {HTMLElement} */ table) => $(table, ".k-dt-overlay [data-live]")
+export const status = (/** @type {HTMLElement} */ table) => $(table, ".jw-dt-overlay [data-live]")
     || document.querySelector("body > [data-jw-datatable-announcer]");
 
 // Announcements may carry an invisible alternating suffix (see _announce).

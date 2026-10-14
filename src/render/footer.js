@@ -13,12 +13,12 @@ import { pageItems, pageRange } from "../core/pagination.js";
  */
 export function buildFooter({ t, title, page, pageCount, pageSize, pageSizeOptions, total, onPage, onPageSize }) {
     const { start, end } = pageRange(page, pageSize, total);
-    const info = el("div", { class: "k-dt-info" }, [
+    const info = el("div", { class: "jw-dt-info" }, [
         el("span", { text: t.pageInfo(start, end, total) }),
-        el("label", { class: "k-dt-pagesize" }, [
+        el("label", { class: "jw-dt-pagesize" }, [
             el("span", { text: t.perPage }),
             el("select", {
-                class: "k-dt-select",
+                class: "jw-dt-select",
                 "data-fk": "pagesize",
                 "aria-label": t.rowsPerPage,
                 onchange: (e) => onPageSize(Number(e.currentTarget.value))
@@ -36,7 +36,7 @@ export function buildFooter({ t, title, page, pageCount, pageSize, pageSizeOptio
      */
     const navBtn = (icon, label, target, disabled) => el("button", {
         type: "button",
-        class: "k-dt-page-btn",
+        class: "jw-dt-page-btn",
         "data-fk": `page:${icon}`,
         title: label,
         "aria-label": label,
@@ -45,10 +45,10 @@ export function buildFooter({ t, title, page, pageCount, pageSize, pageSizeOptio
     }, [iconEl(icon)]);
     /** @param {number|"…"} item */
     const pageButton = (item) => (item === "…"
-        ? el("span", { class: "k-dt-page-gap", text: "…" })
+        ? el("span", { class: "jw-dt-page-gap", text: "…" })
         : el("button", {
             type: "button",
-            class: "k-dt-page-btn k-dt-page-num" + (item === page ? " is-active" : ""),
+            class: "jw-dt-page-btn jw-dt-page-num" + (item === page ? " is-active" : ""),
             "data-fk": `page:n:${item}`,
             "aria-label": t.pageN(item),
             "aria-current": item === page ? "page" : null,
@@ -57,7 +57,7 @@ export function buildFooter({ t, title, page, pageCount, pageSize, pageSizeOptio
         }));
 
     const nav = el("div", {
-        class: "k-dt-pager",
+        class: "jw-dt-pager",
         role: "navigation",
         "aria-label": title ? t.paginationNamed(title) : t.paginationAriaLabel
     }, [
@@ -68,5 +68,5 @@ export function buildFooter({ t, title, page, pageCount, pageSize, pageSizeOptio
         navBtn("chevrons-right", t.lastPage, pageCount, page >= pageCount)
     ]);
 
-    return el("div", { class: "k-dt-footer", part: "footer" }, [info, nav]);
+    return el("div", { class: "jw-dt-footer", part: "footer" }, [info, nav]);
 }

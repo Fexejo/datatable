@@ -54,20 +54,20 @@ export function buildTable(view) {
     const { t, columns, compact } = view;
     const headRow = el("tr", {}, columns.map((column, i) => pinCell(buildHeaderCell(view, column), i, columns, view.isPinned)));
     if (compact) {
-        headRow.appendChild(el("th", { class: "k-dt-th k-dt-details-col", scope: "col" }, [
-            el("span", { class: "k-dt-sr-only", text: t.details })
+        headRow.appendChild(el("th", { class: "jw-dt-th jw-dt-details-col", scope: "col" }, [
+            el("span", { class: "jw-dt-sr-only", text: t.details })
         ]));
     }
     const table = el("table", {
-        class: "k-dt-table" + (compact ? " k-dt-table--compact" : ""),
+        class: "jw-dt-table" + (compact ? " jw-dt-table--compact" : ""),
         part: "table",
         // The toolbar title names the table for assistive tech.
         "aria-labelledby": view.labelledBy
     }, [el("thead", {}, [headRow]), buildTbody(view)]);
-    if (view.rows.length === 0) return el("div", { class: "k-dt-scroll" }, [table]);
+    if (view.rows.length === 0) return el("div", { class: "jw-dt-scroll" }, [table]);
     table.setAttribute("aria-describedby", view.hintId);
-    return el("div", { class: "k-dt-scroll" }, [
-        el("p", { id: view.hintId, class: "k-dt-sr-only", text: compact ? t.compactKeyboardHint : t.tableKeyboardHint }),
+    return el("div", { class: "jw-dt-scroll" }, [
+        el("p", { id: view.hintId, class: "jw-dt-sr-only", text: compact ? t.compactKeyboardHint : t.tableKeyboardHint }),
         table
     ]);
 }
@@ -80,11 +80,11 @@ export function buildTbody(view) {
     const { columns, rows, compact } = view;
     if (rows.length === 0) {
         return el("tbody", {}, [el("tr", {}, [
-            el("td", { class: "k-dt-empty", colSpan: (columns.length + (compact ? 1 : 0)) || 1 }, [view.emptyText])
+            el("td", { class: "jw-dt-empty", colSpan: (columns.length + (compact ? 1 : 0)) || 1 }, [view.emptyText])
         ])]);
     }
     const tbody = el("tbody", {}, rows.map((row, index) => buildRow(view, row, index)));
-    initRoving(tbody, ".k-dt-td", {
+    initRoving(tbody, ".jw-dt-td", {
         rememberedKey: view.roving.key,
         onFocus: view.roving.onFocus,
         onKey: (event, cell) => onCellKey(view, event, /** @type {HTMLTableCellElement} */ (cell))
@@ -102,7 +102,7 @@ export function buildTbody(view) {
 function onCellKey(view, event, cell) {
     if (event.key === "Enter") {
         /** @type {HTMLElement|null} */
-        const inner = cell.querySelector(".k-dt-link, .k-dt-cell-action, .k-dt-details-btn");
+        const inner = cell.querySelector(".jw-dt-link, .jw-dt-cell-action, .jw-dt-details-btn");
         if (inner) inner.click();
         else if (view.cellsActivatable) cell.click();
         else return;
@@ -125,17 +125,17 @@ function onCellKey(view, event, cell) {
 export function buildHeaderCell(view, column) {
     const { t } = view;
     const th = el("th", {
-        class: "k-dt-th k-dt-align-" + column.align + (column.minWidth ? " k-dt-has-min" : ""),
+        class: "jw-dt-th jw-dt-align-" + column.align + (column.minWidth ? " jw-dt-has-min" : ""),
         scope: "col",
         "data-key": column.key,
         "aria-sort": ariaSort(view.sort, column),
         style: (column.width ? `width:${column.width};` : "")
-            + (column.minWidth ? `--k-dt-col-min:${column.minWidth};` : "") || null
+            + (column.minWidth ? `--dt-col-min:${column.minWidth};` : "") || null
     });
 
-    const inner = el("div", { class: "k-dt-th-inner" });
+    const inner = el("div", { class: "jw-dt-th-inner" });
     const labelBtn = el(column.sortable ? "button" : "span", {
-        class: "k-dt-th-label",
+        class: "jw-dt-th-label",
         type: column.sortable ? "button" : null,
         "data-fk": column.sortable ? `sort:${column.key}` : null,
         title: column.sortable ? t.sortHint : null,
@@ -148,7 +148,7 @@ export function buildHeaderCell(view, column) {
         const active = isActiveFilter(view.filters[column.key]);
         inner.appendChild(el("button", {
             type: "button",
-            class: "k-dt-filter-btn" + (active ? " is-active" : ""),
+            class: "jw-dt-filter-btn" + (active ? " is-active" : ""),
             "data-fk": `filter:${column.key}`,
             "aria-haspopup": "dialog",
             "aria-expanded": String(view.openerKey === `filter:${column.key}`),
@@ -193,12 +193,12 @@ export function sortIndicator({ t, sort }, column) {
     const sortIndex = sort.findIndex((s) => s.key === column.key);
     const spec = sortIndex >= 0 ? sort[sortIndex] : null;
     const icon = spec ? (spec.direction === "asc" ? "arrow-up" : "arrow-down") : "arrow-up-down";
-    const wrap = el("span", { class: "k-dt-sort-ind" }, [
-        iconEl(icon, "k-dt-sort-ic" + (spec ? " is-active" : ""))
+    const wrap = el("span", { class: "jw-dt-sort-ind" }, [
+        iconEl(icon, "jw-dt-sort-ic" + (spec ? " is-active" : ""))
     ]);
     if (spec && sort.length > 1) {
-        wrap.appendChild(el("span", { class: "k-dt-sort-rank", "aria-hidden": "true", text: String(sortIndex + 1) }));
-        wrap.appendChild(el("span", { class: "k-dt-sr-only", text: t.sortPriority(sortIndex + 1) }));
+        wrap.appendChild(el("span", { class: "jw-dt-sort-rank", "aria-hidden": "true", text: String(sortIndex + 1) }));
+        wrap.appendChild(el("span", { class: "jw-dt-sr-only", text: t.sortPriority(sortIndex + 1) }));
     }
     return wrap;
 }
@@ -211,7 +211,7 @@ export function sortIndicator({ t, sort }, column) {
 function unpinButton({ t, onUnpin }, column) {
     return el("button", {
         type: "button",
-        class: "k-dt-pin-btn",
+        class: "jw-dt-pin-btn",
         "data-fk": `pin:${column.key}`,
         title: t.unpinColumn,
         "aria-label": t.unpinColumnNamed(column.label),
@@ -219,7 +219,7 @@ function unpinButton({ t, onUnpin }, column) {
             // This button goes away: move focus to the column's header button
             // first, so it stays on the same element while the column moves.
             /** @type {HTMLElement|null|undefined} */
-            const headerButton = event.currentTarget.closest("th")?.querySelector("button.k-dt-th-label, .k-dt-filter-btn");
+            const headerButton = event.currentTarget.closest("th")?.querySelector("button.jw-dt-th-label, .jw-dt-filter-btn");
             headerButton?.focus();
             onUnpin(column.key);
         }
@@ -234,12 +234,12 @@ function unpinButton({ t, onUnpin }, column) {
  * @param {Column[]} columns
  */
 export function updateHeaderPin(view, th, index, columns) {
-    th.classList.remove("k-dt-pinned", "k-dt-pinned-last");
-    th.style.removeProperty("--k-dt-pin-left");
+    th.classList.remove("jw-dt-pinned", "jw-dt-pinned-last");
+    th.style.removeProperty("--dt-pin-left");
     pinCell(th, index, columns, view.isPinned);
-    const button = th.querySelector(".k-dt-pin-btn");
+    const button = th.querySelector(".jw-dt-pin-btn");
     if (view.isPinned(columns[index])) {
-        if (!button) th.querySelector(".k-dt-th-inner")?.appendChild(unpinButton(view, columns[index]));
+        if (!button) th.querySelector(".jw-dt-th-inner")?.appendChild(unpinButton(view, columns[index]));
     } else {
         button?.remove();
     }
@@ -256,9 +256,9 @@ export function updateHeaderPin(view, th, index, columns) {
  */
 function pinCell(cell, index, columns, isPinned) {
     if (!isPinned(columns[index])) return cell;
-    cell.classList.add("k-dt-pinned");
-    cell.style.setProperty("--k-dt-pin-left", `var(--k-dt-pin-${index})`);
-    if (!isPinned(columns[index + 1])) cell.classList.add("k-dt-pinned-last");
+    cell.classList.add("jw-dt-pinned");
+    cell.style.setProperty("--dt-pin-left", `var(--dt-pin-${index})`);
+    if (!isPinned(columns[index + 1])) cell.classList.add("jw-dt-pinned-last");
     return cell;
 }
 
@@ -271,7 +271,7 @@ function pinCell(cell, index, columns, isPinned) {
  */
 function buildRow(view, row, index) {
     const { columns } = view;
-    const tr = el("tr", { class: "k-dt-tr" + (view.rowsClickable ? " k-dt-clickable" : "") });
+    const tr = el("tr", { class: "jw-dt-tr" + (view.rowsClickable ? " jw-dt-clickable" : "") });
     if (view.rowClass) {
         const cls = view.rowClass(row, index);
         if (cls) tr.classList.add(...String(cls).split(/\s+/));
@@ -290,10 +290,10 @@ function buildRow(view, row, index) {
  */
 function buildDetailsCell(view, row, index) {
     const { t } = view;
-    const td = el("td", { class: "k-dt-td k-dt-details-col", tabIndex: -1, "data-fk": `cell:${index}:#details` }, [
+    const td = el("td", { class: "jw-dt-td jw-dt-details-col", tabIndex: -1, "data-fk": `cell:${index}:#details` }, [
         el("button", {
             type: "button",
-            class: "k-dt-details-btn",
+            class: "jw-dt-details-btn",
             "data-fk": `details:${index}`,
             "aria-haspopup": "dialog",
             "aria-expanded": "false",
@@ -316,21 +316,21 @@ function buildDetailsCell(view, row, index) {
 function buildCell(view, column, row, index) {
     const value = getCellValue(row, column);
     const fk = `cell:${index}:${column.key}`;
-    const td = el("td", { class: "k-dt-td k-dt-align-" + column.align, tabIndex: -1, "data-fk": fk });
-    if (typeGroup(column.type) !== "text") td.classList.add("k-dt-nowrap");
+    const td = el("td", { class: "jw-dt-td jw-dt-align-" + column.align, tabIndex: -1, "data-fk": fk });
+    if (typeGroup(column.type) !== "text") td.classList.add("jw-dt-nowrap");
     if (typeof column.cellClass === "function") {
         const cls = column.cellClass(value, row);
         if (cls) td.classList.add(...String(cls).split(/\s+/));
     }
 
-    const content = el("div", { class: "k-dt-cell" }, [valueNode(column, row, value, fk, view.locale)]);
+    const content = el("div", { class: "jw-dt-cell" }, [valueNode(column, row, value, fk, view.locale)]);
     if (column.copyable) content.appendChild(copyButton(view.t, column, fk));
     td.appendChild(content);
     // Single-line cell with an ellipsis; the full text shows as a tooltip
     // (set by the component on hover) and while the cell has focus (CSS).
     if ((column.overflow || view.cellOverflow) === "ellipsis") {
-        td.classList.add("k-dt-truncate");
-        if (column.maxWidth) td.style.setProperty("--k-dt-cell-max-width", column.maxWidth);
+        td.classList.add("jw-dt-truncate");
+        if (column.maxWidth) td.style.setProperty("--jw-dt-cell-max-width", column.maxWidth);
     }
     view.register(td, { column, row, value, index });
     return td;
