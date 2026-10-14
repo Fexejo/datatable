@@ -28,7 +28,15 @@
 
     <script type="module">
         import { run } from "./harness.js";
-        import "./datatable.test.js";
+        import "./rendering.test.js";
+        import "./a11y.test.js";
+        import "./menu.test.js";
+        import "./panels.test.js";
+        import "./views.test.js";
+        import "./columns.test.js";
+        import "./details.test.js";
+        import "./export.test.js";
+        import "./axe.test.js";
 
         const filter = new URLSearchParams(location.search).get("filter") || undefined;
         const results = await run({ filter });

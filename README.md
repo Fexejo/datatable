@@ -1197,7 +1197,8 @@ node tests/run.js --filter "sort" # only tests whose name contains "sort"
 | Path | Content |
 |------|---------|
 | `tests/unit/*.test.js` | `node:test` tests for the DOM-free modules (state, sorting, filtering, formatting, pagination, export incl. XLSX, i18n, icons, …) |
-| `tests/browser/datatable.test.js` | Component tests in a real browser (rendering, sorting, pagination, context menu, accessibility, keyboard, responsive) |
+| `tests/browser/*.test.js` | Component tests in a real browser, one file per topic: `rendering`, `a11y` (keyboard, focus, announcements), `menu`, `panels`, `views`, `columns`, `details`, `export`, `axe` |
+| `tests/browser/helpers.js` | Shared fixtures (`mount()`, `DATA`, `COLUMNS`, …) and query helpers |
 | `tests/browser/harness.js` | Tiny in-browser test harness (`test`, `assert`, `waitFor`, `input.press`, `input.longPress`, `input.viewport`) |
 | `tests/run.js` | Runner: starts a static server and headless Chromium, drives it via the DevTools protocol |
 
@@ -1231,6 +1232,9 @@ test("keyboard", async () => {
     await input.press("Enter");          // trusted key event via CDP
 }, { cdp: true });
 ```
+
+Fixtures and helpers come from `tests/browser/helpers.js`; a new test file is
+imported in `tests/browser/index.html`.
 
 Each change to UI behavior should come with a browser test, including its
 keyboard and screen-reader semantics (roles, names, states, focus).
