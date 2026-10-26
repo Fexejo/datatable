@@ -41,6 +41,9 @@ export function buildFilterSummary({ t, entries, focusId = null, onEdit, onRemov
                 onclick: () => onEdit(id)
             }, [
                 el("span", { class: "jw-dt-fsum-label", text: label }),
+                // Separates the visible words ("Name Anna"), so they are part of
+                // the accessible name (WCAG 2.5.3); flex layout does not render it.
+                " ",
                 el("span", { class: "jw-dt-fsum-value", text: value })
             ]),
             el("button", {

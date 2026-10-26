@@ -237,6 +237,9 @@ test("filter summary: \"Filter (n)\" opens the active filters with their values"
         "Edit filter Name: Ben, Emma",
         "Edit filter Fee: > €50.00"
     ]);
+    // The visible words are part of the name (WCAG 2.5.3, label in name).
+    assert.deepEqual($$(table, ".jw-dt-overlay .jw-dt-fsum-edit").map((b) => b.textContent),
+        ["Search “e”", "Name Ben, Emma", "Fee > €50.00"]);
     assert.equal(deepActiveElement()?.dataset.fk, "fsum:edit:search", "focus on the first entry");
     assert.deepEqual($$(table, '.jw-dt-overlay [data-fk^="fsum:remove:"]').map(accessibleName),
         ["Remove filter: Search", "Remove filter: Name", "Remove filter: Fee"]);
