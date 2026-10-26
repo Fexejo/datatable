@@ -767,14 +767,23 @@ The methods return Promises that reject when the storage fails or
 `features.savedViews` is off.
 
 **Storage.** Without `storage.adapter`, views are kept in `localStorage`
-under the namespace `storage.namespace` (default `"jw-datatable"`) +
-`storage.key` (default: `id`). Give every table its own `id` so their views
-stay apart. To store them elsewhere, pass an **adapter**: an object with five
-methods, each may return a Promise:
+by a `LocalStorageAdapter` (exported) under the namespace
+`<storage.namespace>::<key>` — `storage.namespace` defaults to
+`"jw-datatable"`, the key is `storage.key`, else `id`, else `"default"`. The
+namespace holds the list of names (`<namespace>::views`) and one entry per
+view (`<namespace>::view::<name>`). **Give every table on a page (and in the
+same origin) its own `id`** (or `storage.key`): tables without one all use
+`"default"` and see each other's views. Two tables with the same key share
+their views on purpose — e.g. the same table on two pages. The
+`LocalStorageAdapter` does not [share views](#sharing-views) with other
+users; that needs a backend.
+
+To store them elsewhere, pass an **adapter**: an object with five methods,
+each may return a Promise:
 
 | Method | Returns | Does |
 |--------|---------|------|
-| `list()` | `string[]` | Names of all views, in display order |
+| `list()` | `(string \| { name, shared })[]` | Own views, in display order (`{ name, shared }` only matters for [sharing](#sharing-views)) |
 | `get(name)` | `object \| null` | The saved state |
 | `save(name, state)` | — | Save or overwrite |
 | `rename(oldName, newName)` | — | Rename (overwrites `newName`) |
@@ -786,7 +795,8 @@ serve several tables and keep their views apart (an adapter that ignores it
 keeps working).
 
 All five are required (`configure()` throws otherwise). A rejected Promise or
-a thrown error is shown in the panel. Results of the wrong type count as empty
+a thrown error is shown in the panel (and rejects the [API](#instance-api)
+call). Results of the wrong type count as empty
 (non-string names are skipped; a `get()` result that is no object counts as a
 missing view), and the state from `get()` is validated like `setState()` (see
 [Instance API](#instance-api)).
@@ -861,6 +871,24 @@ await table.saveView("My copy");               // saves it as an own view
 ```
 
 These reject when the adapter cannot share.
+
+**When the table calls the adapter.** Opening the panel calls `list()` (and
+`listShared()`, in parallel). After each change made in the panel — save,
+update, rename, delete, share — it calls `list()` again, so the list shows
+what the adapter stores. Loading calls `get()` / `getShared()`; when that
+finds nothing, the view counts as gone and its list is reloaded. Nothing is
+cached between openings, and the API methods call the adapter directly.
+Failures stay in their place: a failing `listShared()` only empties the
+“Shared by others” group (with “Try again”), the own views stay usable.
+
+**`ViewStore`** (exported) is the thin facade the table puts in front of the
+adapter — useful to test an adapter or to read views without a table:
+`new ViewStore(adapter, { key })` checks the methods (throws like
+`configure()`), passes the context, turns every result into a Promise and
+drops malformed results (as described above). It has `list()` (names),
+`ownViews()` (`{ name, shared }[]`), `get()`, `save()`, `rename()`,
+`delete()`, `canShare`, `share()`, `listShared()` and `getShared()`; the
+sharing methods reject when `canShare` is false.
 
 ---
 
@@ -1442,8 +1470,11 @@ those modules the component (breaking "never the component" and reaching into
 `_private` members) or wire 6–10 callbacks per area for a few hundred lines
 less — more indirection, no less complexity. So the class stays the
 orchestrator; its methods stay short and grouped in sections. Revisit only
-when one area grows a lot (e.g. shared or server-synced views): then extract
-it with a narrow callback interface, like the panels.
+when one area grows a lot (e.g. server-synced views): then extract it with a
+narrow callback interface, like the panels. Shared views (2026-10) only added
+their API methods here; the UI logic lives in `panels/viewsPanel.js` (state
+and actions) and `panels/viewsList.js` (the parts it renders), the adapter
+checks in `core/viewStore.js`.
 
 **State flow.** The component holds one state object (shape in
 `src/core/state.js`, types in `src/types.js`). Every change — from the UI or
