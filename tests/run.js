@@ -179,14 +179,36 @@ function launchChrome(bin, profileDir) {
     ], { stdio: ["ignore", "ignore", "pipe"] });
     return new Promise((ok, reject) => {
         let buffer = "";
-        const timer = setTimeout(() => reject(new Error("Chrome did not start:\n" + buffer)), 15000);
+        let timedOut = false;
+        // A hung Chrome is killed; the promise rejects once it has exited.
+        const timer = setTimeout(() => { timedOut = true; child.kill("SIGKILL"); }, 15000);
         child.stderr.on("data", (chunk) => {
             buffer += chunk;
             const match = buffer.match(/DevTools listening on (ws:\/\/\S+)/);
             if (match) { clearTimeout(timer); ok({ child, wsUrl: match[1] }); }
         });
-        child.on("exit", (code) => { clearTimeout(timer); reject(new Error(`Chrome exited (${code}):\n${buffer}`)); });
+        child.on("exit", (code) => {
+            clearTimeout(timer);
+            reject(new Error(timedOut ? `Chrome did not start within 15 s:\n${buffer}` : `Chrome exited (${code}):\n${buffer}`));
+        });
     });
+}
+
+// A fresh CI runner occasionally hangs on the first Chrome start (no
+// "DevTools listening" line); a second start works.
+/**
+ * @param {string} bin
+ * @param {string} profileDir
+ */
+async function startChrome(bin, profileDir) {
+    for (let attempt = 1; ; attempt++) {
+        try {
+            return await launchChrome(bin, profileDir);
+        } catch (error) {
+            if (attempt === 3) throw error;
+            console.warn(`Chrome start ${attempt} failed, retrying: ${error instanceof Error ? error.message.split("\n")[0] : error}`);
+        }
+    }
 }
 
 // Ends Chrome and waits until it has exited, so it no longer writes to its
@@ -222,7 +244,7 @@ async function runBrowser() {
     const profileDir = mkdtempSync(join(tmpdir(), "jw-datatable-test-"));
     let chrome;
     try {
-        chrome = await launchChrome(bin, profileDir);
+        chrome = await startChrome(bin, profileDir);
         const browser = await connect(chrome.wsUrl);
         const { targetId } = await browser.send("Target.createTarget", { url: "about:blank" });
         const { sessionId } = await browser.send("Target.attachToTarget", { targetId, flatten: true });
