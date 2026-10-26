@@ -3,12 +3,14 @@
 // the parts are rebuilt in place and focus moves to the element with that
 // `data-vk`. The name and filter fields are never rebuilt, so typing
 // survives the list loading. The views are a collapsible group; the filter
-// field narrows it as you type.
+// field narrows it as you type. With `menu` (mobile), the actions of a view
+// are in a menu (bottom sheet) instead of a row of buttons.
 //
 // `buildViewsPanel` holds the panel state and the actions; the functions
 // below it build the parts from that state.
 
 import { el, iconEl, deepActiveElement } from "../ui/dom.js";
+import { openContextMenu } from "../ui/contextMenu.js";
 import { uid } from "../core/util.js";
 
 /** @typedef {import("../core/i18n.js").Translations} Translations */
@@ -42,19 +44,21 @@ import { uid } from "../core/util.js";
  * @property {(focusKey: string, clearError?: boolean) => void} cancelStep
  * @property {() => void} retry
  * @property {(group: keyof Collapsed) => void} toggleGroup
+ * @property {(name: string, button: HTMLElement) => void} openMenu  The actions of a view as a menu.
  */
 
 // `views`: async { list(), save(name), load(name) → found?, rename(old, new),
 // remove(name) } and active() → { name, modified } | null.
 // `announce(message)`, `close()`: status message, close the panel.
 // `collapsed`: which groups are collapsed; the panel updates it.
+// `menu`: the actions of a view in a menu (mobile).
 // Returns { panel, refresh }: call `refresh()` once the panel is shown.
 /**
  * @param {{ t: Translations, views: ViewsApi, announce: (message: string) => void, close: () => void,
- *     collapsed: Collapsed }} options
+ *     collapsed: Collapsed, menu?: boolean }} options
  * @returns {{ panel: HTMLElement, refresh: () => Promise<void> }}
  */
-export function buildViewsPanel({ t, views, announce, close, collapsed }) {
+export function buildViewsPanel({ t, views, announce, close, collapsed, menu = false }) {
     /** @type {PanelState} */
     const ui = { names: null, step: null, error: null, busy: false, renameDraft: "", filter: "" };
     const errorId = uid("jwdt-verr");
@@ -119,7 +123,23 @@ export function buildViewsPanel({ t, views, announce, close, collapsed }) {
             render(focusKey);
         },
         retry: () => loadList("retry"),
-        toggleGroup: (group) => { collapsed[group] = !collapsed[group]; render(`group:${group}`); }
+        toggleGroup: (group) => { collapsed[group] = !collapsed[group]; render(`group:${group}`); },
+        // The menu lives in the panel, so the panel treats it as inside (no outside click, its own Escape).
+        openMenu: (name, button) => {
+            button.setAttribute("aria-expanded", "true");
+            openContextMenu(panel, {
+                x: 0,
+                y: 0,
+                sheet: true,
+                label: t.actionsFor(name),
+                items: [
+                    { label: t.renameView, icon: "pencil", onSelect: () => actions.startRename(name) },
+                    { label: t.deleteView, icon: "trash", onSelect: () => actions.startDelete(name) }
+                ],
+                restoreFocus: () => focusKey(`more:${name}`),
+                onClose: () => button.setAttribute("aria-expanded", "false")
+            });
+        }
     };
 
     // Narrows the list as you type; the number of matches is announced once typing pauses.
@@ -133,8 +153,18 @@ export function buildViewsPanel({ t, views, announce, close, collapsed }) {
         }, 400);
     };
 
-    /** @param {string|null} [focusKey] */
-    const render = (focusKey) => {
+    // With `menu`, the menu button stands in for the rename and delete buttons.
+    /** @param {string} key */
+    const focusKey = (key) => {
+        if (menu) key = key.replace(/^(rename|delete):/, "more:");
+        /** @type {HTMLElement|null} */
+        const target = panel.querySelector(`[data-vk="${CSS.escape(key)}"]`);
+        target?.focus();
+        return target;
+    };
+
+    /** @param {string|null} [focusTo] */
+    const render = (focusTo) => {
         if (!isOpen()) return;
         const focused = deepActiveElement();
         const active = views.active();
@@ -153,11 +183,9 @@ export function buildViewsPanel({ t, views, announce, close, collapsed }) {
                 ? question(t, t.confirmOverwrite(step.name), t.overwrite, () => doSave(step.name), "name", actions)
                 : null
         ].flatMap((node) => node ?? []));
-        listSection.replaceChildren(...listContent(t, ui, errorId, active?.name, collapsed, actions));
-        /** @type {HTMLElement|null} */
-        const target = focusKey ? panel.querySelector(`[data-vk="${CSS.escape(focusKey)}"]`) : null;
-        if (target) target.focus();
-        else if (!focused?.isConnected || !panel.contains(focused)) nameInput.focus();
+        listSection.replaceChildren(...listContent(t, ui, errorId, active?.name, { collapsed, menu }, actions));
+        const target = focusTo ? focusKey(focusTo) : null;
+        if (!target && (!focused?.isConnected || !panel.contains(focused))) nameInput.focus();
     };
 
     // Runs an adapter action; failures stay in the panel as a message.
@@ -400,11 +428,11 @@ function group({ key, label, count, collapsed, content, actions }) {
  * @param {PanelState} ui
  * @param {string} errorId
  * @param {string|undefined} activeName
- * @param {Collapsed} collapsed
+ * @param {{ collapsed: Collapsed, menu: boolean }} options
  * @param {Actions} actions
  * @returns {HTMLElement[]}
  */
-function listContent(t, ui, errorId, activeName, collapsed, actions) {
+function listContent(t, ui, errorId, activeName, { collapsed, menu }, actions) {
     // Errors stay outside the group, so a collapsed group does not hide them.
     const error = errorText(ui, "list", errorId);
     if (ui.names === null && error) {
@@ -428,21 +456,22 @@ function listContent(t, ui, errorId, activeName, collapsed, actions) {
                 ]);
             }
             if (step === "rename") return renameItem(t, ui, errorId, name, actions);
-            return viewItem(t, name, name === activeName, actions);
+            return viewItem(t, name, name === activeName, menu, actions);
         }));
     }
     const own = group({ key: "own", label: t.myViews, count: ui.names && names.length, collapsed: collapsed.own, content: [content], actions });
     return error ? [error, own] : [own];
 }
 
-// A view: load it (the name), rename or delete it.
+// A view: load it (the name), rename or delete it (with `menu`: open the menu that does).
 /**
  * @param {Translations} t
  * @param {string} name
  * @param {boolean} isActive
+ * @param {boolean} menu
  * @param {Actions} actions
  */
-function viewItem(t, name, isActive, actions) {
+function viewItem(t, name, isActive, menu, actions) {
     return el("li", { class: "jw-dt-views-item" }, [
         el("button", {
             type: "button",
@@ -452,12 +481,17 @@ function viewItem(t, name, isActive, actions) {
             "aria-current": isActive ? "true" : null,
             onclick: () => actions.load(name)
         }, [isActive ? iconEl("check") : el("span", { class: "jw-dt-ic" }), el("span", { class: "jw-dt-views-name", text: name })]),
-        el("button", {
+        menu && el("button", {
+            type: "button", class: "jw-dt-icon-btn", title: t.viewActions,
+            "aria-label": t.actionsFor(name), "aria-haspopup": "menu", "aria-expanded": "false", "data-vk": `more:${name}`,
+            onclick: (e) => actions.openMenu(name, e.currentTarget)
+        }, [iconEl("ellipsis-vertical")]),
+        !menu && el("button", {
             type: "button", class: "jw-dt-icon-btn", title: t.renameView,
             "aria-label": t.renameViewNamed(name), "data-vk": `rename:${name}`,
             onclick: () => actions.startRename(name)
         }, [iconEl("pencil")]),
-        el("button", {
+        !menu && el("button", {
             type: "button", class: "jw-dt-icon-btn", title: t.deleteView,
             "aria-label": t.deleteViewNamed(name), "data-vk": `delete:${name}`,
             onclick: () => actions.startDelete(name)

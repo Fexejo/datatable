@@ -336,6 +336,47 @@ test("saved views panel: a failing list is shown outside the collapsed group", a
     assert.ok(vk(table, "retry").checkVisibility(), "Try again is visible");
 });
 
+test("saved views panel on mobile: the actions of a view are in a menu", async () => {
+    await input.viewport(390, 800);
+    const table = mountViews(memoryAdapter({ A: {}, B: {} }), { responsive: { enabled: true } });
+    await openViews(table);
+    assert.equal(vk(table, "rename:A"), null, "no row of buttons");
+    const more = vk(table, "more:A");
+    assert.equal(accessibleName(more), "Actions: A");
+    assert.equal(more.getAttribute("aria-haspopup"), "menu");
+    more.focus();
+    await input.press("Enter");
+    const menu = $(table, ".jw-dt-overlay .jw-ctx-menu");
+    assert.ok(menu?.classList.contains("jw-ctx-menu--sheet"), "a bottom sheet inside the panel");
+    assert.equal(accessibleName(menu), "Actions: A");
+    assert.equal(vk(table, "more:A").getAttribute("aria-expanded"), "true");
+    assert.deepEqual($$(table, '[role="menuitem"]').map((i) => i.textContent), ["Rename", "Delete"]);
+    assert.equal(deepActiveElement(), $(table, '[role="menuitem"]'), "focus on the first item");
+
+    await input.press("Escape");
+    assert.equal($(table, ".jw-ctx-menu"), null, "menu closed");
+    assert.ok($(table, ".jw-dt-overlay"), "the panel stays open");
+    assert.equal(deepActiveElement(), vk(table, "more:A"), "focus back on the menu button");
+    assert.equal(vk(table, "more:A").getAttribute("aria-expanded"), "false");
+
+    await input.press("Enter");
+    await input.press("Enter");   // Rename
+    assert.equal(deepActiveElement(), vk(table, "rename-input"), "rename field");
+    await input.press("Escape");
+    assert.equal(deepActiveElement(), vk(table, "more:A"), "back to the menu button");
+
+    vk(table, "more:B").click();
+    $$(table, '[role="menuitem"]')[1].click();   // Delete
+    assert.equal(deepActiveElement(), vk(table, "step-cancel"), "the question asks first");
+    vk(table, "step-cancel").click();
+    assert.equal(deepActiveElement(), vk(table, "more:B"), "Cancel returns to the menu button");
+    vk(table, "more:B").click();
+    $$(table, '[role="menuitem"]')[1].click();
+    vk(table, "step-cancel").previousElementSibling.click();
+    await announced(table, "View “B” deleted");
+    assert.deepEqual(viewNames(table), ["A"]);
+}, { cdp: true });
+
 test("German saved views panel", async () => {
     const table = mountViews(memoryAdapter({ A: {} }), { locale: "de-DE" });
     const panel = await openViews(table);

@@ -193,6 +193,7 @@ const en = {
     myViews: "My views",
     filterViews: "Filter views",
     noMatchingViews: "No view matches the filter.",
+    viewActions: "Actions",
 
     // Accessibility: keyboard hints, accessible names, screen-reader announcements
     tableKeyboardHint: "Arrow keys move between cells, Enter opens a link, Shift+F10 opens the actions menu.",
@@ -443,6 +444,7 @@ const de = {
     myViews: "Meine Ansichten",
     filterViews: "Ansichten filtern",
     noMatchingViews: "Keine Ansicht passt zum Filter.",
+    viewActions: "Aktionen",
 
     // Accessibility: keyboard hints, accessible names, screen-reader announcements
     tableKeyboardHint: "Pfeiltasten wechseln zwischen Zellen, Enter öffnet einen Link, Umschalt+F10 öffnet das Aktionsmenü.",

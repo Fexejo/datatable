@@ -118,6 +118,16 @@ test("axe: mobile — cards, bottom sheet and context menu", async () => {
     await assertNoAxeViolations("mobile context menu");
 }, { cdp: true });
 
+test("axe: mobile — saved views panel with the actions menu of a view", async () => {
+    await input.viewport(390, 800);
+    const table = mountViews(memoryAdapter({ Desc: { sort: SORT_DESC } }), { responsive: { enabled: true } });
+    $(table, '[data-fk="tb:saved-views"]').click();
+    await waitFor(() => $(table, '.jw-dt-overlay [data-vk="more:Desc"]'));
+    await assertNoAxeViolations("mobile saved views panel");
+    $(table, '.jw-dt-overlay [data-vk="more:Desc"]').click();
+    await assertNoAxeViolations("mobile saved views menu");
+}, { cdp: true });
+
 test("axe: touch tablet — desktop table with touch targets", async () => {
     await input.viewport(820, 1180);
     await input.touch(true);

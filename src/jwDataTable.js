@@ -1509,7 +1509,8 @@ class JwDataTable extends HTMLElement {
             },
             announce: (message) => this._announce(message),
             close: () => this._closeOverlay(),
-            collapsed: this._viewGroups
+            collapsed: this._viewGroups,
+            menu: this._isMobile()
         });
         this._showOverlay(panel, anchor);
         refresh();
