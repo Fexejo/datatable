@@ -161,6 +161,18 @@ function launchChrome(bin, profileDir) {
     });
 }
 
+// Ends Chrome and waits until it has exited, so it no longer writes to its
+// profile directory (removing that right after kill() can fail with ENOTEMPTY).
+/** @param {import("node:child_process").ChildProcess} child */
+function stopChrome(child) {
+    if (child.exitCode !== null || child.signalCode !== null) return Promise.resolve();
+    return new Promise((done) => {
+        const timer = setTimeout(() => child.kill("SIGKILL"), 5000);
+        child.once("exit", () => { clearTimeout(timer); done(undefined); });
+        child.kill();
+    });
+}
+
 // Only these CDP methods may be triggered from the test page.
 const ALLOWED_FROM_PAGE = new Set([
     "Input.dispatchKeyEvent", "Input.dispatchMouseEvent", "Input.dispatchTouchEvent",
@@ -256,9 +268,9 @@ async function runBrowser() {
         browser.close();
         return failed === 0 && pageErrors.length === 0;
     } finally {
-        chrome?.child.kill();
+        if (chrome) await stopChrome(chrome.child);
         server.close();
-        rmSync(profileDir, { recursive: true, force: true });
+        rmSync(profileDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
     }
 }
 
