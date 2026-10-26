@@ -218,7 +218,7 @@ class JwDataTable extends HTMLElement {
         if (this._features.savedViews) {
             const storageKey = storage.key || config.id || "default";
             const namespace = (storage.namespace || "jw-datatable") + "::" + storageKey;
-            this._viewStore = new ViewStore(storage.adapter || new LocalStorageAdapter(namespace));
+            this._viewStore = new ViewStore(storage.adapter || new LocalStorageAdapter(namespace), { key: storageKey });
         }
 
         const initial = config.initial || {};

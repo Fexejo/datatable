@@ -67,6 +67,22 @@ test("ViewStore accepts sync adapters and turns throws into rejections", async (
     await assert.rejects(store.rename("sync", "x"), /nope/);
 });
 
+test("ViewStore passes the context to every adapter call", async () => {
+    /** @type {unknown[][]} */
+    const calls = [];
+    const record = (/** @type {string} */ method) => (/** @type {unknown[]} */ ...args) => { calls.push([method, ...args]); return method === "list" ? [] : null; };
+    const adapter = /** @type {any} */ (Object.fromEntries(["list", "get", "save", "rename", "delete"].map((m) => [m, record(m)])));
+    const store = new ViewStore(adapter, { key: "orders" });
+    await store.list();
+    await store.get("A");
+    await store.save("A", { n: 1 });
+    await store.rename("A", "B");
+    await store.delete("B");
+    const ctx = { key: "orders" };
+    assert.deepEqual(calls, [["list", ctx], ["get", "A", ctx], ["save", "A", { n: 1 }, ctx], ["rename", "A", "B", ctx], ["delete", "B", ctx]]);
+    assert.deepEqual(new ViewStore(adapter).context, { key: "default" });
+});
+
 test("LocalStorageAdapter treats unreadable storage as empty", async () => {
     backing.set("ns::views", "{not json");
     backing.set("ns::view::A", "{not json");

@@ -40,13 +40,13 @@ const loaded: Promise<boolean> = table.loadView("mine");
 const active: { name: string, modified: boolean } | null = same.getActiveView();
 
 const adapter: ViewStorageAdapter = {
-    list: async () => ["a"],
+    list: async (context) => [context.key],
     get: () => null,
     save: () => {},
     rename: () => {},
     delete: () => {}
 };
-const views: Promise<string[]> = new ViewStore(adapter).list();
+const views: Promise<string[]> = new ViewStore(adapter, { key: "people" }).list();
 const inferred: Column[] = inferColumns([{ a: 1 }], { overrides: { a: { label: "A" } } });
 const type: string = inferType([{ a: 1 }], "a");
 

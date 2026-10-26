@@ -9,8 +9,10 @@
 //   save(name, state): void              — save or overwrite a view
 //   rename(oldName, newName): void       — rename; overwrites `newName`
 //   delete(name): void                   — delete a view
+// Every call gets the context `{ key }` (which table) as its last argument.
 
 /** @typedef {import("../types.js").ViewStorageAdapter} ViewStorageAdapter */
+/** @typedef {import("../types.js").ViewStorageContext} ViewStorageContext */
 
 /** @type {(keyof ViewStorageAdapter)[]} */
 export const ADAPTER_METHODS = ["list", "get", "save", "rename", "delete"];
@@ -109,16 +111,21 @@ export class LocalStorageAdapter {
 // string names only; `get()`: an object or null); the component validates
 // the state itself (core/state.js `sanitizeState()`).
 export class ViewStore {
-    /** @param {ViewStorageAdapter} [adapter] */
-    constructor(adapter) {
+    /**
+     * @param {ViewStorageAdapter} [adapter]
+     * @param {Partial<ViewStorageContext>} [context] Passed to every adapter call.
+     */
+    constructor(adapter, context = {}) {
         this.adapter = adapter ?? new LocalStorageAdapter();
+        /** @type {ViewStorageContext} */
+        this.context = { key: context.key ?? "default" };
         const missing = ADAPTER_METHODS.filter((m) => typeof this.adapter[m] !== "function");
         if (missing.length) throw new TypeError(`View storage adapter is missing: ${missing.join(", ")}`);
     }
 
     // Async wrappers, so a throwing sync adapter also ends in a rejection.
     async list() {
-        return validNames(await this.adapter.list());
+        return validNames(await this.adapter.list(this.context));
     }
 
     /**
@@ -126,7 +133,7 @@ export class ViewStore {
      * @returns {Promise<object|null>}
      */
     async get(name) {
-        const state = await this.adapter.get(name);
+        const state = await this.adapter.get(name, this.context);
         return typeof state === "object" && state !== null && !Array.isArray(state) ? state : null;
     }
 
@@ -135,7 +142,7 @@ export class ViewStore {
      * @param {object} state
      */
     async save(name, state) {
-        await this.adapter.save(name, state);
+        await this.adapter.save(name, state, this.context);
     }
 
     /**
@@ -143,11 +150,11 @@ export class ViewStore {
      * @param {string} newName
      */
     async rename(oldName, newName) {
-        await this.adapter.rename(oldName, newName);
+        await this.adapter.rename(oldName, newName, this.context);
     }
 
     /** @param {string} name */
     async delete(name) {
-        await this.adapter.delete(name);
+        await this.adapter.delete(name, this.context);
     }
 }

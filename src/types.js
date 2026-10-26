@@ -161,13 +161,20 @@
  */
 
 /**
- * Storage of saved views; every method may return a Promise.
+ * Storage of saved views; every method may return a Promise. The last
+ * argument of every call is the context of the table.
  * @typedef {object} ViewStorageAdapter
- * @property {() => string[]|Promise<string[]>} list
- * @property {(name: string) => object|null|Promise<object|null>} get
- * @property {(name: string, state: object) => void|Promise<void>} save
- * @property {(oldName: string, newName: string) => void|Promise<void>} rename
- * @property {(name: string) => void|Promise<void>} delete
+ * @property {(context: ViewStorageContext) => string[]|Promise<string[]>} list
+ * @property {(name: string, context: ViewStorageContext) => object|null|Promise<object|null>} get
+ * @property {(name: string, state: object, context: ViewStorageContext) => void|Promise<void>} save
+ * @property {(oldName: string, newName: string, context: ViewStorageContext) => void|Promise<void>} rename
+ * @property {(name: string, context: ViewStorageContext) => void|Promise<void>} delete
+ */
+
+/**
+ * Which table a storage call is for.
+ * @typedef {object} ViewStorageContext
+ * @property {string} key                       `storage.key`, else the table's `id`, else "default".
  */
 
 /**

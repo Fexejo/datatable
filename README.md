@@ -113,7 +113,7 @@ declares `createDataTable` (also the default export), `JwDataTable` with the
 `inferColumns`, `inferType` and the types `DataTableConfig`, `Features`,
 `Column`, `ColumnFormat`, `ColumnLink`, `Row`, `Layout`, `SerializedState`
 (the [state shape](#instance-api)), `SortSpec`, `Filter`, `ValueFilter`,
-`PatternFilter`, `ViewStorageAdapter`, `ExportOptions`, `ExportDetail`,
+`PatternFilter`, `ViewStorageAdapter`, `ViewStorageContext`, `ExportOptions`, `ExportDetail`,
 `NavigateDetail`, `DataTableEventDetails` and `DataTableEventMap`. It also
 types `document.querySelector("jw-datatable")` and the
 [events](#events) in `addEventListener` (on any element, as they bubble):
@@ -192,7 +192,7 @@ table.configure({ /* … */ });
 |----------|------|---------|-------------|
 | `columns` | `Column[]` | `[]` | Column definitions (required) |
 | `data` | `object[]` | `[]` | Row objects |
-| `id` | `string` | `"default"` | Id for the saved-views storage namespace |
+| `id` | `string` | `"default"` | Id for the saved-views storage namespace (and the adapter's `key`) |
 | `title` | `string` | — | Toolbar title |
 | `locale` | `string` | `"en-US"` | BCP-47 locale — drives number/date formatting, sort, **and UI language** (see [i18n](#i18n--localization)) |
 | `features` | `object` | see [Features](#enabling--disabling-features) | Feature switches; most are off by default |
@@ -764,6 +764,11 @@ methods, each may return a Promise:
 | `rename(oldName, newName)` | — | Rename (overwrites `newName`) |
 | `delete(name)` | — | Delete |
 
+Every call gets one more, last argument: the context `{ key }` — which table
+it is for (`storage.key`, else `id`, else `"default"`). One adapter can so
+serve several tables and keep their views apart (an adapter that ignores it
+keeps working).
+
 All five are required (`configure()` throws otherwise). A rejected Promise or
 a thrown error is shown in the panel. Results of the wrong type count as empty
 (non-string names are skipped; a `get()` result that is no object counts as a
@@ -773,15 +778,18 @@ missing view), and the state from `get()` is validated like `setState()` (see
 ```js
 const views = "/api/table-views";
 const ok = (r) => { if (!r.ok) throw new Error(r.statusText); return r; };
+const url = (key, name = "") => `${views}/${encodeURIComponent(key)}/${encodeURIComponent(name)}`;
 const backendAdapter = {
-    list:   ()         => fetch(views).then(ok).then((r) => r.json()),
-    get:    (name)     => fetch(`${views}/${encodeURIComponent(name)}`).then((r) => (r.status === 404 ? null : ok(r).json())),
-    save:   (name, s)  => fetch(`${views}/${encodeURIComponent(name)}`, { method: "PUT", body: JSON.stringify(s) }).then(ok),
-    rename: (from, to) => fetch(`${views}/${encodeURIComponent(from)}`, { method: "PATCH", body: JSON.stringify({ name: to }) }).then(ok),
-    delete: (name)     => fetch(`${views}/${encodeURIComponent(name)}`, { method: "DELETE" }).then(ok)
+    list:   ({ key })            => fetch(url(key)).then(ok).then((r) => r.json()),
+    get:    (name, { key })      => fetch(url(key, name)).then((r) => (r.status === 404 ? null : ok(r).json())),
+    save:   (name, s, { key })   => fetch(url(key, name), { method: "PUT", body: JSON.stringify(s) }).then(ok),
+    rename: (from, to, { key })  => fetch(url(key, from), { method: "PATCH", body: JSON.stringify({ name: to }) }).then(ok),
+    delete: (name, { key })      => fetch(url(key, name), { method: "DELETE" }).then(ok)
 };
 
-createDataTable("#c", { /* … */ features: { savedViews: true }, storage: { adapter: backendAdapter } });
+// One adapter, two tables: their views are stored under "orders" and "customers".
+createDataTable("#orders",    { id: "orders",    /* … */ features: { savedViews: true }, storage: { adapter: backendAdapter } });
+createDataTable("#customers", { id: "customers", /* … */ features: { savedViews: true }, storage: { adapter: backendAdapter } });
 ```
 
 **Events.** After each successful action the table fires

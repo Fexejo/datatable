@@ -44,6 +44,16 @@ test("saved views store the state without the page and fire events", async () =>
     assert.equal(table.getActiveView(), null, "deleting the active view clears it");
 });
 
+test("adapter calls carry the table key (storage.key, else id)", async () => {
+    const adapter = memoryAdapter();
+    const table = mountViews(adapter, { id: "people" });
+    await table.listViews();
+    assert.deepEqual(adapter.calls.at(-1), ["list", { key: "people" }]);
+    const keyed = mountViews(adapter, { id: "people", storage: { adapter, key: "members" } });
+    await keyed.saveView("A");
+    assert.deepEqual(adapter.calls.at(-1), ["save", "A", adapter.saved.get("A"), { key: "members" }]);
+});
+
 test("the active view knows when the state differs from it", async () => {
     const table = mountViews(memoryAdapter(), { features: { savedViews: true, sorting: true, columnVisibility: true } });
     assert.equal(table.getActiveView(), null);
