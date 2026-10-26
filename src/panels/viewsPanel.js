@@ -1,8 +1,9 @@
 // Saved views panel: save, load, rename and delete views. Questions
 // (overwrite? delete?), the rename field and errors appear inside the panel;
 // the parts are rebuilt in place and focus moves to the element with that
-// `data-vk`. The name field is never rebuilt, so typing survives the list
-// loading.
+// `data-vk`. The name and filter fields are never rebuilt, so typing
+// survives the list loading. The views are a collapsible group; the filter
+// field narrows it as you type.
 //
 // `buildViewsPanel` holds the panel state and the actions; the functions
 // below it build the parts from that state.
@@ -22,10 +23,12 @@ import { uid } from "../core/util.js";
  */
 /** @typedef {"name"|"rename"|"list"} ErrorAt */
 /**
- * names: null while loading; step: the open question or rename field.
+ * names: null while loading; step: the open question or rename field;
+ * filter: the text of the filter field.
  * @typedef {{ names: string[]|null, step: { kind: "overwrite"|"rename"|"delete", name: string }|null,
- *     error: { text: string, at: ErrorAt }|null, busy: boolean, renameDraft: string }} PanelState
+ *     error: { text: string, at: ErrorAt }|null, busy: boolean, renameDraft: string, filter: string }} PanelState
  */
+/** Collapsed groups (kept by the component while the table lives). @typedef {{ own: boolean }} Collapsed */
 /**
  * What the parts can trigger.
  * @typedef {object} Actions
@@ -38,20 +41,25 @@ import { uid } from "../core/util.js";
  * @property {(name: string) => void} remove
  * @property {(focusKey: string, clearError?: boolean) => void} cancelStep
  * @property {() => void} retry
+ * @property {(group: keyof Collapsed) => void} toggleGroup
  */
 
 // `views`: async { list(), save(name), load(name) → found?, rename(old, new),
 // remove(name) } and active() → { name, modified } | null.
 // `announce(message)`, `close()`: status message, close the panel.
+// `collapsed`: which groups are collapsed; the panel updates it.
 // Returns { panel, refresh }: call `refresh()` once the panel is shown.
 /**
- * @param {{ t: Translations, views: ViewsApi, announce: (message: string) => void, close: () => void }} options
+ * @param {{ t: Translations, views: ViewsApi, announce: (message: string) => void, close: () => void,
+ *     collapsed: Collapsed }} options
  * @returns {{ panel: HTMLElement, refresh: () => Promise<void> }}
  */
-export function buildViewsPanel({ t, views, announce, close }) {
+export function buildViewsPanel({ t, views, announce, close, collapsed }) {
     /** @type {PanelState} */
-    const ui = { names: null, step: null, error: null, busy: false, renameDraft: "" };
+    const ui = { names: null, step: null, error: null, busy: false, renameDraft: "", filter: "" };
     const errorId = uid("jwdt-verr");
+    /** @type {ReturnType<typeof setTimeout>|undefined} */
+    let filterTimer;
 
     const nameInput = el("input", {
         type: "text",
@@ -61,6 +69,22 @@ export function buildViewsPanel({ t, views, announce, close }) {
         "data-vk": "name",
         "data-autofocus": "",
         onkeydown: (e) => { if (e.key === "Enter") { e.preventDefault(); save(); } }
+    });
+    // Escape in a filled filter field clears it; in an empty one it closes the panel.
+    const filterInput = el("input", {
+        type: "search",
+        class: "jw-dt-input",
+        placeholder: t.filterViews,
+        "aria-label": t.filterViews,
+        "data-vk": "filter",
+        oninput: () => setFilter(filterInput.value),
+        onkeydown: (e) => {
+            if (e.key !== "Escape" || !filterInput.value) return;
+            e.preventDefault();
+            e.stopPropagation();
+            filterInput.value = "";
+            setFilter("");
+        }
     });
     const activeSection = el("div", { class: "jw-dt-views-active-wrap" });
     const saveExtra = el("div", { class: "jw-dt-views-extra" });
@@ -73,6 +97,7 @@ export function buildViewsPanel({ t, views, announce, close }) {
             el("button", { type: "button", class: "jw-dt-btn jw-dt-btn-primary", text: t.save, "data-vk": "save", onclick: () => save() })
         ]),
         saveExtra,
+        filterInput,
         listSection
     ]);
     const isOpen = () => panel.isConnected;
@@ -93,7 +118,19 @@ export function buildViewsPanel({ t, views, announce, close }) {
             if (clearError) ui.error = null;
             render(focusKey);
         },
-        retry: () => loadList("retry")
+        retry: () => loadList("retry"),
+        toggleGroup: (group) => { collapsed[group] = !collapsed[group]; render(`group:${group}`); }
+    };
+
+    // Narrows the list as you type; the number of matches is announced once typing pauses.
+    /** @param {string} text */
+    const setFilter = (text) => {
+        ui.filter = text;
+        render();
+        clearTimeout(filterTimer);
+        filterTimer = setTimeout(() => {
+            if (isOpen() && ui.names) announce(t.viewsCount(visibleNames(ui).length));
+        }, 400);
     };
 
     /** @param {string|null} [focusKey] */
@@ -116,7 +153,7 @@ export function buildViewsPanel({ t, views, announce, close }) {
                 ? question(t, t.confirmOverwrite(step.name), t.overwrite, () => doSave(step.name), "name", actions)
                 : null
         ].flatMap((node) => node ?? []));
-        listSection.replaceChildren(...listContent(t, ui, errorId, active?.name, actions));
+        listSection.replaceChildren(...listContent(t, ui, errorId, active?.name, collapsed, actions));
         /** @type {HTMLElement|null} */
         const target = focusKey ? panel.querySelector(`[data-vk="${CSS.escape(focusKey)}"]`) : null;
         if (target) target.focus();
@@ -190,12 +227,13 @@ export function buildViewsPanel({ t, views, announce, close }) {
 
     /** @param {string} name */
     const remove = (name) => {
-        const index = ui.names?.indexOf(name) ?? -1;
+        const index = visibleNames(ui).indexOf(name);
         run(() => views.remove(name), {
             message: t.viewDeleted(name),
             // Focus the next view, else the previous one, else the name field.
             focus: () => {
-                const next = ui.names?.[index] ?? ui.names?.[index - 1];
+                const names = visibleNames(ui);
+                const next = names[index] ?? names[index - 1];
                 return next != null ? `load:${next}` : "name";
             },
             errorAt: "list",
@@ -318,27 +356,71 @@ function activeView(t, active, actions) {
     ]);
 }
 
-// The list (or its loading, empty or error state).
+// Whether a name matches the filter (case-insensitive, anywhere in the text).
+/**
+ * @param {string} filter
+ * @param {string} text
+ */
+function matches(filter, text) {
+    return text.toLocaleLowerCase().includes(filter.trim().toLocaleLowerCase());
+}
+
+// The names the filter lets through; the view of an open step always stays.
+/** @param {PanelState} ui */
+function visibleNames(ui) {
+    return (ui.names ?? []).filter((name) => name === ui.step?.name || matches(ui.filter, name));
+}
+
+// A collapsible group: a heading with a disclosure button ("My views (3)",
+// the number of views the filter lets through) and the list below it.
+/**
+ * @param {{ key: keyof Collapsed, label: string, count: number|null, collapsed: boolean,
+ *     content: HTMLElement[], actions: Actions }} options
+ */
+function group({ key, label, count, collapsed, content, actions }) {
+    const bodyId = uid("jwdt-vgrp");
+    return el("div", { class: "jw-dt-views-group" }, [
+        el("h3", { class: "jw-dt-views-group-head" }, [
+            el("button", {
+                type: "button",
+                class: "jw-dt-btn jw-dt-disclosure",
+                "aria-expanded": String(!collapsed),
+                "aria-controls": bodyId,
+                "data-vk": `group:${key}`,
+                onclick: () => actions.toggleGroup(key)
+            }, [iconEl("chevron-right"), el("span", { text: count == null ? label : `${label} (${count})` })])
+        ]),
+        el("div", { class: "jw-dt-views-group-body", id: bodyId, hidden: collapsed }, content)
+    ]);
+}
+
+// The own views (or their loading, empty or error state) as a group.
 /**
  * @param {Translations} t
  * @param {PanelState} ui
  * @param {string} errorId
  * @param {string|undefined} activeName
+ * @param {Collapsed} collapsed
  * @param {Actions} actions
  * @returns {HTMLElement[]}
  */
-function listContent(t, ui, errorId, activeName, actions) {
+function listContent(t, ui, errorId, activeName, collapsed, actions) {
+    // Errors stay outside the group, so a collapsed group does not hide them.
     const error = errorText(ui, "list", errorId);
+    if (ui.names === null && error) {
+        return [error, el("button", { type: "button", class: "jw-dt-btn", text: t.retry, "data-vk": "retry", onclick: () => actions.retry() })];
+    }
+    const names = visibleNames(ui);
     /** @type {HTMLElement} */
     let content;
-    if (ui.names === null && ui.error?.at === "list") {
-        content = el("button", { type: "button", class: "jw-dt-btn", text: t.retry, "data-vk": "retry", onclick: () => actions.retry() });
-    } else if (ui.names === null) {
+    if (ui.names === null) {
         content = el("p", { class: "jw-dt-views-empty", text: t.viewsLoading });
     } else if (ui.names.length === 0) {
         content = el("p", { class: "jw-dt-views-empty", text: t.noSavedViews });
+    } else if (names.length === 0) {
+        content = el("p", { class: "jw-dt-views-empty", text: t.noMatchingViews });
     } else {
-        content = el("ul", { class: "jw-dt-views-items", "aria-label": t.savedViews }, ui.names.map((name) => {
+        content = el("ul", { class: "jw-dt-views-items", "aria-label": t.myViews }, names.map((name) => {
             const step = ui.step?.name === name ? ui.step.kind : null;
             if (step === "delete") {
                 return el("li", { class: "jw-dt-views-item is-step" }, [
@@ -349,7 +431,8 @@ function listContent(t, ui, errorId, activeName, actions) {
             return viewItem(t, name, name === activeName, actions);
         }));
     }
-    return error ? [error, content] : [content];
+    const own = group({ key: "own", label: t.myViews, count: ui.names && names.length, collapsed: collapsed.own, content: [content], actions });
+    return error ? [error, own] : [own];
 }
 
 // A view: load it (the name), rename or delete it.

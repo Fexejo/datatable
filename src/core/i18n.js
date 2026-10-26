@@ -190,6 +190,9 @@ const en = {
     viewNotFound: (name) => `The view “${name}” no longer exists.`,
     viewsLoadFailed: "The saved views could not be loaded.",
     viewActionFailed: "That did not work. Please try again.",
+    myViews: "My views",
+    filterViews: "Filter views",
+    noMatchingViews: "No view matches the filter.",
 
     // Accessibility: keyboard hints, accessible names, screen-reader announcements
     tableKeyboardHint: "Arrow keys move between cells, Enter opens a link, Shift+F10 opens the actions menu.",
@@ -245,6 +248,8 @@ const en = {
     viewRenamed: (oldName, name) => `View “${oldName}” renamed to “${name}”`,
     /** @param {string} name */
     viewDeleted: (name) => `View “${name}” deleted`,
+    /** @param {number} n */
+    viewsCount: (n) => (n === 1 ? "1 view" : `${n} views`),
     /** @param {string} count e.g. "12 rows" (`resultsCount`) @param {string} filename */
     exported: (count, filename) => `${count} exported to “${filename}”`,
     /** @param {string} count e.g. "12 rows" (`resultsCount`) */
@@ -435,6 +440,9 @@ const de = {
     viewNotFound: (name) => `Die Ansicht „${name}“ gibt es nicht mehr.`,
     viewsLoadFailed: "Die gespeicherten Ansichten konnten nicht geladen werden.",
     viewActionFailed: "Das hat nicht geklappt. Bitte erneut versuchen.",
+    myViews: "Meine Ansichten",
+    filterViews: "Ansichten filtern",
+    noMatchingViews: "Keine Ansicht passt zum Filter.",
 
     // Accessibility: keyboard hints, accessible names, screen-reader announcements
     tableKeyboardHint: "Pfeiltasten wechseln zwischen Zellen, Enter öffnet einen Link, Umschalt+F10 öffnet das Aktionsmenü.",
@@ -469,6 +477,7 @@ const de = {
     viewLoaded: (name) => `Ansicht „${name}“ geladen`,
     viewRenamed: (oldName, name) => `Ansicht „${oldName}“ in „${name}“ umbenannt`,
     viewDeleted: (name) => `Ansicht „${name}“ gelöscht`,
+    viewsCount: (n) => (n === 1 ? "1 Ansicht" : `${n} Ansichten`),
     exported: (count, filename) => `${count} als „${filename}“ exportiert`,
     exportedClipboard: (count) => `${count} in die Zwischenablage kopiert`,
 

@@ -729,6 +729,9 @@ renames and deletes views:
   state differs from it; **Update** saves the current state under its name.
 - **Errors** of the storage (e.g. the backend is offline) are shown in the
   panel; loading the list can be retried.
+- **Filter:** the field above the list narrows it as you type (any part of
+  the name, ignoring case). **“My views”** collapses; the panel remembers
+  that while the table lives. Its heading shows how many views match.
 
 A view stores sort, filters, search, page size, the layout, hidden,
 pinned and the order of the columns — the [state](#instance-api) without the
@@ -1100,7 +1103,7 @@ or touch also works with the keyboard alone.
 | Filter panel tabs | `←` `→`, `Home` / `End` | Switch between “Values” and “Pattern” |
 | Filter panel, “Values” tab | `Enter` in the search field or on a search-result option | Apply (same as the “Apply” button); the search-result options are radio buttons (`↑` `↓`) |
 | Filter panel, “Pattern” tab | `Enter` in a value field | Apply (same as the “Apply” button) |
-| Saved views panel | `Enter` in the name field or the rename field, `Esc` in a question or the rename field | Save / rename; `Esc` cancels the question or the rename (the panel stays open, focus returns to the button that started it). Questions open with focus on “Cancel”; after deleting, focus moves to the next view |
+| Saved views panel | `Enter` in the name field or the rename field, `Esc` in a question, the rename field or the filled filter field, `Enter` / `Space` on a group heading | Save / rename; `Esc` cancels the question or the rename (the panel stays open, focus returns to the button that started it) or clears the filter; collapse / expand the group. Questions open with focus on “Cancel”; after deleting, focus moves to the next (matching) view |
 | Export dialog | `←` `→` (or `↑` `↓`) in a segmented control, `Space` on a switch or “More options”, `Enter` in the file name or on an option | Select an option, toggle a switch, export (same as the “Export” button); focus starts on the selected format and returns to the opener afterwards |
 
 Focus is kept across re-renders (sorting, filtering, paging, …): the same
@@ -1128,7 +1131,10 @@ table.
   list, each entry button is named “Edit filter <column>: <values>”, its
   remove button “Remove filter: <column>”. Removing a filter announces the
   new result count.
-- Saved views panel: the views are a list; the current view's button has
+- Saved views panel: the views are a list in a group whose heading (`h3`)
+  is a disclosure button (`aria-expanded`, `aria-controls`, named e.g.
+  “My views (3)”); the filter field is named “Filter views”, and the number
+  of matches is announced once typing pauses. The current view's button has
   `aria-current="true"` and a check mark. Rename/delete buttons are named
   “Rename: <view>” / “Delete: <view>”. Questions (overwrite, delete) are a
   `group` named by the question, which also describes its buttons. Errors are
@@ -1191,7 +1197,8 @@ announced again. Messages:
 - hidden, pinned/unpinned and moved columns (including when there is not
   enough room to keep pinned columns in place);
 - the record shown in the details dialog;
-- saved/updated/loaded/renamed/deleted views and errors of the saved views panel.
+- saved/updated/loaded/renamed/deleted views, the number of views matching the
+  filter, and errors of the saved views panel.
 
 All texts come from `src/core/i18n.js`.
 

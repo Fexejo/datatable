@@ -764,6 +764,9 @@ span.jw-dt-th-label { cursor: default; }
 .jw-dt-views-name { overflow-wrap: anywhere; }
 .jw-dt-views-load:hover { background: var(--dt-hover); }
 .jw-dt-views-empty { margin: 0; color: var(--jw-dt-color-text-muted, #666); font-size: 0.88rem; }
+.jw-dt-views-group { display: flex; flex-direction: column; gap: var(--jw-dt-space-2xs, 4px); }
+.jw-dt-views-group-head { margin: 0; font-size: 0.88rem; font-weight: 600; }
+.jw-dt-views-group-head .jw-dt-disclosure { font-weight: inherit; }
 
 /* Filter summary: one row per active filter (open it / remove it). */
 .jw-dt-fsum-panel:not(.jw-dt-overlay--sheet) { width: 360px; max-width: calc(100vw - 8px); }

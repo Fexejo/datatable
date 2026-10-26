@@ -136,6 +136,8 @@ class JwDataTable extends HTMLElement {
         // { name, signature } of the saved view last saved or loaded.
         /** @type {{ name: string, signature: string }|null} */
         this._activeView = null;
+        // Collapsed groups of the saved views panel (kept between openings).
+        this._viewGroups = { own: false };
         this._instanceId = uid("jwdt");
         // Responsive / touch state
         /** @type {MediaQueryList|null} */
@@ -1506,7 +1508,8 @@ class JwDataTable extends HTMLElement {
                 active: () => this.getActiveView()
             },
             announce: (message) => this._announce(message),
-            close: () => this._closeOverlay()
+            close: () => this._closeOverlay(),
+            collapsed: this._viewGroups
         });
         this._showOverlay(panel, anchor);
         refresh();

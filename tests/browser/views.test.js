@@ -261,11 +261,88 @@ test("saved views panel: a view deleted elsewhere or failing to load stays in th
     assert.equal(deepActiveElement(), vk(table, "load:B"), "focus stays on the view");
 });
 
+test("saved views panel: the filter narrows the list as you type", async () => {
+    const table = mountViews(memoryAdapter({ Active: {}, Archive: {}, Blocked: {} }));
+    await openViews(table);
+    const toggle = vk(table, "group:own");
+    assert.equal(toggle.textContent, "My views (3)");
+    const filter = vk(table, "filter");
+    assert.equal(accessibleName(filter), "Filter views");
+    filter.focus();
+    filter.value = "a";
+    filter.dispatchEvent(new Event("input"));
+    assert.deepEqual(viewNames(table), ["Active", "Archive"], "case-insensitive, anywhere in the name");
+    assert.equal(vk(table, "group:own").textContent, "My views (2)", "the count follows the filter");
+    assert.equal(deepActiveElement(), filter, "typing keeps the focus");
+    await announced(table, "2 views");
+
+    filter.value = "zzz";
+    filter.dispatchEvent(new Event("input"));
+    assert.deepEqual(viewNames(table), []);
+    assert.equal($(table, ".jw-dt-overlay .jw-dt-views-empty").textContent, "No view matches the filter.");
+
+    await input.press("Escape");
+    assert.equal(filter.value, "", "Escape clears a filled filter field");
+    assert.deepEqual(viewNames(table), ["Active", "Archive", "Blocked"]);
+    assert.ok($(table, ".jw-dt-overlay"), "the panel stays open");
+    await input.press("Escape");
+    assert.equal($(table, ".jw-dt-overlay"), null, "Escape in the empty field closes the panel");
+}, { cdp: true });
+
+test("saved views panel: deleting with a filter moves focus to the next match", async () => {
+    const table = mountViews(memoryAdapter({ A1: {}, B: {}, A2: {} }));
+    await openViews(table);
+    vk(table, "filter").value = "a";
+    vk(table, "filter").dispatchEvent(new Event("input"));
+    vk(table, "delete:A1").click();
+    vk(table, "step-cancel").previousElementSibling.click(); // Delete
+    await announced(table, "View “A1” deleted");
+    assert.equal(deepActiveElement(), vk(table, "load:A2"));
+    vk(table, "delete:A2").click();
+    vk(table, "step-cancel").previousElementSibling.click();
+    await announced(table, "View “A2” deleted");
+    assert.equal(deepActiveElement(), vk(table, "name"), "no match left: the name field");
+});
+
+test("saved views panel: the list collapses and stays collapsed when reopened", async () => {
+    const table = mountViews(memoryAdapter({ A: {} }));
+    await openViews(table);
+    const toggle = vk(table, "group:own");
+    assert.equal(toggle.closest("h3")?.textContent, "My views (1)", "the group has a heading");
+    assert.equal(toggle.getAttribute("aria-expanded"), "true");
+    const body = root(table).getElementById(toggle.getAttribute("aria-controls"));
+    assert.ok(body?.contains(vk(table, "load:A")));
+    toggle.click();
+    assert.equal(vk(table, "group:own").getAttribute("aria-expanded"), "false");
+    assert.equal(deepActiveElement(), vk(table, "group:own"), "focus stays on the toggle");
+    assert.ok(root(table).getElementById(vk(table, "group:own").getAttribute("aria-controls"))?.hidden, "list hidden");
+
+    $(table, '[data-fk="tb:saved-views"]').click();   // close
+    await openViews(table);
+    assert.equal(vk(table, "group:own").getAttribute("aria-expanded"), "false", "kept between openings");
+    vk(table, "group:own").click();
+    assert.ok(vk(table, "load:A").checkVisibility(), "expanded again");
+});
+
+test("saved views panel: a failing list is shown outside the collapsed group", async () => {
+    const adapter = memoryAdapter({ A: {} });
+    const table = mountViews(adapter);
+    await openViews(table);
+    vk(table, "group:own").click();
+    adapter.list = () => Promise.reject(new Error("offline"));
+    $(table, '[data-fk="tb:saved-views"]').click();
+    $(table, '[data-fk="tb:saved-views"]').click();
+    await announced(table, "The saved views could not be loaded.");
+    assert.ok(vk(table, "retry").checkVisibility(), "Try again is visible");
+});
+
 test("German saved views panel", async () => {
     const table = mountViews(memoryAdapter({ A: {} }), { locale: "de-DE" });
     const panel = await openViews(table);
     assert.equal(accessibleName(panel), "Gespeicherte Ansichten");
     assert.equal(accessibleName(vk(table, "rename:A")), "Umbenennen: A");
+    assert.equal(vk(table, "group:own").textContent, "Meine Ansichten (1)");
+    assert.equal(accessibleName(vk(table, "filter")), "Ansichten filtern");
 });
 
 test("sorting keeps the focused header button and the table element", async () => {
