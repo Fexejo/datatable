@@ -1,4 +1,16 @@
-/*! jw-datatable v1.1.0 | Type declarations of jw-datatable.min.js */
+/*! jw-datatable v1.2.0 | Type declarations of jw-datatable.min.js */
+
+export declare type ActiveView = {
+    name: string;
+    /**
+     * The state differs from the view.
+     */
+    modified: boolean;
+    /**
+     * Set when it is a view others shared.
+     */
+    shared?: SharedView;
+};
 
 export declare type Column = {
     /**
@@ -223,6 +235,7 @@ export declare type DataTableEventDetails = {
     viewload: {
         name: string;
         state: SerializedState;
+        shared?: SharedView;
     };
     viewrename: {
         oldName: string;
@@ -230,6 +243,10 @@ export declare type DataTableEventDetails = {
     };
     viewdelete: {
         name: string;
+    };
+    viewshare: {
+        name: string;
+        shared: boolean;
     };
 };
 
@@ -359,10 +376,19 @@ export declare class JwDataTable extends HTMLElement {
     renameView(oldName: string, newName: string): Promise<void>;
     /** @param {string} name */
     deleteView(name: string): Promise<void>;
-    getActiveView(): {
-        name: string;
-        modified: boolean;
-    } | null;
+    /**
+     * @param {string} name
+     * @param {boolean} [shared]
+     */
+    shareView(name: string, shared?: boolean): Promise<void>;
+    listSharedViews(): Promise<SharedView[]>;
+    /**
+     * @param {SharedView} view
+     * @returns {Promise<boolean>}
+     */
+    loadSharedView(view: SharedView): Promise<boolean>;
+    /** @returns {ActiveView|null} */
+    getActiveView(): ActiveView | null;
 }
 
 export declare type Layout = "table" | "grid" | "compact";
@@ -402,6 +428,11 @@ export declare type NavigateDetail = {
     value: any;
 };
 
+declare type OwnView = {
+    name: string;
+    shared: boolean;
+};
+
 export declare type PatternFilter = {
     kind: "pattern";
     /**
@@ -433,6 +464,18 @@ export declare type SerializedState = {
     columnOrder: string[];
 };
 
+export declare type SharedView = {
+    /**
+     * Identifies it for `getShared()`.
+     */
+    id: string;
+    name: string;
+    /**
+     * Shown with the name, e.g. “by Anna Smith”.
+     */
+    detail?: string;
+};
+
 export declare type SortSpec = {
     key: string;
     direction: "asc" | "desc";
@@ -443,19 +486,51 @@ export declare type ValueFilter = {
     values: any[];
 };
 
+export declare type ViewEntry = {
+    name: string;
+    shared?: boolean;
+};
+
 export declare type ViewStorageAdapter = {
-    list: () => string[] | Promise<string[]>;
-    get: (name: string) => object | null | Promise<object | null>;
-    save: (name: string, state: object) => void | Promise<void>;
-    rename: (oldName: string, newName: string) => void | Promise<void>;
-    delete: (name: string) => void | Promise<void>;
+    list: (context: ViewStorageContext) => (string | ViewEntry)[] | Promise<(string | ViewEntry)[]>;
+    get: (name: string, context: ViewStorageContext) => object | null | Promise<object | null>;
+    save: (name: string, state: object, context: ViewStorageContext) => void | Promise<void>;
+    rename: (oldName: string, newName: string, context: ViewStorageContext) => void | Promise<void>;
+    delete: (name: string, context: ViewStorageContext) => void | Promise<void>;
+    /**
+     * Share an own view with others, or stop sharing it.
+     */
+    share?: (name: string, shared: boolean, context: ViewStorageContext) => void | Promise<void>;
+    /**
+     * The views others shared (not the user's own), in display order.
+     */
+    listShared?: (context: ViewStorageContext) => SharedView[] | Promise<SharedView[]>;
+    /**
+     * The state of a view others shared.
+     */
+    getShared?: (id: string, context: ViewStorageContext) => object | null | Promise<object | null>;
+};
+
+export declare type ViewStorageContext = {
+    /**
+     * `storage.key`, else the table's `id`, else "default".
+     */
+    key: string;
 };
 
 export declare class ViewStore {
+    /** @type {ViewStorageAdapter} */
     adapter: ViewStorageAdapter;
-    /** @param {ViewStorageAdapter} [adapter] */
-    constructor(adapter?: ViewStorageAdapter);
+    /** @type {ViewStorageContext} */
+    context: ViewStorageContext;
+    canShare: boolean;
+    /**
+     * @param {ViewStorageAdapter} [adapter]
+     * @param {Partial<ViewStorageContext>} [context] Passed to every adapter call.
+     */
+    constructor(adapter?: ViewStorageAdapter, context?: Partial<ViewStorageContext>);
     list(): Promise<string[]>;
+    ownViews(): Promise<OwnView[]>;
     /**
      * @param {string} name
      * @returns {Promise<object|null>}
@@ -473,6 +548,17 @@ export declare class ViewStore {
     rename(oldName: string, newName: string): Promise<void>;
     /** @param {string} name */
     delete(name: string): Promise<void>;
+    /**
+     * @param {string} name
+     * @param {boolean} shared
+     */
+    share(name: string, shared: boolean): Promise<void>;
+    listShared(): Promise<SharedView[]>;
+    /**
+     * @param {string} id
+     * @returns {Promise<object|null>}
+     */
+    getShared(id: string): Promise<object | null>;
 }
 
 export { }
