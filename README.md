@@ -833,7 +833,8 @@ each has a built-in default, so none is required:
 | `--jw-dt-color-page` | `#fff` | Background of table, panels, menu |
 | `--jw-dt-color-surface` | `#f0f0f0` | Column headers |
 | `--jw-dt-color-surface-muted` | `#f8f8f8` | Toolbar, footer, tabs, row hover |
-| `--jw-dt-color-border` | `#d8d8d8` | Borders |
+| `--jw-dt-color-border` | `#d8d8d8` | Borders (decorative: table, cards, buttons with a label, separators) |
+| `--jw-dt-color-border-strong` | `#808080` | Borders of form fields (search, inputs, selects), which show where to type; keep ≥ 3:1 against the page |
 | `--jw-dt-color-hover` | `#e8e8e8` | Hovered buttons and menu items |
 | `--jw-dt-color-accent` | `#1f7a3a` | Active sort and layout, pinned and filter buttons, primary buttons |
 | `--jw-dt-color-accent-text` | `#fff` | Text on the accent color |
@@ -1170,9 +1171,12 @@ focus in place.
   (`pointer: coarse`, also tablets in the desktop layout); copy buttons stay
   small next to the value but have a 44px tap area. With a mouse at desktop
   width, controls are at least 24px (WCAG 2.5.8).
-- Default colors meet contrast requirements (muted text fallback `#666`, 5.7:1
-  on white). When overriding `--jw-dt-*` variables, keep ≥ 4.5:1 for text and ≥ 3:1
-  for UI components and focus indicators.
+- Default colors meet contrast requirements on the default backgrounds: text
+  ≥ 4.5:1 (muted text `#666`: 5.7:1 on white), form field borders
+  (`--jw-dt-color-border-strong`, `#808080`) and focus indicators ≥ 3:1.
+  `--jw-dt-color-border` is decorative only (table lines, cards, buttons that
+  are identified by their label). When overriding `--jw-dt-*` variables, keep
+  ≥ 4.5:1 for text and ≥ 3:1 for form field borders and focus indicators.
 
 **Checked automatically:** the browser tests run [axe-core](https://github.com/dequelabs/axe-core)
 (WCAG 2.0–2.2 A/AA and best practices) over the table, cards, compact layout,

@@ -57,6 +57,36 @@ test("target sizes: at least 24px on desktop, 44px with visible copy buttons on 
     }
 }, { cdp: true });
 
+// WCAG contrast ratio of two computed colors ("rgb(r, g, b)").
+/**
+ * @param {string} a
+ * @param {string} b
+ */
+function contrast(a, b) {
+    const luminance = (/** @type {string} */ color) => {
+        const [r, g, bl] = (color.match(/\d+(\.\d+)?/g) ?? []).slice(0, 3).map((c) => {
+            const v = Number(c) / 255;
+            return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
+        });
+        return 0.2126 * r + 0.7152 * g + 0.0722 * bl;
+    };
+    const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x);
+    return (hi + 0.05) / (lo + 0.05);
+}
+
+test("form field borders have 3:1 contrast with the default colors (WCAG 1.4.11)", async () => {
+    const table = mount({ features: ALL_FEATURES });
+    $(table, 'th[data-key="fee"] .jw-dt-filter-btn').click();
+    await waitFor(() => $(table, ".jw-dt-overlay .jw-dt-input"), { message: "filter panel open" });
+    for (const selector of [".jw-dt-search", ".jw-dt-footer .jw-dt-select", ".jw-dt-overlay .jw-dt-select", ".jw-dt-overlay .jw-dt-input"]) {
+        const field = $(table, selector);
+        assert.ok(field, `${selector} rendered`);
+        const style = getComputedStyle(field);
+        const ratio = contrast(style.borderTopColor, style.backgroundColor);
+        assert.ok(ratio >= 3, `${selector}: border contrast ${ratio.toFixed(2)}:1`);
+    }
+});
+
 test("an unknown icon name warns and renders an empty decorative SVG", () => {
     const warn = console.warn;
     /** @type {string[]} */

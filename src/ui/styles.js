@@ -23,6 +23,8 @@ export const datatableStyles = `
     font-family: var(--jw-dt-font-family, system-ui, sans-serif);
     color: var(--jw-dt-color-text, #222);
     --dt-border: var(--jw-dt-color-border, #d8d8d8);
+    /* Form fields: their border is all that shows where to type (3:1, WCAG 1.4.11). */
+    --dt-border-strong: var(--jw-dt-color-border-strong, #808080);
     --dt-surface: var(--jw-dt-color-surface, #f0f0f0);
     --dt-surface-muted: var(--jw-dt-color-surface-muted, #f8f8f8);
     --dt-hover: var(--jw-dt-color-hover, #e8e8e8);
@@ -66,7 +68,7 @@ export const datatableStyles = `
     gap: var(--jw-dt-space-2xs, 4px);
     width: 100%;
     background: var(--jw-dt-color-page, #fff);
-    border: 1px solid var(--dt-border);
+    border: 1px solid var(--dt-border-strong);
     border-radius: var(--jw-dt-radius-s, 8px);
     padding: 0 var(--jw-dt-space-s, 8px);
 }
@@ -379,7 +381,7 @@ span.jw-dt-th-label { cursor: default; }
     font: inherit;
     color: inherit;
     background: var(--jw-dt-color-page, #fff);
-    border: 1px solid var(--dt-border);
+    border: 1px solid var(--dt-border-strong);
     border-radius: var(--jw-dt-radius-s, 8px);
     padding: var(--jw-dt-space-2xs, 4px) var(--jw-dt-space-xs, 6px);
 }
@@ -684,7 +686,7 @@ span.jw-dt-th-label { cursor: default; }
     color: inherit;
     width: 100%;
     background: var(--jw-dt-color-page, #fff);
-    border: 1px solid var(--dt-border);
+    border: 1px solid var(--dt-border-strong);
     border-radius: var(--jw-dt-radius-s, 8px);
     padding: var(--jw-dt-space-s, 8px);
 }
