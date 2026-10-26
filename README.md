@@ -56,6 +56,7 @@ written in Vanilla JS (ES modules, Shadow DOM). No external dependencies.
 23. [Development & tests](#development--tests)
 24. [Architecture](#architecture)
 25. [Releases & build](#releases--build)
+    - [Repository setup](#repository-setup)
 
 ---
 
@@ -213,12 +214,14 @@ Each column:
 | `filterable` | `boolean` | Allow filter (default `true`) |
 | `searchable` | `boolean` | Include in global search (default `true`) |
 | `exportable` | `boolean` | Include in exports (default `true`) |
-| `copyable` | `boolean` | Show copy button on hover |
+| `copyable` | `boolean` | Copy button next to the value (with a mouse at desktop width: shown on hover/focus) |
 | `link` | `object \| function` | Link behind the value (see below) |
 | `action` | `(row, value, event) => void` | Render value as a button |
 | `cellClass` | `(value, row) => string` | CSS class(es) per cell |
+| `emptyText` | `string` | Shown for empty values (default `""`) |
 
-Column flags apply only when the matching global feature is enabled.
+Column flags (`sortable`, `filterable`, `copyable`, `pinned`, …) apply only
+when the matching feature is enabled.
 
 ### Column widths
 
@@ -432,9 +435,6 @@ about 5,000 cells the table stays responsive, so:
   pagination is turned on anyway and the console warns
   (`jw-datatable: 2000 rows × 25 columns exceed 5000 cells; …`). It turns off
   again when hiding columns or new data bring the table back under the limit.
-
-Column-level flags (`sortable`, `filterable`, …) apply only when the matching
-global feature is enabled.
 
 ---
 
@@ -704,7 +704,8 @@ renames and deletes views:
 A view stores sort, filters, search, page size, the layout, hidden,
 pinned and the order of the columns — the [state](#instance-api) without the
 current page. Loading a view starts on page 1. References to columns that no
-longer exist are dropped when a view (or any state) is applied.
+longer exist, and damaged parts, are dropped when a view (or any state) is
+applied (see the state shape under [Instance API](#instance-api)).
 
 Without the UI:
 
@@ -788,7 +789,7 @@ All events are `composed` and `bubbles`.
 | `get data` | `object[]` | Current raw data |
 | `refresh()` | — | Re-derive and render (e.g. after in-place mutation) |
 | `getState()` | `object` | Serializable state |
-| `setState(partial)` | — | Apply partial state |
+| `setState(partial)` | — | Apply partial state; invalid parts are ignored |
 | `clearFilters()` | — | Clear filters and search |
 | `openExportDialog()` | — | Open the export dialog (also without `features.export`) |
 | `exportData(options?)` | `object \| null` | Export without the dialog; `options` as in [Export](#export) plus `format`, `destination` (XLSX always downloads) and `filename`. Returns the event detail, `null` if cancelled |
@@ -1186,8 +1187,9 @@ focus in place.
 
 **Checked automatically:** the browser tests run [axe-core](https://github.com/dequelabs/axe-core)
 (WCAG 2.0–2.2 A/AA and best practices) over the table, cards, compact layout,
-empty states, every panel, the context menu, the details dialog and the mobile
-layout. Keyboard behavior, focus and names have their own tests.
+empty states, every panel, the context menu, the details dialog, the mobile
+layout and a touch tablet. Keyboard behavior, focus, names, target sizes and
+form field contrast have their own tests.
 
 **Not covered by the component:** content you render yourself via `formatter`,
 `action` or `config.styles` — keep it accessible (names, contrast).
@@ -1335,7 +1337,8 @@ Status messages go through `_announce()` to the shared live region under
 `<body>`, or the open panel's own region.
 
 **Styles.** `src/ui/styles.js` is one CSS string (Mobile First, breakpoint
-640px), parsed once into a constructed stylesheet shared by all tables. Class
+640px; a `(pointer: coarse)` block keeps touch sizes on tablets), parsed once
+into a constructed stylesheet shared by all tables. Class
 prefix `jw-dt-` (context menu `jw-ctx-`). Theme variables `--jw-dt-*` are read
 with their default as fallback (never set inside, so they inherit from the
 page); internal variables are `--dt-*` (set on `:host` or by JS, e.g. the
@@ -1357,7 +1360,10 @@ Releases are fully automated with GitHub Actions
    `dist/jw-datatable.min.js` with that version, runs the browser tests
    against the bundle, and only if they pass commits the bundle
    (`chore(release): X.Y.Z [skip ci]`), tags `vX.Y.Z` and publishes a GitHub
-   release with the file attached.
+   release with the file attached and release notes from the commits.
+
+Nothing is published to npm (`package.json` is private and holds only dev
+tools); the GitHub release and `dist/` on `main` are the distribution.
 
 **Commit messages must follow [Conventional Commits](https://www.conventionalcommits.org/):**
 
@@ -1368,20 +1374,44 @@ Releases are fully automated with GitHub Actions
 | `feat!: …` or footer `BREAKING CHANGE: …` | major (**2**.0.0) |
 | `docs:`, `test:`, `refactor:`, `chore:`, `ci:`, `style:` | no release |
 
+After a release, `main` on GitHub is one commit ahead (the release commit with
+`dist/`): pull before pushing again.
+
 **Local build** (optional, needs `npx` for the pinned esbuild version, or set
 `ESBUILD_BIN`):
 
 ```bash
 node tools/build.js 1.2.3-local       # writes dist/jw-datatable.min.js
 node tests/run.js --browser --dist     # browser tests against the bundle
+rm -rf dist                            # don't commit it — CI owns dist/
 ```
 
-Don't commit a locally built `dist/` — CI owns it.
-
 The build minifies the CSS and icon markup, then bundles and minifies all
-modules with esbuild into one ES module (≈ 130 KB, ≈ 38 KB gzipped).
+modules with esbuild into one ES module (≈ 141 KB, ≈ 42 KB gzipped), with the
+version and the Lucide license notice in its banner comment.
 
-**Repository setup:** Actions need write access (*Settings → Actions →
-General → Workflow permissions → Read and write*). If `main` is protected
-against direct pushes, allow GitHub Actions to bypass the rule or provide a
-token with push rights as `GITHUB_TOKEN` replacement.
+### Repository setup
+
+The workflow needs no secrets: it uses the automatic `GITHUB_TOKEN`, and the
+release job requests the write permissions it needs (`contents`, `issues`,
+`pull-requests`) itself, so the default *Workflow permissions* (read) are
+fine. Check on GitHub:
+
+1. **Actions enabled** – *Settings → Actions → General → Actions
+   permissions*: allow at least actions created by GitHub (`actions/checkout`,
+   `actions/setup-node`).
+2. **Direct pushes to `main` and tags allowed for the workflow** – the release
+   pushes a commit to `main` and a tag `vX.Y.Z` with `GITHUB_TOKEN`. A branch
+   protection rule or ruleset that requires pull requests or status checks on
+   `main` (or restricts tag creation) rejects that push and the release
+   fails before anything is tagged. Either leave `main` unprotected, or create a
+   GitHub App or fine-grained token with *Contents: read and write*, store it
+   as a secret, allow it to bypass the rule, and pass it to semantic-release
+   instead of `secrets.GITHUB_TOKEN` in `release.yml`.
+3. **Dependabot** – `.github/dependabot.yml` turns on version updates by
+   itself; its pull requests run the test job (read-only), not the release.
+
+**The first release** has no previous tag, so it becomes **1.0.0**. Its
+release notes cover all commits since the start of the repository, including
+breaking changes from before 1.0.0; shorten them on the release page afterwards
+if you like.
