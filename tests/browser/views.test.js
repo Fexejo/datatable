@@ -72,6 +72,22 @@ test("views drop columns that no longer exist", async () => {
     assert.deepEqual(state.pinnedColumns, []);
 });
 
+test("a damaged view loads its valid parts; setState ignores invalid ones", async () => {
+    const adapter = memoryAdapter({
+        Damaged: { sort: "name", filters: { name: null }, pageSize: -5, layout: "weird", hiddenColumns: ["fee"], pinnedColumns: {} },
+        Text: "not a state"
+    });
+    const table = mountViews(adapter, { features: { savedViews: true, sorting: true, filtering: true } });
+    const before = table.getState();
+    assert.equal(await table.loadView("Damaged"), true);
+    assert.deepEqual(table.getState(), { ...before, hiddenColumns: ["fee"] }, "only the valid part applied");
+    assert.equal(await table.loadView("Text"), false, "a view that is no object counts as missing");
+    table.setState(/** @type {any} */ (null));
+    table.setState(/** @type {any} */ ({ layout: "weird", page: "2" }));
+    assert.deepEqual(table.getState(), { ...before, hiddenColumns: ["fee"] });
+    assert.ok($(table, "table"), "still renders the table");
+});
+
 test("an adapter needs all five methods; the API rejects without the feature", async () => {
     const { rename, ...incomplete } = memoryAdapter();
     /** @type {any} */

@@ -18,7 +18,7 @@ import { distinctValues, isActiveFilter, describeFilter } from "./core/filtering
 import { normalizeColumns } from "./core/columns.js";
 import { DEFAULT_PAGE_SIZES, MAX_PAGE_CELLS, exceedsCellLimit, pageSizeChoices } from "./core/pagination.js";
 import {
-    createState, mergeState, serializeState, viewSignature, activeFilterCount,
+    createState, mergeState, sanitizeState, serializeState, viewSignature, activeFilterCount,
     normalizeOrder, orderedColumns, moveColumn, deriveRows
 } from "./core/state.js";
 import { ViewStore, LocalStorageAdapter } from "./core/viewStore.js";
@@ -263,10 +263,13 @@ class JwDataTable extends HTMLElement {
         return serializeState(this._state);
     }
 
+    // Invalid parts and unknown columns are ignored (`sanitizeState()`).
     /** @param {Partial<import("./types.js").SerializedState>} partial */
     setState(partial = {}) {
-        if (partial.layout) this._layoutUserSet = true;
-        this._commit(mergeState(this._state, partial, this._columns.map((c) => c.key)));
+        const keys = this._columns.map((c) => c.key);
+        const clean = sanitizeState(partial, keys);
+        if (clean.layout) this._layoutUserSet = true;
+        this._commit(mergeState(this._state, clean, keys));
     }
 
     clearFilters() {

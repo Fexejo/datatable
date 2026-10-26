@@ -15,6 +15,15 @@
 /** @type {(keyof ViewStorageAdapter)[]} */
 export const ADAPTER_METHODS = ["list", "get", "save", "rename", "delete"];
 
+// The strings of a list of view names (anything else, e.g. damaged data, is dropped).
+/**
+ * @param {unknown} names
+ * @returns {string[]}
+ */
+function validNames(names) {
+    return Array.isArray(names) ? names.filter((name) => typeof name === "string") : [];
+}
+
 /** @implements {ViewStorageAdapter} */
 export class LocalStorageAdapter {
     constructor(namespace = "jw-datatable") {
@@ -27,10 +36,11 @@ export class LocalStorageAdapter {
         return `${this.namespace}::view::${name}`;
     }
 
+    // Names of the stored views; a damaged index counts as empty.
     /** @returns {string[]} */
     _readIndex() {
         try {
-            return JSON.parse(localStorage.getItem(this.indexKey) || "[]");
+            return validNames(JSON.parse(localStorage.getItem(this.indexKey) || "[]"));
         } catch {
             return [];
         }
@@ -95,7 +105,9 @@ export class LocalStorageAdapter {
 }
 
 // Thin facade over the adapter: checks the interface and turns every result
-// into a Promise. It does not shape the state itself; the component does.
+// into a Promise. Results of the wrong type count as empty (`list()`: the
+// string names only; `get()`: an object or null); the component validates
+// the state itself (core/state.js `sanitizeState()`).
 export class ViewStore {
     /** @param {ViewStorageAdapter} [adapter] */
     constructor(adapter) {
@@ -106,8 +118,7 @@ export class ViewStore {
 
     // Async wrappers, so a throwing sync adapter also ends in a rejection.
     async list() {
-        const names = await this.adapter.list();
-        return Array.isArray(names) ? names : [];
+        return validNames(await this.adapter.list());
     }
 
     /**
@@ -115,7 +126,8 @@ export class ViewStore {
      * @returns {Promise<object|null>}
      */
     async get(name) {
-        return (await this.adapter.get(name)) ?? null;
+        const state = await this.adapter.get(name);
+        return typeof state === "object" && state !== null && !Array.isArray(state) ? state : null;
     }
 
     /**

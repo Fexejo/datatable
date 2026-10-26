@@ -28,7 +28,7 @@ import { paginate } from "./pagination.js";
  */
 export function createState(columns, initialState, defaults) {
     const keys = columns.map((c) => c.key);
-    const initial = knownColumnsOnly(initialState, keys);
+    const initial = sanitizeState(initialState, keys);
     return {
         sort: initial.sort ? initial.sort.slice() : [],
         filters: copyFilters(initial.filters),
@@ -43,15 +43,16 @@ export function createState(columns, initialState, defaults) {
 }
 
 // Applies a partial (serialized) state, e.g. from `setState()` or a saved view.
-// Returns a new state; references to unknown columns are dropped.
+// Returns a new state; invalid parts and references to unknown columns are
+// dropped (see `sanitizeState()`).
 /**
  * @param {TableState} state
- * @param {Partial<SerializedState>} partial
+ * @param {Partial<SerializedState>|null|undefined} partial
  * @param {string[]} keys All column keys.
  * @returns {TableState}
  */
 export function mergeState(state, partial, keys) {
-    partial = knownColumnsOnly(partial, keys);
+    partial = sanitizeState(partial, keys);
     const next = { ...state };
     if (partial.sort) next.sort = partial.sort.slice();
     if (partial.filters) next.filters = copyFilters(partial.filters);
@@ -140,21 +141,58 @@ export function normalizeOrder(order, keys) {
     return [...known, ...keys.filter((key) => !known.includes(key))];
 }
 
-// Drops references to columns that do not exist (e.g. in a view saved
-// before the column configuration changed).
+// A partial state as it may come from outside (`initial`, `setState()`, a
+// saved view from localStorage or a backend), reduced to its valid parts:
+// wrong types and values are dropped, and so are references to columns that
+// do not exist (e.g. in a view saved before the column configuration changed).
+/** @type {Layout[]} */
+const LAYOUTS = ["table", "grid", "compact"];
+
 /**
- * @param {Partial<SerializedState>} state
- * @param {string[]} keys
+ * @param {unknown} value
+ * @returns {value is Record<string, any>}
+ */
+const isRecord = (value) => typeof value === "object" && value !== null && !Array.isArray(value);
+/** @param {unknown} value */
+const isPositiveInteger = (value) => Number.isInteger(value) && /** @type {number} */ (value) > 0;
+
+/**
+ * @param {unknown} filter
+ * @returns {filter is Filter}
+ */
+function isValidFilter(filter) {
+    if (!isRecord(filter)) return false;
+    if (filter.kind === "value") return Array.isArray(filter.values);
+    return filter.kind === "pattern" && typeof filter.operator === "string"
+        && (filter.arity === undefined || [0, 1, 2].includes(/** @type {number} */ (filter.arity)));
+}
+
+/**
+ * @param {unknown} state
+ * @param {string[]} keys All column keys.
  * @returns {Partial<SerializedState>}
  */
-export function knownColumnsOnly(state, keys) {
+export function sanitizeState(state, keys) {
+    /** @type {Partial<SerializedState>} */
+    const result = {};
+    if (!isRecord(state)) return result;
     const known = new Set(keys);
-    const result = { ...state };
-    if (Array.isArray(state.sort)) result.sort = state.sort.filter((s) => known.has(s?.key));
-    if (state.filters) result.filters = Object.fromEntries(Object.entries(state.filters).filter(([key]) => known.has(key)));
-    for (const list of /** @type {const} */ (["hiddenColumns", "pinnedColumns"])) {
-        const value = state[list];
-        if (Array.isArray(value)) result[list] = value.filter((key) => known.has(key));
+    /** @param {unknown} value */
+    const knownKeys = (value) => (Array.isArray(value) ? value : [])
+        .filter((key, i, all) => known.has(key) && all.indexOf(key) === i);
+
+    if (Array.isArray(state.sort)) {
+        result.sort = state.sort.filter((s) => isRecord(s) && known.has(s.key) && (s.direction === "asc" || s.direction === "desc"));
+    }
+    if (isRecord(state.filters)) {
+        result.filters = Object.fromEntries(Object.entries(state.filters).filter(([key, filter]) => known.has(key) && isValidFilter(filter)));
+    }
+    if (typeof state.globalSearch === "string") result.globalSearch = state.globalSearch;
+    if (isPositiveInteger(state.page)) result.page = state.page;
+    if (isPositiveInteger(state.pageSize)) result.pageSize = state.pageSize;
+    if (LAYOUTS.includes(state.layout)) result.layout = state.layout;
+    for (const list of /** @type {const} */ (["hiddenColumns", "pinnedColumns", "columnOrder"])) {
+        if (Array.isArray(state[list])) result[list] = knownKeys(state[list]);
     }
     return result;
 }

@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
     createState, mergeState, serializeState, viewSignature, activeFilterCount,
-    normalizeOrder, knownColumnsOnly, orderedColumns, moveColumn, deriveRows
+    normalizeOrder, sanitizeState, orderedColumns, moveColumn, deriveRows
 } from "../../src/core/state.js";
 
 const columns = [
@@ -56,10 +56,36 @@ test("activeFilterCount counts the global search as one filter", () => {
     assert.equal(activeFilterCount(state, { globalSearch: false }), 1);
 });
 
-test("normalizeOrder and knownColumnsOnly drop unknown keys", () => {
+test("normalizeOrder and sanitizeState drop unknown keys", () => {
     assert.deepEqual(normalizeOrder(["c", "x", "c", "a"], keys), ["c", "a", "b", "d"]);
-    assert.deepEqual(knownColumnsOnly({ pinnedColumns: ["x", "a"], filters: /** @type {any} */ ({ x: {}, a: {} }) }, keys),
-        { pinnedColumns: ["a"], filters: { a: {} } });
+    const filter = { kind: "value", values: ["v"] };
+    assert.deepEqual(sanitizeState({ pinnedColumns: ["x", "a", "a"], filters: /** @type {any} */ ({ x: filter, a: filter }) }, keys),
+        { pinnedColumns: ["a"], filters: { a: filter } });
+});
+
+test("sanitizeState keeps valid parts and drops wrong types (damaged saved views)", () => {
+    const valid = {
+        sort: [{ key: "a", direction: "desc" }],
+        filters: { a: { kind: "pattern", operator: "contains", operand: "x" }, d: { kind: "pattern", operator: "empty", arity: 0 } },
+        globalSearch: "q", page: 2, pageSize: 50, layout: "compact",
+        hiddenColumns: ["b"], pinnedColumns: ["c"], columnOrder: ["d", "a"]
+    };
+    assert.deepEqual(sanitizeState(valid, keys), valid);
+    for (const bad of [null, undefined, "x", 5, ["a"]]) assert.deepEqual(sanitizeState(bad, keys), {}, String(bad));
+    assert.deepEqual(sanitizeState({
+        sort: [{ key: "a", direction: "up" }, null, "a", { key: "d", direction: "asc" }],
+        filters: { a: null, b: { kind: "value", values: "v" }, c: { kind: "pattern", operator: 1 }, d: { kind: "pattern", operator: "eq", arity: 3 } },
+        globalSearch: 1, page: "9", pageSize: -5, layout: "weird",
+        hiddenColumns: "a", pinnedColumns: {}, columnOrder: "ab", extra: true
+    }, keys), { sort: [{ key: "d", direction: "asc" }], filters: {} });
+    assert.deepEqual(sanitizeState({ sort: "x", filters: [], page: 1.5, pageSize: 0 }, keys), {});
+});
+
+test("mergeState ignores invalid parts instead of throwing", () => {
+    const state = createState(columns, {}, { pageSize: 10 });
+    assert.deepEqual(mergeState(state, null, keys), state);
+    const next = mergeState(state, /** @type {any} */ ({ pinnedColumns: {}, sort: "x", layout: "weird", pageSize: -5, page: 3 }), keys);
+    assert.deepEqual(next, { ...state, page: 3 });
 });
 
 test("orderedColumns puts pinned columns first only when pinning is on", () => {

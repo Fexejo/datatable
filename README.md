@@ -735,7 +735,10 @@ methods, each may return a Promise:
 | `delete(name)` | — | Delete |
 
 All five are required (`configure()` throws otherwise). A rejected Promise or
-a thrown error is shown in the panel.
+a thrown error is shown in the panel. Results of the wrong type count as empty
+(non-string names are skipped; a `get()` result that is no object counts as a
+missing view), and the state from `get()` is validated like `setState()` (see
+[Instance API](#instance-api)).
 
 ```js
 const views = "/api/table-views";
@@ -814,7 +817,10 @@ All events are `composed` and `bubbles`.
 
 Entries that refer to columns which do not exist (in `sort`, `filters`,
 `hiddenColumns`, `pinnedColumns`, `columnOrder`) are ignored, e.g. a state
-stored before the column configuration changed.
+stored before the column configuration changed. So are parts with a wrong
+type or value (e.g. `pageSize: -5`, `layout: "weird"`, a sort entry without a
+valid `direction`): a damaged saved view or `setState()` call applies its valid
+parts and never breaks the table.
 
 ---
 

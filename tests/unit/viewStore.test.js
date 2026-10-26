@@ -74,3 +74,24 @@ test("LocalStorageAdapter treats unreadable storage as empty", async () => {
     assert.deepEqual(adapter.list(), []);
     assert.equal(adapter.get("A"), null);
 });
+
+test("damaged view data counts as empty (index, entries, adapter results)", async () => {
+    backing.set("ns::views", JSON.stringify({ A: 1 }));
+    const adapter = new LocalStorageAdapter("ns");
+    assert.deepEqual(adapter.list(), [], "an index that is no array");
+    adapter.save("A", {});
+    assert.deepEqual(adapter.list(), ["A"], "saving repairs the index");
+    backing.set("ns::views", JSON.stringify(["A", 7, null, "B"]));
+    assert.deepEqual(adapter.list(), ["A", "B"], "only string names");
+
+    const results = { list: /** @type {unknown} */ ([1, "x"]), get: /** @type {unknown} */ ("state") };
+    const store = new ViewStore(/** @type {any} */ ({
+        list: () => results.list, get: () => results.get, save() {}, rename() {}, delete() {}
+    }));
+    assert.deepEqual(await store.list(), ["x"]);
+    assert.equal(await store.get("x"), null, "a string is no state");
+    results.get = [1];
+    assert.equal(await store.get("x"), null, "an array is no state");
+    results.list = "x";
+    assert.deepEqual(await store.list(), []);
+});
