@@ -9,6 +9,9 @@
 // With `sharing`, own views get a share toggle, and a second group lists the
 // views others shared: those can only be loaded (and saved as an own view).
 //
+// Questions, the rename field and the actions menu are modal inside the
+// panel: while one is open, the rest of the panel is inert (`isolate()`).
+//
 // `buildViewsPanel` holds the panel state and the actions; the functions
 // below it build the parts from that state.
 
@@ -180,8 +183,30 @@ export function buildViewsPanel({ t, views, announce, close, collapsed, menu = f
                     { label: t.deleteView, icon: "trash", onSelect: () => actions.startDelete(name) }
                 ],
                 restoreFocus: () => focusKey(`more:${name}`),
-                onClose: () => button.setAttribute("aria-expanded", "false")
+                onClose: () => {
+                    button.setAttribute("aria-expanded", "false");
+                    isolate();
+                }
             });
+            isolate();
+        }
+    };
+
+    // Makes everything in the panel inert but the open menu or modal step (and
+    // the live region), level by level up to the panel; without one, nothing.
+    const isolate = () => {
+        for (const node of panel.querySelectorAll("[data-inert]")) {
+            if (node instanceof HTMLElement) node.inert = false;
+            node.removeAttribute("data-inert");
+        }
+        /** @type {Element|null} */
+        let node = panel.querySelector(".jw-ctx-menu") ?? panel.querySelector('[aria-modal="true"]');
+        for (; node && node.parentElement && node !== panel; node = node.parentElement) {
+            for (const sibling of node.parentElement.children) {
+                if (sibling === node || !(sibling instanceof HTMLElement) || sibling.hasAttribute("data-live")) continue;
+                sibling.inert = true;
+                sibling.setAttribute("data-inert", "");
+            }
         }
     };
 
@@ -246,6 +271,7 @@ export function buildViewsPanel({ t, views, announce, close, collapsed, menu = f
             ...listContent(t, ui, errorId, options, actions),
             ...(sharing ? sharedContent(t, ui, errorId, options, actions) : [])
         );
+        isolate();
         const target = focusTo ? focusKey(focusTo) : null;
         if (!target && (!focused?.isConnected || !panel.contains(focused))) nameInput.focus();
     };
@@ -422,7 +448,7 @@ function stepBackOnEscape(actions, focusKey) {
     };
 }
 
-// A question with its answers; focus goes to Cancel (the safe answer).
+// A question with its answers, modal in the panel; focus goes to Cancel (the safe answer).
 /**
  * @param {Translations} t
  * @param {string} text
@@ -433,7 +459,10 @@ function stepBackOnEscape(actions, focusKey) {
  */
 function question(t, text, okText, onOk, cancelKey, actions) {
     const id = uid("jwdt-vq");
-    return el("div", { class: "jw-dt-views-confirm", role: "group", "aria-labelledby": id, onkeydown: stepBackOnEscape(actions, cancelKey) }, [
+    return el("div", {
+        class: "jw-dt-views-confirm", role: "alertdialog", "aria-modal": "true", "aria-labelledby": id,
+        onkeydown: stepBackOnEscape(actions, cancelKey)
+    }, [
         el("p", { class: "jw-dt-views-question", id, text }),
         el("div", { class: "jw-dt-panel-actions" }, [
             el("button", { type: "button", class: "jw-dt-btn jw-dt-btn-primary", text: okText, "aria-describedby": id, onclick: onOk }),
@@ -669,7 +698,7 @@ function viewItem(t, name, { isActive, shared, menu }, actions) {
     ]);
 }
 
-// A view being renamed: the name field (with its error) and the answers.
+// A view being renamed: the name field (with its error) and the answers, modal in the panel.
 /**
  * @param {Translations} t
  * @param {PanelState} ui
@@ -679,7 +708,10 @@ function viewItem(t, name, { isActive, shared, menu }, actions) {
  */
 function renameItem(t, ui, errorId, name, actions) {
     const invalid = ui.error?.at === "rename";
-    return el("li", { class: "jw-dt-views-item is-step", onkeydown: stepBackOnEscape(actions, `rename:${name}`) }, [
+    return el("li", { class: "jw-dt-views-item is-step" }, [el("div", {
+        class: "jw-dt-views-rename", role: "dialog", "aria-modal": "true", "aria-label": t.renameViewNamed(name),
+        onkeydown: stepBackOnEscape(actions, `rename:${name}`)
+    }, [
         el("input", {
             type: "text",
             class: "jw-dt-input",
@@ -696,5 +728,5 @@ function renameItem(t, ui, errorId, name, actions) {
             el("button", { type: "button", class: "jw-dt-btn jw-dt-btn-primary", text: t.renameView, onclick: () => actions.rename(name) }),
             el("button", { type: "button", class: "jw-dt-btn", text: t.cancel, onclick: () => actions.cancelStep(`rename:${name}`) })
         ])
-    ]);
+    ])]);
 }

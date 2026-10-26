@@ -749,6 +749,9 @@ span.jw-dt-th-label { cursor: default; }
     border-radius: var(--jw-dt-radius-s, 8px);
 }
 .jw-dt-views-item.is-step .jw-dt-views-confirm { padding: 0; border: none; }
+.jw-dt-views-rename { display: flex; flex-direction: column; align-items: stretch; gap: var(--jw-dt-space-s, 8px); }
+/* While a question, the rename field or a view's menu is open, the rest of the panel is inert. */
+.jw-dt-views-panel [data-inert] { opacity: 0.4; }
 .jw-dt-views-list { display: flex; flex-direction: column; gap: var(--jw-dt-space-s, 8px); }
 .jw-dt-views-items { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
 .jw-dt-views-item { display: flex; align-items: center; gap: var(--jw-dt-space-2xs, 4px); }

@@ -1170,7 +1170,7 @@ or touch also works with the keyboard alone.
 | Filter panel tabs | `←` `→`, `Home` / `End` | Switch between “Values” and “Pattern” |
 | Filter panel, “Values” tab | `Enter` in the search field or on a search-result option | Apply (same as the “Apply” button); the search-result options are radio buttons (`↑` `↓`) |
 | Filter panel, “Pattern” tab | `Enter` in a value field | Apply (same as the “Apply” button) |
-| Saved views panel | `Enter` in the name field or the rename field, `Esc` in a question, the rename field or the filled filter field, `Enter` / `Space` on a group heading | Save / rename; `Esc` cancels the question or the rename (the panel stays open, focus returns to the button that started it) or clears the filter; collapse / expand the group. Questions open with focus on “Cancel”; after deleting, focus moves to the next (matching) view. On mobile, `Enter` on a view's “⋮” opens its actions menu (keys as in the actions menu; focus returns to “⋮”). Sharing: `Enter` / `Space` on a share toggle shares or stops sharing (focus stays); “Save as my view” moves focus to the filled name field |
+| Saved views panel | `Tab` / `Shift+Tab` stay inside an open question, rename field or actions menu; `Enter` in the name field or the rename field, `Esc` in a question, the rename field or the filled filter field, `Enter` / `Space` on a group heading | Save / rename; `Esc` cancels the question or the rename (the panel stays open, focus returns to the button that started it) or clears the filter; collapse / expand the group. Questions open with focus on “Cancel”; after deleting, focus moves to the next (matching) view. On mobile, `Enter` on a view's “⋮” opens its actions menu (keys as in the actions menu; focus returns to “⋮”). Sharing: `Enter` / `Space` on a share toggle shares or stops sharing (focus stays); “Save as my view” moves focus to the filled name field |
 | Export dialog | `←` `→` (or `↑` `↓`) in a segmented control, `Space` on a switch or “More options”, `Enter` in the file name or on an option | Select an option, toggle a switch, export (same as the “Export” button); focus starts on the selected format and returns to the opener afterwards |
 
 Focus is kept across re-renders (sorting, filtering, paging, …): the same
@@ -1208,8 +1208,12 @@ table.
   views of others are a second list in the group “Shared by others”, whose
   buttons include the second line in their name (“Desc by Anna Smith”). The current view's button has
   `aria-current="true"` and a check mark. Rename/delete buttons are named
-  “Rename: <view>” / “Delete: <view>”. Questions (overwrite, delete) are a
-  `group` named by the question, which also describes its buttons. Errors are
+  “Rename: <view>” / “Delete: <view>”. Questions (overwrite, delete) are an
+  `alertdialog` named by the question, which also describes its buttons; the
+  rename field is in a `dialog` named “Rename: <view>”. Both are modal inside
+  the panel (`aria-modal`), like the mobile actions menu: while one is open,
+  the rest of the panel is `inert` (no focus, no pointer, hidden from
+  assistive tech, shown dimmed; the panel's live region stays). Errors are
   shown in the panel, announced and linked to their field (`aria-invalid`,
   `aria-describedby`); the panel is `aria-busy` while the adapter works.
 - Compact layout: the details column has a visually hidden header “Details”;

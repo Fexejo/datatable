@@ -108,6 +108,11 @@ test("axe: saved views panel with sharing — shared toggle, views of others, a 
     await assertNoAxeViolations("saved views with sharing");
     $(table, '.jw-dt-overlay [data-vk="group:shared"]').click();
     await assertNoAxeViolations("saved views, shared group collapsed");
+    $(table, '.jw-dt-overlay [data-vk="delete:Lean"]').click();
+    await assertNoAxeViolations("saved views, modal delete question");
+    $(table, '.jw-dt-overlay [data-vk="step-cancel"]').click();
+    $(table, '.jw-dt-overlay [data-vk="rename:Wide"]').click();
+    await assertNoAxeViolations("saved views, modal rename");
 });
 
 test("axe: context menu and the record details dialog", async () => {

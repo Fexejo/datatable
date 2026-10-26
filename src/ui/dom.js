@@ -132,7 +132,7 @@ export function reorderAroundFocus(container, nodes) {
     return anchor;
 }
 
-// Visible, enabled elements in `container` that take focus with Tab.
+// Visible, enabled elements in `container` that take focus with Tab (not inside an inert part).
 /**
  * @param {ParentNode} container
  * @returns {HTMLElement[]}
@@ -142,7 +142,7 @@ export function focusables(container) {
     const nodes = container.querySelectorAll(
         'button, input, select, textarea, a[href], [tabindex]:not([tabindex="-1"])'
     );
-    return Array.from(nodes).filter((n) => !n.disabled && n.getClientRects().length > 0);
+    return Array.from(nodes).filter((n) => !n.disabled && !n.closest("[inert]") && n.getClientRects().length > 0);
 }
 
 // ---- Popups -----------------------------------------------------------------

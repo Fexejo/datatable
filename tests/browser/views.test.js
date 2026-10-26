@@ -132,13 +132,21 @@ test("saved views panel: saving an existing name asks before overwriting", async
     await input.press("Enter");
     const cancel = vk(table, "step-cancel");
     assert.equal(deepActiveElement(), cancel, "focus on Cancel");
-    const group = cancel.closest('[role="group"]');
+    const group = cancel.closest('[role="alertdialog"]');
     assert.equal(accessibleName(group), "A view named “Mine” already exists. Overwrite it?");
+    assert.equal(group?.getAttribute("aria-modal"), "true");
+    assert.ok(vk(table, "name").closest("[inert]") && vk(table, "filter").inert, "the rest of the panel is inert");
+    assert.ok(!$(table, ".jw-dt-overlay [data-live]").closest("[inert]"), "announcements still reach screen readers");
+    await input.press("Tab");
+    assert.equal(deepActiveElement(), group?.querySelector("button"), "Tab wraps to the first answer");
+    await input.press("Tab");
+    assert.equal(deepActiveElement(), cancel, "Tab stays in the question");
     assert.ok(!adapter.calls.some(([m]) => m === "save"), "nothing saved yet");
 
     await input.press("Escape");
     assert.ok($(table, ".jw-dt-overlay"), "Escape steps back, the panel stays open");
     assert.equal(vk(table, "step-cancel"), null, "question gone");
+    assert.equal($(table, ".jw-dt-overlay [inert]"), null, "nothing inert any more");
     assert.equal(deepActiveElement(), vk(table, "name"), "focus back in the name field");
 
     await input.press("Enter");
@@ -156,7 +164,7 @@ test("saved views panel: delete asks, then focus moves to the next view", async 
     assert.equal(accessibleName(del), "Delete: B");
     del.click();
     assert.equal(deepActiveElement(), vk(table, "step-cancel"), "focus on Cancel");
-    assert.equal(accessibleName(vk(table, "step-cancel").closest('[role="group"]')), "Delete the view “B”?");
+    assert.equal(accessibleName(vk(table, "step-cancel").closest('[role="alertdialog"]')), "Delete the view “B”?");
     vk(table, "step-cancel").previousElementSibling.click(); // Delete
     await announced(table, "View “B” deleted");
     assert.deepEqual(viewNames(table), ["A", "C"]);
@@ -174,6 +182,10 @@ test("saved views panel: rename in place, existing names are refused", async () 
     vk(table, "rename:A").click();
     const field = vk(table, "rename-input");
     assert.equal(deepActiveElement(), field, "focus in the rename field");
+    const dialog = field.closest('[role="dialog"]');
+    assert.equal(accessibleName(dialog), "Rename: A");
+    assert.equal(dialog?.getAttribute("aria-modal"), "true");
+    assert.ok(vk(table, "load:B").closest("[inert]") && vk(table, "name").closest("[inert]"), "other views and fields are inert");
     assert.equal(field.value, "A");
     assert.equal(accessibleName(field), "New name for “A”");
 
@@ -353,12 +365,14 @@ test("saved views panel on mobile: the actions of a view are in a menu", async (
     assert.equal(vk(table, "more:A").getAttribute("aria-expanded"), "true");
     assert.deepEqual($$(table, '[role="menuitem"]').map((i) => i.textContent), ["Rename", "Delete"]);
     assert.equal(deepActiveElement(), $(table, '[role="menuitem"]'), "focus on the first item");
+    assert.ok(vk(table, "more:A").closest("[inert]") && vk(table, "name").closest("[inert]"), "the panel behind the menu is inert");
 
     await input.press("Escape");
     assert.equal($(table, ".jw-ctx-menu"), null, "menu closed");
     assert.ok($(table, ".jw-dt-overlay"), "the panel stays open");
     assert.equal(deepActiveElement(), vk(table, "more:A"), "focus back on the menu button");
     assert.equal(vk(table, "more:A").getAttribute("aria-expanded"), "false");
+    assert.equal($(table, ".jw-dt-overlay [inert]"), null, "nothing inert after closing the menu");
 
     await input.press("Enter");
     await input.press("Enter");   // Rename
@@ -505,11 +519,11 @@ test("saved views panel: deleting a shared view warns first", async () => {
     const table = mountViews(adapter);
     await openViews(table);
     vk(table, "delete:A").click();
-    assert.equal(accessibleName(vk(table, "step-cancel").closest('[role="group"]')),
+    assert.equal(accessibleName(vk(table, "step-cancel").closest('[role="alertdialog"]')),
         "Delete the view “A”? It is shared: others will no longer be able to use it.");
     vk(table, "step-cancel").click();
     vk(table, "delete:B").click();
-    assert.equal(accessibleName(vk(table, "step-cancel").closest('[role="group"]')), "Delete the view “B”?");
+    assert.equal(accessibleName(vk(table, "step-cancel").closest('[role="alertdialog"]')), "Delete the view “B”?");
     vk(table, "rename:A").click();
     vk(table, "rename-input").value = "A2";
     vk(table, "rename-input").dispatchEvent(new Event("input"));
