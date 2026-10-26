@@ -34,9 +34,12 @@ const version = process.argv[2] || "0.0.0-dev";
  * @returns {string} stdout
  */
 function esbuild(args, input) {
+    // `--package` explicitly: an outer `npx -p …` (the release runs this script
+    // inside `npx -p semantic-release@…`) sets npm_config_package, which a bare
+    // `npx esbuild@x` would inherit and then look for "esbuild@x" as a command.
     const [cmd, pre] = process.env.ESBUILD_BIN
         ? [process.env.ESBUILD_BIN, []]
-        : ["npx", ["--yes", `esbuild@${ESBUILD_VERSION}`]];
+        : ["npx", ["--yes", `--package=esbuild@${ESBUILD_VERSION}`, "--", "esbuild"]];
     const result = spawnSync(cmd, [...pre, ...args], { input, encoding: "utf8", stdio: [input == null ? "ignore" : "pipe", "pipe", "pipe"] });
     if (result.status !== 0) {
         throw new Error(`esbuild failed (${result.status}):\n${result.stderr || result.error}`);
