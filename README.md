@@ -919,13 +919,18 @@ stacked toolbar & footer, trimmed pagination), and a `@media (min-width: 640px)`
 layer adds the roomier desktop experience (more padding, hover-reveal copy
 buttons, inline toolbar/footer, full page-number pagination).
 
+Touch screens at desktop widths (tablets, `(pointer: coarse)`) keep the desktop
+layout but not its smaller controls: touch targets stay ≥ 44px and copy
+buttons stay visible, since touch has no hover.
+
 **What adapts automatically**
 
 | Behavior | Mobile (`< breakpoint`) | Desktop (`≥ breakpoint`) |
 |----------|-------------------------|--------------------------|
 | Layout | auto `mobileLayout`: cards or compact (`autoLayout`) | table |
 | Toolbar | stacked, full-width search | inline, `space-between` |
-| Copy buttons | always visible | reveal on hover |
+| Copy buttons | always visible | reveal on hover (touch screens: always visible) |
+| Touch targets | ≥ 44px | ≥ 24px (touch screens: ≥ 44px) |
 | Pagination | first / prev / current / next / last | full page numbers + page-size select |
 | Filter / column / saved-view panels | bottom sheet | popover anchored to the button |
 | Context menu | bottom sheet, opened via **long-press** | popover at the cursor, opened via **right-click** |
@@ -1161,8 +1166,10 @@ focus in place.
 - Visible focus indicator (`:focus-visible` outline) on every interactive
   element, including cells, cards and menu items; copy buttons that are hidden
   until hover become visible on keyboard focus.
-- Touch targets ≥ 44px on touch layouts; on desktop at least 24px or spaced
-  apart (WCAG 2.5.8), e.g. the filter and unpin buttons in a header cell.
+- Touch targets ≥ 44px on narrow screens and on every touch screen
+  (`pointer: coarse`, also tablets in the desktop layout); copy buttons stay
+  small next to the value but have a 44px tap area. With a mouse at desktop
+  width, controls are at least 24px (WCAG 2.5.8).
 - Default colors meet contrast requirements (muted text fallback `#666`, 5.7:1
   on white). When overriding `--jw-dt-*` variables, keep ≥ 4.5:1 for text and ≥ 3:1
   for UI components and focus indicators.
@@ -1227,7 +1234,7 @@ node tests/run.js --filter "sort" # only tests whose name contains "sort"
 | `tests/unit/*.test.js` | `node:test` tests for the DOM-free modules (state, sorting, filtering, formatting, pagination, export incl. XLSX, i18n, icons, …) |
 | `tests/browser/*.test.js` | Component tests in a real browser, one file per topic: `rendering`, `a11y` (keyboard, focus, announcements), `menu`, `panels`, `views`, `columns`, `details`, `export`, `axe` |
 | `tests/browser/helpers.js` | Shared fixtures (`mount()`, `DATA`, `COLUMNS`, …) and query helpers |
-| `tests/browser/harness.js` | Tiny in-browser test harness (`test`, `assert`, `waitFor`, `input.press`, `input.longPress`, `input.viewport`) |
+| `tests/browser/harness.js` | Tiny in-browser test harness (`test`, `assert`, `waitFor`, `input.press`, `input.longPress`, `input.viewport`, `input.touch`) |
 | `tests/run.js` | Runner: starts a static server and headless Chromium, drives it via the DevTools protocol |
 | `tests/coverage.js` | Line coverage from V8 data of both runs (`--coverage`, `--coverage-min <percent>`) |
 
@@ -1246,7 +1253,7 @@ too.
 
 **In a normal browser:** serve the repo (`python3 -m http.server 8000`) and open
 <http://localhost:8000/tests/browser/>. Tests marked `{ cdp: true }` need
-trusted keyboard input or viewport emulation and are skipped there. Keep the
+trusted keyboard input or viewport or touch emulation and are skipped there. Keep the
 tab in the foreground; background tabs pause animation frames.
 
 **Writing a browser test:**

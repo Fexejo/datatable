@@ -4,6 +4,8 @@
 // 44px touch targets, always-visible copy buttons, stacked toolbar & footer).
 // The `@media (min-width: 640px)` block then layers on the roomier desktop
 // experience (more padding, hover-reveal copy buttons, inline pagination).
+// Touch screens at that width (tablets) keep the desktop layout but get the
+// touch targets and visible copy buttons back (`(pointer: coarse)` block).
 // Overlays and the context menu use explicit `--sheet` modifiers (toggled from
 // JS via matchMedia) so they turn into bottom sheets on phones.
 //
@@ -383,8 +385,8 @@ span.jw-dt-th-label { cursor: default; }
 }
 .jw-dt-pager { display: flex; align-items: center; justify-content: center; gap: var(--jw-dt-space-2xs, 4px); width: 100%; }
 .jw-dt-page-btn {
-    min-width: 40px;
-    min-height: 40px;
+    min-width: 44px;
+    min-height: 44px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -672,7 +674,7 @@ span.jw-dt-th-label { cursor: default; }
     border: 1px solid var(--dt-border);
     border-radius: var(--jw-dt-radius-s, 8px);
     padding: var(--jw-dt-space-s, 8px);
-    min-height: 40px;
+    min-height: 44px;
 }
 .jw-dt-tab.is-active { background: var(--dt-accent); border-color: var(--dt-accent); color: var(--dt-accent-text); }
 .jw-dt-filter-body { display: flex; flex-direction: column; gap: var(--jw-dt-space-s, 8px); }
@@ -848,8 +850,8 @@ span.jw-dt-th-label { cursor: default; }
     .jw-dt-pin-toggle { min-width: 32px; min-height: 32px; }
     .jw-dt-details-btn { width: 32px; height: 32px; }
 
-    /* Copy button: hidden until row/cell hover */
-    .jw-dt-copy { opacity: 0; width: 22px; height: 22px; margin-block: -3px; }
+    /* Copy button: hidden until row/cell hover; 24px (WCAG 2.5.8). */
+    .jw-dt-copy { opacity: 0; width: 24px; height: 24px; margin-block: -4px; }
     /* Also revealed for keyboard users (focused cell/card or the button itself). */
     .jw-dt-td:hover .jw-dt-copy, .jw-dt-pair:hover .jw-dt-copy,
     .jw-dt-td:focus-within .jw-dt-copy, .jw-dt-card:focus-within .jw-dt-copy,
@@ -879,5 +881,28 @@ span.jw-dt-th-label { cursor: default; }
     .jw-dt-segment-text { min-height: 36px; }
     .jw-dt-switch { min-height: 36px; }
     .jw-dt-views-load { min-height: 36px; padding: var(--jw-dt-space-xs, 6px) var(--jw-dt-space-s, 8px); }
+}
+
+/* ===================================================================== */
+/* Touch screens (any width): 44px touch targets. Tablets keep the       */
+/* desktop layout above, but get the touch sizes of the base rules and   */
+/* always-visible copy buttons back (touch has no hover).                */
+/* ===================================================================== */
+@media (pointer: coarse) {
+    .jw-dt-filter-btn, .jw-dt-pin-btn { min-width: 44px; min-height: 44px; }
+    .jw-dt-check { min-height: 44px; }
+    /* The copy button stays small next to the value; its tap area is 44px. */
+    .jw-dt-copy { position: relative; }
+    .jw-dt-copy::after { content: ""; position: absolute; inset: -8px; }
+}
+@media (min-width: 640px) and (pointer: coarse) {
+    .jw-dt-btn, .jw-dt-icon-btn { min-height: 44px; min-width: 44px; }
+    .jw-dt-pin-toggle { min-width: 44px; min-height: 44px; }
+    .jw-dt-details-btn { width: 44px; height: 44px; }
+    .jw-dt-copy { opacity: 1; width: 28px; height: 28px; margin-block: -6px; }
+    .jw-dt-page-btn { min-width: 44px; min-height: 44px; }
+    .jw-dt-tab { min-height: 44px; padding: var(--jw-dt-space-s, 8px); }
+    .jw-dt-check { padding: var(--jw-dt-space-s, 8px) var(--jw-dt-space-2xs, 4px); }
+    .jw-dt-segment-text, .jw-dt-switch, .jw-dt-views-load { min-height: 44px; }
 }
 `;

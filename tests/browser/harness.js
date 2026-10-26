@@ -238,6 +238,14 @@ export const input = {
         if (width == null) await cdp("Emulation.clearDeviceMetricsOverride", {});
         else await cdp("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: 1, mobile: width < 640 });
         await nextFrame();
+    },
+    /**
+     * Emulates a touch screen (`(pointer: coarse)`, e.g. a tablet); `false` resets.
+     * @param {boolean} enabled
+     */
+    async touch(enabled) {
+        await cdp("Emulation.setTouchEmulationEnabled", enabled ? { enabled, maxTouchPoints: 5 } : { enabled });
+        await nextFrame();
     }
 };
 
@@ -264,7 +272,10 @@ export async function run({ filter } = {}) {
             results.push({ name: t.name, status: "fail", message: (error instanceof Error && error.stack) || String(error) });
         } finally {
             document.getElementById("fixture")?.replaceChildren();
-            if (hasCdp()) await input.viewport(null).catch(() => {});
+            if (hasCdp()) {
+                await input.viewport(null).catch(() => {});
+                await input.touch(false).catch(() => {});
+            }
         }
     }
     return results;

@@ -117,3 +117,12 @@ test("axe: mobile — cards, bottom sheet and context menu", async () => {
     rightClick($(table, ".jw-dt-card"));
     await assertNoAxeViolations("mobile context menu");
 }, { cdp: true });
+
+test("axe: touch tablet — desktop table with touch targets", async () => {
+    await input.viewport(820, 1180);
+    await input.touch(true);
+    const table = mount({ features: { ...ALL_FEATURES, compact: true, columnPinning: true }, initial: { pinnedColumns: ["name"] } });
+    await assertNoAxeViolations("touch tablet table");
+    $(table, 'th[data-key="name"] .jw-dt-filter-btn').click();
+    await assertNoAxeViolations("touch tablet filter panel");
+}, { cdp: true });

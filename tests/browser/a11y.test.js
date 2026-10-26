@@ -20,6 +20,43 @@ test("icons are decorative SVGs hidden from assistive tech", () => {
     assert.ok(svgs.every((s) => !s.querySelector("title")), "no <title> inside icons");
 });
 
+// Visible interactive controls of the table and the open filter panel with
+// their size; the copy button counts its (larger) tap area.
+/** @param {HTMLElement} table */
+function targetSizes(table) {
+    const selector = ".jw-dt-btn, .jw-dt-icon-btn, .jw-dt-filter-btn, .jw-dt-page-btn, .jw-dt-copy, .jw-dt-tab, .jw-dt-check";
+    return $$(table, selector).filter((node) => node.getClientRects().length > 0).map((node) => {
+        const r = node.getBoundingClientRect();
+        const inset = node.classList.contains("jw-dt-copy") ? -(parseFloat(getComputedStyle(node, "::after").top) || 0) : 0;
+        return { node, name: node.className.split(" ")[0], width: r.width + 2 * inset, height: r.height + 2 * inset };
+    });
+}
+
+test("target sizes: at least 24px on desktop, 44px with visible copy buttons on a touch tablet", async () => {
+    for (const [width, touch, min] of /** @type {const} */ ([[1280, false, 24], [820, true, 44]])) {
+        await input.viewport(width, 900);
+        await input.touch(touch);
+        const table = mount({ features: ALL_FEATURES });
+        const copy = /** @type {HTMLElement} */ ($(table, ".jw-dt-copy"));
+        assert.equal(getComputedStyle(copy).opacity, touch ? "1" : "0", "copy button visible without hover only on touch");
+        if (touch) {
+            // A tap just outside the drawn button still hits it (before a panel covers the page).
+            const r = copy.getBoundingClientRect();
+            assert.equal(root(table).elementFromPoint(r.right + 6, r.top + r.height / 2), copy, "tap area beyond the button");
+        }
+        $(table, 'th[data-key="name"] .jw-dt-filter-btn').click();
+        await waitFor(() => $(table, ".jw-dt-check")?.getClientRects().length, { message: "value filter open" });
+        const sizes = targetSizes(table);
+        for (const name of ["jw-dt-btn", "jw-dt-filter-btn", "jw-dt-page-btn", "jw-dt-copy", "jw-dt-tab", "jw-dt-check"]) {
+            assert.ok(sizes.some((s) => s.name === name), `${name} measured at ${width}px`);
+        }
+        const small = sizes.filter((s) => Math.round(s.width) < min || Math.round(s.height) < min)
+            .map((s) => `${s.name} ${Math.round(s.width)}×${Math.round(s.height)}`);
+        assert.deepEqual(small, [], `targets below ${min}px at ${width}px${touch ? " (touch)" : ""}`);
+        table.remove();
+    }
+}, { cdp: true });
+
 test("an unknown icon name warns and renders an empty decorative SVG", () => {
     const warn = console.warn;
     /** @type {string[]} */
