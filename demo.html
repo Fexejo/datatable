@@ -308,7 +308,7 @@
     </details>
 
     <script type="module">
-        import { createDataTable } from "./datatable.js";
+        import { createDataTable, LocalStorageAdapter } from "./datatable.js";
         import { LOCALE_NAMES } from "./src/core/i18n.js";
 
         // ── Sample data ──────────────────────────────────────────────────────
@@ -518,6 +518,7 @@
                 searchPlaceholder: "",
                 emptyText: "",
                 noResultsText: "",
+                sharedViews: true,
                 onRowClick: true,
                 onCellClick: false,
                 rowClass: true,
@@ -586,6 +587,7 @@
                 noResultsText: blank(cfg.noResultsText),
                 styles: blank(cfg.styles)
             };
+            if (cfg.features.savedViews && cfg.sharedViews) config.storage = { adapter: demoSharingAdapter };
             if (cfg.onRowClick) config.onRowClick = (row, index) => log("onRowClick", `#${row.id} ${row.firstName} ${row.lastName} (index ${index})`);
             if (cfg.onCellClick) config.onCellClick = (value, row, column) => log("onCellClick", `${column.key} = ${JSON.stringify(value)} (#${row.id})`);
             if (cfg.rowClass) config.rowClass = (row) => (row.status === "left" ? "demo-row-left" : "");
@@ -602,6 +604,47 @@
             };
             return prune(config);
         }
+
+        // ── Shared views (demo adapter) ─────────────────────────────────────
+        // Own views stay in localStorage (where the table keeps them anyway);
+        // which of them are shared is remembered next to them. Two made-up
+        // colleagues have shared views of their own.
+        const ownViews = new LocalStorageAdapter("jw-datatable::demo-members");
+        const SHARED_KEY = "jw-datatable-demo:shared";
+        const OTHERS = [
+            { id: "anna-1", name: "Active members", detail: "by Anna Smith",
+              state: { filters: { status: { kind: "value", values: ["active"] } }, sort: [{ key: "lastName", direction: "asc" }] } },
+            { id: "anna-2", name: "Top contributors", detail: "by Anna Smith",
+              state: { sort: [{ key: "contribution", direction: "desc" }], pageSize: 50 } },
+            { id: "ben-1", name: "Active members", detail: "by Ben Miller",
+              state: { filters: { status: { kind: "value", values: ["active"] } }, hiddenColumns: ["notes", "website", "newsletter"] } }
+        ];
+        const sharedSet = () => new Set(loadJson(SHARED_KEY) ?? []);
+        const setShared = (names) => saveJson(SHARED_KEY, [...names]);
+        const demoSharingAdapter = {
+            list: () => { const shared = sharedSet(); return ownViews.list().map((name) => ({ name, shared: shared.has(name) })); },
+            get: (name) => ownViews.get(name),
+            save: (name, state) => ownViews.save(name, state),
+            rename: (from, to) => {
+                ownViews.rename(from, to);
+                const shared = sharedSet();
+                if (shared.delete(from)) shared.add(to);
+                setShared(shared);
+            },
+            delete: (name) => {
+                ownViews.delete(name);
+                const shared = sharedSet();
+                shared.delete(name);
+                setShared(shared);
+            },
+            share: (name, isShared) => {
+                const shared = sharedSet();
+                if (isShared) shared.add(name); else shared.delete(name);
+                setShared(shared);
+            },
+            listShared: () => OTHERS.map(({ state, ...view }) => view),
+            getShared: (id) => OTHERS.find((view) => view.id === id)?.state ?? null
+        };
 
         // ── Create the table ─────────────────────────────────────────────────
         const table = createDataTable("#table", { ...buildConfig(), data: makeRows(cfg.rows) });
@@ -662,9 +705,10 @@
             log("export", `${d.format} → ${d.destination}, ${d.rowCount} rows, ${d.columns.length} columns, "${d.filename}"`);
         });
         table.addEventListener("jw-datatable:viewsave", (e) => log("viewsave", `"${e.detail.name}"`));
-        table.addEventListener("jw-datatable:viewload", (e) => log("viewload", `"${e.detail.name}"`));
+        table.addEventListener("jw-datatable:viewload", (e) => log("viewload", `"${e.detail.name}"${e.detail.shared ? ` (shared, ${e.detail.shared.detail ?? e.detail.shared.id})` : ""}`));
         table.addEventListener("jw-datatable:viewrename", (e) => log("viewrename", `"${e.detail.oldName}" → "${e.detail.name}"`));
         table.addEventListener("jw-datatable:viewdelete", (e) => log("viewdelete", `"${e.detail.name}"`));
+        table.addEventListener("jw-datatable:viewshare", (e) => log("viewshare", `"${e.detail.name}": ${e.detail.shared ? "shared" : "not shared"}`));
 
         // ── Top bar ──────────────────────────────────────────────────────────
         const rowCount = document.getElementById("row-count");
@@ -848,6 +892,9 @@
                 text("searchPlaceholder", optionLabel("searchPlaceholder"), { placeholder: "from locale" }),
                 text("emptyText", optionLabel("emptyText"), { placeholder: "from locale" }),
                 text("noResultsText", optionLabel("noResultsText"), { placeholder: "from locale" })
+            ),
+            section("Saved views",
+                checkbox("sharedViews", h("span", {}, "Sharing (demo adapter with views of two colleagues)"))
             ),
             section("Callbacks",
                 checkbox("onRowClick", h("code", { textContent: "onRowClick" })),
