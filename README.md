@@ -99,7 +99,8 @@ import { createDataTable } from "./vendor/jw-datatable.min.js";
 
 The bundle contains everything (styles, icons, translations) and has no
 dependencies. Its first line names the version
-(`/*! jw-datatable vX.Y.Z … */`). `dist/` always holds the latest release;
+(`/*! jw-datatable vX.Y.Z … */`); the comment also carries the license notice
+of the bundled [Lucide](https://lucide.dev) icons, which must stay in the file. `dist/` always holds the latest release;
 it is built by CI and must not be edited by hand.
 
 **Alternatively: the sources.** Copy `datatable.js` and the `src/` folder
@@ -886,8 +887,12 @@ wide screen keeps the table layout and scrolls horizontally.
 
 ### Icons
 
-All icons are [Lucide](https://lucide.dev/icons) icons (ISC license), bundled
-in `src/ui/icons.js` — no icon package or `.svg` files are loaded at runtime. They use
+All icons are [Lucide](https://lucide.dev/icons) icons, bundled
+in `src/ui/icons.js` — no icon package or `.svg` files are loaded at runtime.
+Lucide is ISC-licensed (icons derived from Feather: MIT); both licenses require
+their notice in every copy. It is at the top of `src/ui/icons.js` and
+`tools/build.js` copies it into the bundle's banner, so keep it when you copy
+the sources or the bundle. They use
 `stroke="currentColor"`, so they follow the text color of their control, and
 are sized via CSS (`.jw-dt-ic svg`, `.jw-ctx-icon svg`).
 

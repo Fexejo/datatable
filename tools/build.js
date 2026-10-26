@@ -12,7 +12,8 @@
 // 1. Copy the entry point and src/ to a temp dir.
 // 2. Shrink what esbuild can't: minify the CSS string in src/ui/styles.js and
 //    compact the Lucide SVG markup in src/ui/icons.js.
-// 3. Bundle + minify from datatable.js into one ES module with a banner.
+// 3. Bundle + minify from datatable.js into one ES module with a banner
+//    (version and the Lucide license notice from src/ui/icons.js).
 
 import { spawnSync } from "node:child_process";
 import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -57,10 +58,16 @@ try {
 
     // 2b. Compact icon markup ('<path d="…" />' → '<path d="…"/>').
     const iconsFile = join(tmp, "src", "ui", "icons.js");
-    writeFileSync(iconsFile, readFileSync(iconsFile, "utf8").replace(/" \/>/g, '"/>'));
+    const iconsSource = readFileSync(iconsFile, "utf8");
+    writeFileSync(iconsFile, iconsSource.replace(/" \/>/g, '"/>'));
 
-    // 3. Bundle + minify.
-    const banner = `/*! jw-datatable v${version} | Icons: Lucide (ISC License, https://lucide.dev) */`;
+    // 3. Bundle + minify. The Lucide license notice is the comment block after
+    //    the "License notice" paragraph in icons.js; both licenses require it in
+    //    every copy, and esbuild drops comments.
+    const notice = /^\/\/ License notice[^]*?\n\/\/\n((?:\/\/.*\n)+)/m.exec(iconsSource)?.[1];
+    if (!notice) throw new Error("Lucide license notice not found in src/ui/icons.js");
+    const license = notice.replace(/^\/\/ ?/gm, "  ").replace(/^ +$/gm, "").trimEnd();
+    const banner = `/*! jw-datatable v${version} | Icons: Lucide (https://lucide.dev)\n\n${license}\n*/`;
     mkdirSync(OUT_DIR, { recursive: true });
     esbuild([
         join(tmp, "datatable.js"),
