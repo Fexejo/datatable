@@ -58,6 +58,8 @@ import { contextMenuItems } from "./render/menuItems.js";
 /** @typedef {import("./types.js").DataTableConfig} DataTableConfig */
 /** @typedef {import("./types.js").SerializedState} SerializedState */
 /** @typedef {import("./types.js").DataTableEventDetails} DataTableEventDetails */
+/** @typedef {import("./types.js").SharedView} SharedView */
+/** @typedef {import("./types.js").ActiveView} ActiveView */
 /** @typedef {import("./render/values.js").ItemRecord} ItemRecord */
 /** @typedef {import("./render/values.js").RowRecord} RowRecord */
 /** @typedef {{ clientX: number, clientY: number, target: HTMLElement }} MenuPoint */
@@ -133,11 +135,12 @@ class JwDataTable extends HTMLElement {
         this._paginationForced = false;
         /** @type {ViewStore|null} */
         this._viewStore = null;
-        // { name, signature } of the saved view last saved or loaded.
-        /** @type {{ name: string, signature: string }|null} */
+        // { name, signature } of the saved view last saved or loaded; `shared`
+        // when it is a view others shared.
+        /** @type {{ name: string, signature: string, shared?: SharedView }|null} */
         this._activeView = null;
         // Collapsed groups of the saved views panel (kept between openings).
-        this._viewGroups = { own: false };
+        this._viewGroups = { own: false, shared: false };
         this._instanceId = uid("jwdt");
         // Responsive / touch state
         /** @type {MediaQueryList|null} */
@@ -372,8 +375,9 @@ class JwDataTable extends HTMLElement {
         newName = viewName(newName);
         if (oldName === newName) return;
         await store.rename(oldName, newName);
-        if (this._activeView?.name === oldName) this._activeView.name = newName;
-        else if (this._activeView?.name === newName) this._activeView = null;
+        const own = this._activeView?.shared ? null : this._activeView;
+        if (own?.name === oldName) own.name = newName;
+        else if (own?.name === newName) this._activeView = null;
         this._emit("viewrename", { oldName, name: newName });
     }
 
@@ -382,14 +386,51 @@ class JwDataTable extends HTMLElement {
         const store = this._requireViewStore();
         name = viewName(name);
         await store.delete(name);
-        if (this._activeView?.name === name) this._activeView = null;
+        if (this._activeView?.name === name && !this._activeView.shared) this._activeView = null;
         this._emit("viewdelete", { name });
     }
 
-    // The view last saved or loaded: { name, modified }, or null.
+    // Sharing needs an adapter with share, listShared and getShared; these
+    // reject otherwise.
+
+    /**
+     * @param {string} name
+     * @param {boolean} [shared]
+     */
+    async shareView(name, shared = true) {
+        const store = this._requireViewStore();
+        name = viewName(name);
+        await store.share(name, shared);
+        this._emit("viewshare", { name, shared });
+    }
+
+    // The views others shared: { id, name, detail? }.
+    async listSharedViews() {
+        return this._requireViewStore().listShared();
+    }
+
+    // `view`: one of `listSharedViews()`. Resolves to false when it no longer exists.
+    /**
+     * @param {SharedView} view
+     * @returns {Promise<boolean>}
+     */
+    async loadSharedView(view) {
+        const store = this._requireViewStore();
+        const saved = await store.getShared(String(view?.id ?? ""));
+        if (!saved) return false;
+        const shared = { id: view.id, name: view.name, ...(view.detail != null ? { detail: view.detail } : {}) };
+        this.setState({ ...saved, page: 1 });
+        this._activeView = { name: shared.name, signature: this._viewSignature(), shared };
+        this._emit("viewload", { name: shared.name, state: this._viewState(), shared });
+        return true;
+    }
+
+    // The view last saved or loaded, or null.
+    /** @returns {ActiveView|null} */
     getActiveView() {
         if (!this._activeView) return null;
-        return { name: this._activeView.name, modified: this._viewSignature() !== this._activeView.signature };
+        const { name, signature, shared } = this._activeView;
+        return { name, modified: this._viewSignature() !== signature, ...(shared ? { shared } : {}) };
     }
 
     // ---- Responsive (Mobile First) ----------------------------------------
@@ -1500,7 +1541,10 @@ class JwDataTable extends HTMLElement {
         const { panel, refresh } = buildViewsPanel({
             t: this._t,
             views: {
-                list: () => this.listViews(),
+                list: () => this._requireViewStore().ownViews(),
+                listShared: () => this.listSharedViews(),
+                share: (name, shared) => this.shareView(name, shared),
+                loadShared: (view) => this.loadSharedView(view),
                 save: (name) => this.saveView(name),
                 load: (name) => this.loadView(name),
                 rename: (oldName, newName) => this.renameView(oldName, newName),
@@ -1510,7 +1554,8 @@ class JwDataTable extends HTMLElement {
             announce: (message) => this._announce(message),
             close: () => this._closeOverlay(),
             collapsed: this._viewGroups,
-            menu: this._isMobile()
+            menu: this._isMobile(),
+            sharing: this._requireViewStore().canShare
         });
         this._showOverlay(panel, anchor);
         refresh();

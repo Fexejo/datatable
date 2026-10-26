@@ -1,7 +1,7 @@
 // Saved views: API, events, panel, adapter errors.
 
 import { test, assert, sleep, waitFor, deepActiveElement, accessibleName, input } from "./harness.js";
-import { mount, $, $$, columnTexts, announced, hasIcon, memoryAdapter, SORT_DESC, mountViews, root } from "./helpers.js";
+import { mount, $, $$, columnTexts, announced, hasIcon, memoryAdapter, sharingAdapter, SORT_DESC, mountViews, root } from "./helpers.js";
 
 // ---- Saved views ----------------------------------------------------------
 
@@ -254,6 +254,7 @@ test("saved views panel: a view deleted elsewhere or failing to load stays in th
     await announced(table, "The view “A” no longer exists.");
     assert.deepEqual(viewNames(table), ["B"], "list refreshed");
     assert.ok($(table, ".jw-dt-overlay"), "panel stays open");
+    assert.equal(deepActiveElement(), vk(table, "group:own"), "focus on the group's heading");
 
     adapter.get = () => Promise.reject(new Error("offline"));
     vk(table, "load:B").click();
@@ -377,6 +378,186 @@ test("saved views panel on mobile: the actions of a view are in a menu", async (
     assert.deepEqual(viewNames(table), ["A"]);
 }, { cdp: true });
 
+// ---- Sharing ----------------------------------------------------------------
+
+const OTHERS = () => [
+    { id: "7", name: "Desc", detail: "by Anna Smith", state: { sort: SORT_DESC } },
+    { id: "8", name: "Big pages", state: { pageSize: 50 } }
+];
+const sharedNames = (/** @type {HTMLElement} */ table) =>
+    $$(table, '.jw-dt-overlay [data-vk^="shared:"]').map((b) => b.textContent);
+
+test("sharing API: share, list and load views of others; events and the active view", async () => {
+    const adapter = sharingAdapter({ Mine: {} }, OTHERS());
+    const table = mountViews(adapter, { id: "people" });
+    /** @type {any[]} */
+    const events = [];
+    for (const name of ["viewshare", "viewload"]) {
+        table.addEventListener(`jw-datatable:${name}`, (/** @type {any} */ e) => events.push([name, e.detail]));
+    }
+    await table.shareView(" Mine ");
+    assert.ok(adapter.sharedNames.has("Mine"));
+    assert.deepEqual(adapter.calls.at(-1), ["share", "Mine", true, { key: "people" }]);
+    await table.shareView("Mine", false);
+    assert.deepEqual(events.slice(0, 2), [["viewshare", { name: "Mine", shared: true }], ["viewshare", { name: "Mine", shared: false }]]);
+
+    const others = await table.listSharedViews();
+    assert.deepEqual(others, [{ id: "7", name: "Desc", detail: "by Anna Smith" }, { id: "8", name: "Big pages" }]);
+    table.setState({ page: 2 });
+    assert.equal(await table.loadSharedView(others[0]), true);
+    assert.equal(columnTexts(table, 1)[0], "Felix");
+    assert.equal(table.getState().page, 1);
+    const shared = { id: "7", name: "Desc", detail: "by Anna Smith" };
+    assert.deepEqual(table.getActiveView(), { name: "Desc", modified: false, shared });
+    assert.equal(events[2][0], "viewload");
+    assert.deepEqual(events[2][1].shared, shared);
+
+    // An own view with the same name is another view.
+    await table.saveView("Other");
+    await table.loadSharedView(others[0]);
+    await table.renameView("Other", "Desc");
+    assert.deepEqual(table.getActiveView()?.shared, shared, "renaming an own view onto the name keeps it");
+    await table.deleteView("Desc");
+    assert.deepEqual(table.getActiveView()?.shared, shared, "deleting the own view keeps it");
+    assert.equal(await table.loadSharedView({ id: "99", name: "Gone" }), false);
+    await table.saveView("Copy");
+    assert.deepEqual(table.getActiveView(), { name: "Copy", modified: false }, "saved as an own view");
+});
+
+test("sharing API rejects without a sharing adapter", async () => {
+    const table = mountViews(memoryAdapter());
+    for (const call of [() => table.shareView("A"), () => table.listSharedViews(), () => table.loadSharedView({ id: "1", name: "A" })]) {
+        let rejected = false;
+        await call().catch(() => { rejected = true; });
+        assert.ok(rejected);
+    }
+    await openViews(table);
+    assert.equal(vk(table, "group:shared"), null, "no group of shared views");
+    assert.equal(vk(table, "share:A"), null);
+});
+
+test("saved views panel: share toggle and the views of others", async () => {
+    const adapter = sharingAdapter({ Mine: {} }, OTHERS());
+    const table = mountViews(adapter);
+    await openViews(table);
+    assert.equal(vk(table, "group:own").textContent, "My views (1)");
+    assert.equal(vk(table, "group:shared").textContent, "Shared by others (2)");
+    assert.deepEqual(sharedNames(table), ["Desc by Anna Smith", "Big pages"]);
+    assert.equal(accessibleName(vk(table, "shared:7")), "Desc by Anna Smith", "the detail is part of the name");
+    assert.equal(vk(table, "shared:7").closest("li")?.querySelectorAll("button").length, 1, "no rename, delete or share");
+
+    const toggle = vk(table, "share:Mine");
+    assert.equal(accessibleName(toggle), "Share: Mine");
+    assert.equal(toggle.getAttribute("aria-pressed"), "false");
+    assert.ok(hasIcon(toggle, "share-2"));
+    toggle.click();
+    await announced(table, "View “Mine” shared");
+    assert.equal(vk(table, "share:Mine").getAttribute("aria-pressed"), "true");
+    assert.equal(deepActiveElement(), vk(table, "share:Mine"), "focus stays on the toggle");
+    vk(table, "share:Mine").click();
+    await announced(table, "View “Mine” no longer shared");
+    assert.equal(vk(table, "share:Mine").getAttribute("aria-pressed"), "false");
+
+    vk(table, "filter").value = "anna";
+    vk(table, "filter").dispatchEvent(new Event("input"));
+    assert.deepEqual(sharedNames(table), ["Desc by Anna Smith"], "the filter also matches the detail");
+    assert.deepEqual(viewNames(table), ["Desc"], "no own view matches");
+    assert.equal(vk(table, "group:shared").textContent, "Shared by others (1)");
+    vk(table, "group:shared").click();
+    assert.equal(vk(table, "group:shared").getAttribute("aria-expanded"), "false", "collapses on its own");
+    assert.equal(vk(table, "group:own").getAttribute("aria-expanded"), "true");
+    vk(table, "group:shared").click();
+
+    vk(table, "shared:7").click();
+    await announced(table, "View “Desc” loaded");
+    assert.equal($(table, ".jw-dt-overlay"), null, "panel closed");
+    assert.equal(columnTexts(table, 1)[0], "Felix");
+});
+
+test("saved views panel: a loaded view of others can be saved as an own one, not updated", async () => {
+    const adapter = sharingAdapter({ Desc: {} }, OTHERS());
+    const table = mountViews(adapter);
+    await table.loadSharedView({ id: "7", name: "Desc", detail: "by Anna Smith" });
+    table.setState({ sort: [] });
+    await openViews(table);
+    const active = $(table, ".jw-dt-overlay .jw-dt-views-active p");
+    assert.equal(active.textContent, "Current view: Desc · by Anna Smith (modified)");
+    assert.equal(vk(table, "update"), null, "no Update");
+    assert.equal(vk(table, "shared:7").getAttribute("aria-current"), "true");
+    assert.equal(vk(table, "load:Desc").getAttribute("aria-current"), null, "the own view of that name is not current");
+    const saveAs = vk(table, "save-as");
+    assert.equal(saveAs.textContent, "Save as my view");
+    assert.equal(root(table).getElementById(saveAs.getAttribute("aria-describedby")), active);
+    saveAs.click();
+    assert.equal(deepActiveElement(), vk(table, "name"));
+    assert.equal(vk(table, "name").value, "Desc", "the name is filled in");
+    vk(table, "save").click();
+    assert.ok(vk(table, "step-cancel"), "an own view of that name: asks before overwriting");
+    vk(table, "step-cancel").previousElementSibling.click();
+    await announced(table, "View “Desc” saved");
+    assert.deepEqual(adapter.saved.get("Desc").sort, []);
+    assert.deepEqual(table.getActiveView(), { name: "Desc", modified: false });
+});
+
+test("saved views panel: deleting a shared view warns first", async () => {
+    const adapter = sharingAdapter({ A: {}, B: {} });
+    adapter.sharedNames.add("A");
+    const table = mountViews(adapter);
+    await openViews(table);
+    vk(table, "delete:A").click();
+    assert.equal(accessibleName(vk(table, "step-cancel").closest('[role="group"]')),
+        "Delete the view “A”? It is shared: others will no longer be able to use it.");
+    vk(table, "step-cancel").click();
+    vk(table, "delete:B").click();
+    assert.equal(accessibleName(vk(table, "step-cancel").closest('[role="group"]')), "Delete the view “B”?");
+    vk(table, "rename:A").click();
+    vk(table, "rename-input").value = "A2";
+    vk(table, "rename-input").dispatchEvent(new Event("input"));
+    vk(table, "rename-input").nextElementSibling?.querySelector("button")?.click();
+    await announced(table, "View “A” renamed to “A2”");
+    assert.equal(vk(table, "share:A2").getAttribute("aria-pressed"), "true", "still shared after renaming");
+});
+
+test("saved views panel: failures around the views of others", async () => {
+    const adapter = sharingAdapter({ Mine: {} }, OTHERS(), { fail: ["listShared"] });
+    const table = mountViews(adapter);
+    await openViews(table);
+    await announced(table, "The shared views could not be loaded.");
+    assert.deepEqual(viewNames(table), ["Mine"], "own views are there");
+    assert.equal(vk(table, "group:shared"), null);
+    adapter.listShared = () => adapter.others.map(({ state, ...view }) => view);
+    vk(table, "retry-shared").click();
+    await waitFor(() => sharedNames(table).length === 2, { message: "shared views after retry" });
+    assert.equal(deepActiveElement(), vk(table, "group:shared"));
+
+    adapter.others.shift();   // "Desc" is no longer shared
+    vk(table, "shared:7").click();
+    await announced(table, "The view “Desc” no longer exists.");
+    assert.deepEqual(sharedNames(table), ["Big pages"], "list refreshed");
+    assert.equal(deepActiveElement(), vk(table, "group:shared"), "the view is gone: focus stays in the panel");
+
+    adapter.share = () => Promise.reject(new Error("offline"));
+    vk(table, "share:Mine").click();
+    await announced(table, "That did not work. Please try again.");
+    assert.equal(deepActiveElement(), vk(table, "share:Mine"));
+});
+
+test("saved views panel on mobile: sharing is in the menu, the list says what is shared", async () => {
+    await input.viewport(390, 800);
+    const adapter = sharingAdapter({ A: {} }, OTHERS());
+    const table = mountViews(adapter, { responsive: { enabled: true } });
+    await openViews(table);
+    assert.equal(vk(table, "share:A"), null, "no toggle in the row");
+    vk(table, "more:A").click();
+    assert.deepEqual($$(table, '[role="menuitem"]').map((i) => i.textContent), ["Share", "Rename", "Delete"]);
+    $(table, '[role="menuitem"]').click();
+    await announced(table, "View “A” shared");
+    assert.equal(accessibleName(vk(table, "load:A")), "A Shared");
+    assert.equal(deepActiveElement(), vk(table, "more:A"));
+    vk(table, "more:A").click();
+    assert.equal($(table, '[role="menuitem"]').textContent, "Stop sharing");
+}, { cdp: true });
+
 test("German saved views panel", async () => {
     const table = mountViews(memoryAdapter({ A: {} }), { locale: "de-DE" });
     const panel = await openViews(table);
@@ -384,6 +565,10 @@ test("German saved views panel", async () => {
     assert.equal(accessibleName(vk(table, "rename:A")), "Umbenennen: A");
     assert.equal(vk(table, "group:own").textContent, "Meine Ansichten (1)");
     assert.equal(accessibleName(vk(table, "filter")), "Ansichten filtern");
+    const sharing = mountViews(sharingAdapter({ A: {} }, OTHERS()), { locale: "de-DE" });
+    await openViews(sharing);
+    assert.equal(vk(sharing, "group:shared").textContent, "Von anderen geteilt (2)");
+    assert.equal(accessibleName(vk(sharing, "share:A")), "Freigeben: A");
 });
 
 test("sorting keeps the focused header button and the table element", async () => {

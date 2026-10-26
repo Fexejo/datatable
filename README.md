@@ -21,7 +21,7 @@ written in Vanilla JS (ES modules, Shadow DOM). No external dependencies.
 - **Links** – href, SPA routing event, or custom handler (e.g. open a dialog)
 - **Copy button** – per column when `copyable` is set (shown on hover on desktop, always visible on touch)
 - **Runtime data** – replace data anytime via `setData()` / `.data`
-- **Saved views** – save, load, rename and delete views (sort, filters, columns, layout, …); stored in `localStorage` or through your own adapter (e.g. a backend), with events for each action
+- **Saved views** – save, load, rename and delete views (sort, filters, columns, layout, …); stored in `localStorage` or through your own adapter (e.g. a backend), with events for each action; optionally shared with other users through the adapter
 - **Theming** – CSS variables (`--jw-dt-*`), `part` selectors, custom CSS
 
 ---
@@ -113,7 +113,8 @@ declares `createDataTable` (also the default export), `JwDataTable` with the
 `inferColumns`, `inferType` and the types `DataTableConfig`, `Features`,
 `Column`, `ColumnFormat`, `ColumnLink`, `Row`, `Layout`, `SerializedState`
 (the [state shape](#instance-api)), `SortSpec`, `Filter`, `ValueFilter`,
-`PatternFilter`, `ViewStorageAdapter`, `ViewStorageContext`, `ExportOptions`, `ExportDetail`,
+`PatternFilter`, `ViewStorageAdapter`, `ViewStorageContext`, `ViewEntry`,
+`SharedView`, `ActiveView`, `ExportOptions`, `ExportDetail`,
 `NavigateDetail`, `DataTableEventDetails` and `DataTableEventMap`. It also
 types `document.querySelector("jw-datatable")` and the
 [events](#events) in `addEventListener` (on any element, as they bubble):
@@ -421,7 +422,7 @@ by default.
 | `columnPinning` | off | Pin columns to the left edge (context menu, column chooser) |
 | `columnReorder` | off | Move columns: drag and drop on the header, context menu, `Ctrl+Shift+←/→`, column chooser |
 | `rowDetails` | off | “Show details” in the context menu of cells/cards: dialog with all fields of the record |
-| `savedViews` | off | Saved views: save, load, rename, delete (`localStorage` unless `storage.adapter` is set) |
+| `savedViews` | off | Saved views: save, load, rename, delete (`localStorage` unless `storage.adapter` is set); sharing with an adapter that supports it |
 | `export` | off | Export button and context-menu entry (dialog: CSV / XLSX / JSON, download or clipboard) |
 
 Enable what you need:
@@ -734,6 +735,16 @@ renames and deletes views:
   that while the table lives. Its heading shows how many views match.
 - **On mobile** (below `responsive.breakpoint`) each view has one “⋮”
   button instead of rename and delete; it opens a menu with both.
+- **Sharing** (only with an [adapter that shares](#sharing-views)): each own
+  view gets a share toggle (on mobile: “Share” / “Stop sharing” in its menu,
+  and “Shared” under its name). A second group, **“Shared by others”**,
+  lists the views other users shared, each with an optional second line
+  from the adapter (e.g. “by Anna Smith”); the filter also matches that line.
+  Those views can only be loaded: renaming, deleting and **Update** are for
+  own views. A loaded view of others offers **“Save as my view”**, which
+  puts its name into the name field (saving asks before overwriting an own
+  view of that name). Deleting a shared view warns that others lose it;
+  renaming keeps it shared.
 
 A view stores sort, filters, search, page size, the layout, hidden,
 pinned and the order of the columns — the [state](#instance-api) without the
@@ -749,7 +760,7 @@ const names = await table.listViews();
 await table.loadView("Active only");          // false if there is no such view
 await table.renameView("Active only", "Active");
 await table.deleteView("Active");
-table.getActiveView();                        // { name, modified } or null
+table.getActiveView();                        // { name, modified, shared? } or null
 ```
 
 The methods return Promises that reject when the storage fails or
@@ -798,8 +809,58 @@ createDataTable("#customers", { id: "customers", /* … */ features: { savedView
 ```
 
 **Events.** After each successful action the table fires
-`jw-datatable:viewsave`, `viewload`, `viewrename` or `viewdelete` (see
-[Events](#events)) — for logging or syncing, with or without an adapter.
+`jw-datatable:viewsave`, `viewload`, `viewrename`, `viewdelete` or
+`viewshare` (see [Events](#events)) — for logging or syncing, with or
+without an adapter.
+
+### Sharing views
+
+An adapter turns on sharing with three more methods — all three or none
+(`configure()` throws when only some are there). Like the others, each may
+return a Promise and gets the context `{ key }` last:
+
+| Method | Returns | Does |
+|--------|---------|------|
+| `share(name, shared)` | — | Share an own view with others (`shared: true`) or stop sharing it |
+| `listShared()` | `{ id, name, detail? }[]` | The views **others** shared (not the user's own), in display order |
+| `getShared(id)` | `object \| null` | The state of one of them |
+
+`list()` may then return `{ name, shared }` objects instead of (or mixed
+with) plain names, so the panel knows which own views are shared; a plain
+name counts as not shared.
+
+The table knows nothing about users: the adapter (or its backend) knows who
+is signed in, decides who sees what, and fills `detail` with any text to show
+under the name — typically the owner. `id` only has to identify the view for
+`getShared()`; names of others may repeat each other and the user's own
+names. Renaming a shared view should keep it shared (the panel says so);
+deleting it ends the sharing. Malformed entries of `listShared()` (no string
+`id` or `name`) are skipped, a non-string `detail` is ignored.
+
+```js
+const sharingAdapter = {
+    ...backendAdapter,
+    // [{ name, shared }] of the signed-in user
+    list:       ({ key })                 => fetch(url(key)).then(ok).then((r) => r.json()),
+    share:      (name, shared, { key })   => fetch(url(key, name), { method: "PATCH", body: JSON.stringify({ shared }) }).then(ok),
+    listShared: ({ key })                 => fetch(`${views}/${encodeURIComponent(key)}?shared=others`).then(ok).then((r) => r.json())
+                                                 .then((list) => list.map((v) => ({ id: v.id, name: v.name, detail: `by ${v.owner}` }))),
+    getShared:  (id, { key })             => fetch(`${views}/${encodeURIComponent(key)}/shared/${encodeURIComponent(id)}`)
+                                                 .then((r) => (r.status === 404 ? null : ok(r).json()))
+};
+```
+
+Without the UI:
+
+```js
+await table.shareView("Active");               // share; shareView("Active", false) stops sharing
+const others = await table.listSharedViews();  // [{ id, name, detail? }]
+await table.loadSharedView(others[0]);         // false if it no longer exists
+table.getActiveView();                         // { name, modified, shared: { id, name, detail? } }
+await table.saveView("My copy");               // saves it as an own view
+```
+
+These reject when the adapter cannot share.
 
 ---
 
@@ -816,9 +877,10 @@ has the shape below.
 | `jw-datatable:datachange` | `{ data }` | Data replaced via `setData()` |
 | `jw-datatable:export` | `{ format, destination, filename, content, rowCount, columns, options }` | Before an export is downloaded or copied; `content` is a string (CSV, JSON) or `Uint8Array` (XLSX); **cancelable** (`preventDefault()` skips download/copy and announcement) |
 | `jw-datatable:viewsave` | `{ name, state }` | A view was saved (new, overwritten or updated) |
-| `jw-datatable:viewload` | `{ name, state }` | A view was loaded (`state` as applied) |
+| `jw-datatable:viewload` | `{ name, state, shared? }` | A view was loaded (`state` as applied; `shared`: `{ id, name, detail? }` for a view others shared) |
 | `jw-datatable:viewrename` | `{ oldName, name }` | A view was renamed |
 | `jw-datatable:viewdelete` | `{ name }` | A view was deleted |
+| `jw-datatable:viewshare` | `{ name, shared }` | An own view was shared (`shared: true`) or no longer shared |
 
 `onRowClick` / `onCellClick` are config callbacks, not events.
 
@@ -842,7 +904,10 @@ has the shape below.
 | `listViews()` | `Promise<string[]>` | Names of the saved views |
 | `renameView(oldName, newName)` | `Promise` | Rename a view (overwrites `newName`) |
 | `deleteView(name)` | `Promise` | Delete a view |
-| `getActiveView()` | `{ name, modified } \| null` | The view last saved or loaded, and whether the state differs from it |
+| `shareView(name, shared = true)` | `Promise` | Share an own view, or stop sharing it ([sharing adapter](#sharing-views)) |
+| `listSharedViews()` | `Promise<{ id, name, detail? }[]>` | The views others shared |
+| `loadSharedView(view)` | `Promise<boolean>` | Load one of `listSharedViews()`; `false` if it no longer exists |
+| `getActiveView()` | `{ name, modified, shared? } \| null` | The view last saved or loaded, whether the state differs from it, and — for a view others shared — that view |
 
 **State shape** (`getState` / `setState` / `initial`):
 
@@ -1105,7 +1170,7 @@ or touch also works with the keyboard alone.
 | Filter panel tabs | `←` `→`, `Home` / `End` | Switch between “Values” and “Pattern” |
 | Filter panel, “Values” tab | `Enter` in the search field or on a search-result option | Apply (same as the “Apply” button); the search-result options are radio buttons (`↑` `↓`) |
 | Filter panel, “Pattern” tab | `Enter` in a value field | Apply (same as the “Apply” button) |
-| Saved views panel | `Enter` in the name field or the rename field, `Esc` in a question, the rename field or the filled filter field, `Enter` / `Space` on a group heading | Save / rename; `Esc` cancels the question or the rename (the panel stays open, focus returns to the button that started it) or clears the filter; collapse / expand the group. Questions open with focus on “Cancel”; after deleting, focus moves to the next (matching) view. On mobile, `Enter` on a view's “⋮” opens its actions menu (keys as in the actions menu; focus returns to “⋮”) |
+| Saved views panel | `Enter` in the name field or the rename field, `Esc` in a question, the rename field or the filled filter field, `Enter` / `Space` on a group heading | Save / rename; `Esc` cancels the question or the rename (the panel stays open, focus returns to the button that started it) or clears the filter; collapse / expand the group. Questions open with focus on “Cancel”; after deleting, focus moves to the next (matching) view. On mobile, `Enter` on a view's “⋮” opens its actions menu (keys as in the actions menu; focus returns to “⋮”). Sharing: `Enter` / `Space` on a share toggle shares or stops sharing (focus stays); “Save as my view” moves focus to the filled name field |
 | Export dialog | `←` `→` (or `↑` `↓`) in a segmented control, `Space` on a switch or “More options”, `Enter` in the file name or on an option | Select an option, toggle a switch, export (same as the “Export” button); focus starts on the selected format and returns to the opener afterwards |
 
 Focus is kept across re-renders (sorting, filtering, paging, …): the same
@@ -1138,7 +1203,10 @@ table.
   “My views (3)”); the filter field is named “Filter views”, and the number
   of matches is announced once typing pauses. On mobile, each view's “⋮”
   button is named “Actions: <view>” (`aria-haspopup="menu"`,
-  `aria-expanded`) and opens a `menu` with the same name. The current view's button has
+  `aria-expanded`) and opens a `menu` with the same name. With sharing, each
+  own view's share toggle is named “Share: <view>” with `aria-pressed`; the
+  views of others are a second list in the group “Shared by others”, whose
+  buttons include the second line in their name (“Desc by Anna Smith”). The current view's button has
   `aria-current="true"` and a check mark. Rename/delete buttons are named
   “Rename: <view>” / “Delete: <view>”. Questions (overwrite, delete) are a
   `group` named by the question, which also describes its buttons. Errors are
@@ -1201,8 +1269,8 @@ announced again. Messages:
 - hidden, pinned/unpinned and moved columns (including when there is not
   enough room to keep pinned columns in place);
 - the record shown in the details dialog;
-- saved/updated/loaded/renamed/deleted views, the number of views matching the
-  filter, and errors of the saved views panel.
+- saved/updated/loaded/renamed/deleted/shared/unshared views, the number of
+  views matching the filter, and errors of the saved views panel.
 
 All texts come from `src/core/i18n.js`.
 

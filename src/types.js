@@ -162,13 +162,43 @@
 
 /**
  * Storage of saved views; every method may return a Promise. The last
- * argument of every call is the context of the table.
+ * argument of every call is the context of the table. `share`, `listShared`
+ * and `getShared` are optional, but only together: they turn on sharing.
  * @typedef {object} ViewStorageAdapter
- * @property {(context: ViewStorageContext) => string[]|Promise<string[]>} list
+ * @property {(context: ViewStorageContext) => (string|ViewEntry)[]|Promise<(string|ViewEntry)[]>} list
  * @property {(name: string, context: ViewStorageContext) => object|null|Promise<object|null>} get
  * @property {(name: string, state: object, context: ViewStorageContext) => void|Promise<void>} save
  * @property {(oldName: string, newName: string, context: ViewStorageContext) => void|Promise<void>} rename
  * @property {(name: string, context: ViewStorageContext) => void|Promise<void>} delete
+ * @property {(name: string, shared: boolean, context: ViewStorageContext) => void|Promise<void>} [share]
+ *     Share an own view with others, or stop sharing it.
+ * @property {(context: ViewStorageContext) => SharedView[]|Promise<SharedView[]>} [listShared]
+ *     The views others shared (not the user's own), in display order.
+ * @property {(id: string, context: ViewStorageContext) => object|null|Promise<object|null>} [getShared]
+ *     The state of a view others shared.
+ */
+
+/**
+ * An own view in `list()`, with whether it is shared (a plain name: not shared).
+ * @typedef {object} ViewEntry
+ * @property {string} name
+ * @property {boolean} [shared]
+ */
+
+/**
+ * A view another user shared.
+ * @typedef {object} SharedView
+ * @property {string} id                        Identifies it for `getShared()`.
+ * @property {string} name
+ * @property {string} [detail]                  Shown with the name, e.g. “by Anna Smith”.
+ */
+
+/**
+ * The view last saved or loaded, from `getActiveView()`.
+ * @typedef {object} ActiveView
+ * @property {string} name
+ * @property {boolean} modified                 The state differs from the view.
+ * @property {SharedView} [shared]              Set when it is a view others shared.
  */
 
 /**
@@ -199,9 +229,10 @@
  * @property {{ data: Row[] }} datachange
  * @property {ExportDetail} export
  * @property {{ name: string, state: SerializedState }} viewsave
- * @property {{ name: string, state: SerializedState }} viewload
+ * @property {{ name: string, state: SerializedState, shared?: SharedView }} viewload
  * @property {{ oldName: string, name: string }} viewrename
  * @property {{ name: string }} viewdelete
+ * @property {{ name: string, shared: boolean }} viewshare
  */
 
 /**

@@ -1,7 +1,7 @@
 // Automated accessibility checks with axe-core (from node_modules: npm ci).
 
 import { test, assert, nextFrame, waitFor, input } from "./harness.js";
-import { ALL_FEATURES, mount, $, $$, rightClick, memoryAdapter, SORT_DESC, mountViews, COMPACT } from "./helpers.js";
+import { ALL_FEATURES, mount, $, $$, rightClick, memoryAdapter, sharingAdapter, SORT_DESC, mountViews, COMPACT } from "./helpers.js";
 
 // ---- Automated accessibility checks (axe-core) ------------------------------
 
@@ -96,6 +96,18 @@ test("axe: panels — filter (both tabs), filter summary, columns, saved views, 
     table.openExportDialog();
     $(table, ".jw-dt-overlay .jw-dt-disclosure").click();
     await assertNoAxeViolations("export dialog, more options");
+});
+
+test("axe: saved views panel with sharing — shared toggle, views of others, a loaded one", async () => {
+    const adapter = sharingAdapter({ Lean: {}, Wide: {} }, [{ id: "7", name: "Desc", detail: "by Anna Smith", state: { sort: SORT_DESC } }]);
+    adapter.sharedNames.add("Lean");
+    const table = mountViews(adapter, { features: { ...ALL_FEATURES } });
+    await table.loadSharedView({ id: "7", name: "Desc", detail: "by Anna Smith" });
+    $(table, '[data-fk="tb:saved-views"]').click();
+    await waitFor(() => $(table, '.jw-dt-overlay [data-vk="shared:7"]'));
+    await assertNoAxeViolations("saved views with sharing");
+    $(table, '.jw-dt-overlay [data-vk="group:shared"]').click();
+    await assertNoAxeViolations("saved views, shared group collapsed");
 });
 
 test("axe: context menu and the record details dialog", async () => {

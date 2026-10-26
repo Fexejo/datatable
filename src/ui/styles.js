@@ -762,6 +762,14 @@ span.jw-dt-th-label { cursor: default; }
 .jw-dt-views-load .jw-dt-ic { width: 16px; flex: none; }
 .jw-dt-views-load[aria-current="true"] { font-weight: 600; }
 .jw-dt-views-name { overflow-wrap: anywhere; }
+.jw-dt-views-text { display: flex; flex-direction: column; min-width: 0; }
+.jw-dt-views-detail { color: var(--jw-dt-color-text-muted, #666); font-size: 0.82rem; overflow-wrap: anywhere; }
+.jw-dt-views-load[aria-current="true"] .jw-dt-views-detail { font-weight: 400; }
+.jw-dt-views-item .jw-dt-views-share[aria-pressed="true"] {
+    background: var(--dt-accent);
+    border-color: var(--dt-accent);
+    color: var(--dt-accent-text);
+}
 .jw-dt-views-load:hover { background: var(--dt-hover); }
 .jw-dt-views-empty { margin: 0; color: var(--jw-dt-color-text-muted, #666); font-size: 0.88rem; }
 .jw-dt-views-group { display: flex; flex-direction: column; gap: var(--jw-dt-space-2xs, 4px); }

@@ -2,9 +2,12 @@
 // (overwrite? delete?), the rename field and errors appear inside the panel;
 // the parts are rebuilt in place and focus moves to the element with that
 // `data-vk`. The name and filter fields are never rebuilt, so typing
-// survives the list loading. The views are a collapsible group; the filter
-// field narrows it as you type. With `menu` (mobile), the actions of a view
-// are in a menu (bottom sheet) instead of a row of buttons.
+// survives the list loading. The views are collapsible groups; the filter
+// field narrows them as you type. With `menu` (mobile), the actions of a
+// view are in a menu (bottom sheet) instead of a row of buttons.
+//
+// With `sharing`, own views get a share toggle, and a second group lists the
+// views others shared: those can only be loaded (and saved as an own view).
 //
 // `buildViewsPanel` holds the panel state and the actions; the functions
 // below it build the parts from that state.
@@ -14,28 +17,39 @@ import { openContextMenu } from "../ui/contextMenu.js";
 import { uid } from "../core/util.js";
 
 /** @typedef {import("../core/i18n.js").Translations} Translations */
+/** @typedef {import("../types.js").SharedView} SharedView */
+/** @typedef {import("../types.js").ActiveView} ActiveView */
 /**
  * @typedef {object} ViewsApi
- * @property {() => Promise<string[]>} list
+ * @property {() => Promise<{ name: string, shared: boolean }[]>} list
  * @property {(name: string) => Promise<void>} save
  * @property {(name: string) => Promise<boolean>} load
  * @property {(oldName: string, newName: string) => Promise<void>} rename
  * @property {(name: string) => Promise<void>} remove
- * @property {() => { name: string, modified: boolean }|null} active
+ * @property {(name: string, shared: boolean) => Promise<void>} share
+ * @property {() => Promise<SharedView[]>} listShared
+ * @property {(view: SharedView) => Promise<boolean>} loadShared
+ * @property {() => ActiveView|null} active
  */
-/** @typedef {"name"|"rename"|"list"} ErrorAt */
+/** @typedef {"name"|"rename"|"list"|"shared"} ErrorAt */
 /**
- * names: null while loading; step: the open question or rename field;
- * filter: the text of the filter field.
- * @typedef {{ names: string[]|null, step: { kind: "overwrite"|"rename"|"delete", name: string }|null,
+ * names: own views, null while loading; sharedNames: those of them that are
+ * shared; others: views others shared, null while loading (othersFailed:
+ * loading them failed); step: the open question or rename field; filter: the
+ * text of the filter field.
+ * @typedef {{ names: string[]|null, sharedNames: Set<string>, others: SharedView[]|null, othersFailed: boolean,
+ *     step: { kind: "overwrite"|"rename"|"delete", name: string }|null,
  *     error: { text: string, at: ErrorAt }|null, busy: boolean, renameDraft: string, filter: string }} PanelState
  */
-/** Collapsed groups (kept by the component while the table lives). @typedef {{ own: boolean }} Collapsed */
+/** Collapsed groups (kept by the component while the table lives). @typedef {{ own: boolean, shared: boolean }} Collapsed */
 /**
  * What the parts can trigger.
  * @typedef {object} Actions
  * @property {(name: string) => void} load
+ * @property {(view: SharedView) => void} loadShared
  * @property {(name: string) => void} update      Save the active view again.
+ * @property {(name: string) => void} saveAs      Fill the name field to save the active view as an own one.
+ * @property {(name: string, shared: boolean) => void} share
  * @property {(name: string) => void} startRename
  * @property {(name: string) => void} startDelete
  * @property {(draft: string) => void} setDraft
@@ -43,27 +57,38 @@ import { uid } from "../core/util.js";
  * @property {(name: string) => void} remove
  * @property {(focusKey: string, clearError?: boolean) => void} cancelStep
  * @property {() => void} retry
+ * @property {() => void} retryShared
  * @property {(group: keyof Collapsed) => void} toggleGroup
  * @property {(name: string, button: HTMLElement) => void} openMenu  The actions of a view as a menu.
  */
+/**
+ * How the lists are drawn.
+ * @typedef {{ collapsed: Collapsed, menu: boolean, sharing: boolean, active: ActiveView|null }} ListOptions
+ */
 
-// `views`: async { list(), save(name), load(name) → found?, rename(old, new),
-// remove(name) } and active() → { name, modified } | null.
+// `views`: async { list() → [{ name, shared }], save(name), load(name) → found?,
+// rename(old, new), remove(name), share(name, shared), listShared(),
+// loadShared(view) → found? } and active() → { name, modified, shared? } | null.
 // `announce(message)`, `close()`: status message, close the panel.
 // `collapsed`: which groups are collapsed; the panel updates it.
-// `menu`: the actions of a view in a menu (mobile).
+// `menu`: the actions of a view in a menu (mobile). `sharing`: the adapter shares views.
 // Returns { panel, refresh }: call `refresh()` once the panel is shown.
 /**
  * @param {{ t: Translations, views: ViewsApi, announce: (message: string) => void, close: () => void,
- *     collapsed: Collapsed, menu?: boolean }} options
- * @returns {{ panel: HTMLElement, refresh: () => Promise<void> }}
+ *     collapsed: Collapsed, menu?: boolean, sharing?: boolean }} options
+ * @returns {{ panel: HTMLElement, refresh: () => Promise<unknown> }}
  */
-export function buildViewsPanel({ t, views, announce, close, collapsed, menu = false }) {
+export function buildViewsPanel({ t, views, announce, close, collapsed, menu = false, sharing = false }) {
     /** @type {PanelState} */
-    const ui = { names: null, step: null, error: null, busy: false, renameDraft: "", filter: "" };
+    const ui = {
+        names: null, sharedNames: new Set(), others: null, othersFailed: false,
+        step: null, error: null, busy: false, renameDraft: "", filter: ""
+    };
     const errorId = uid("jwdt-verr");
     /** @type {ReturnType<typeof setTimeout>|undefined} */
     let filterTimer;
+    // Running adapter calls; the panel is `aria-busy` while there are any.
+    let pending = 0;
 
     const nameInput = el("input", {
         type: "text",
@@ -108,9 +133,24 @@ export function buildViewsPanel({ t, views, announce, close, collapsed, menu = f
 
     /** @type {Actions} */
     const actions = {
-        load: (name) => load(name),
+        load: (name) => loadView({
+            name, focus: `load:${name}`, at: "list", load: () => views.load(name), refresh: refreshOwn
+        }),
+        loadShared: (view) => loadView({
+            name: view.name, focus: `shared:${view.id}`, at: "shared", load: () => views.loadShared(view),
+            refresh: async () => { ui.others = await views.listShared(); }
+        }),
         update: (name) => run(() => views.save(name), {
             message: t.viewUpdated(name), focus: `load:${name}`, errorAt: "list", errorFocus: "update"
+        }),
+        saveAs: (name) => {
+            nameInput.value = name;
+            nameInput.focus();
+            nameInput.setSelectionRange(name.length, name.length);
+        },
+        share: (name, shared) => run(() => views.share(name, shared), {
+            message: shared ? t.viewShared(name) : t.viewUnshared(name),
+            focus: `share:${name}`, errorAt: "list", errorFocus: `share:${name}`
         }),
         startRename: (name) => { ui.step = { kind: "rename", name }; ui.error = null; ui.renameDraft = name; render("rename-input"); },
         startDelete: (name) => { ui.step = { kind: "delete", name }; ui.error = null; render("step-cancel"); },
@@ -122,10 +162,12 @@ export function buildViewsPanel({ t, views, announce, close, collapsed, menu = f
             if (clearError) ui.error = null;
             render(focusKey);
         },
-        retry: () => loadList("retry"),
+        retry: () => loadOwn("retry"),
+        retryShared: () => loadShared(true),
         toggleGroup: (group) => { collapsed[group] = !collapsed[group]; render(`group:${group}`); },
         // The menu lives in the panel, so the panel treats it as inside (no outside click, its own Escape).
         openMenu: (name, button) => {
+            const shared = ui.sharedNames.has(name);
             button.setAttribute("aria-expanded", "true");
             openContextMenu(panel, {
                 x: 0,
@@ -133,6 +175,7 @@ export function buildViewsPanel({ t, views, announce, close, collapsed, menu = f
                 sheet: true,
                 label: t.actionsFor(name),
                 items: [
+                    sharing && { label: shared ? t.stopSharing : t.shareView, icon: "share-2", onSelect: () => actions.share(name, !shared) },
                     { label: t.renameView, icon: "pencil", onSelect: () => actions.startRename(name) },
                     { label: t.deleteView, icon: "trash", onSelect: () => actions.startDelete(name) }
                 ],
@@ -142,21 +185,35 @@ export function buildViewsPanel({ t, views, announce, close, collapsed, menu = f
         }
     };
 
-    // Narrows the list as you type; the number of matches is announced once typing pauses.
+    // Narrows the lists as you type; the number of matches is announced once typing pauses.
     /** @param {string} text */
     const setFilter = (text) => {
         ui.filter = text;
         render();
         clearTimeout(filterTimer);
         filterTimer = setTimeout(() => {
-            if (isOpen() && ui.names) announce(t.viewsCount(visibleNames(ui).length));
+            if (isOpen() && ui.names) announce(t.viewsCount(visibleNames(ui).length + visibleShared(ui).length));
         }, 400);
     };
 
-    // With `menu`, the menu button stands in for the rename and delete buttons.
+    /** @param {boolean} on */
+    const busy = (on) => {
+        pending += on ? 1 : -1;
+        if (pending > 0) panel.setAttribute("aria-busy", "true");
+        else panel.removeAttribute("aria-busy");
+    };
+
+    /** @param {{ name: string, shared: boolean }[]} list */
+    const setOwn = (list) => {
+        ui.names = list.map((view) => view.name);
+        ui.sharedNames = new Set(list.filter((view) => view.shared).map((view) => view.name));
+    };
+    const refreshOwn = async () => setOwn(await views.list());
+
+    // With `menu`, the menu button stands in for the share, rename and delete buttons.
     /** @param {string} key */
     const focusKey = (key) => {
-        if (menu) key = key.replace(/^(rename|delete):/, "more:");
+        if (menu) key = key.replace(/^(share|rename|delete):/, "more:");
         /** @type {HTMLElement|null} */
         const target = panel.querySelector(`[data-vk="${CSS.escape(key)}"]`);
         target?.focus();
@@ -183,12 +240,17 @@ export function buildViewsPanel({ t, views, announce, close, collapsed, menu = f
                 ? question(t, t.confirmOverwrite(step.name), t.overwrite, () => doSave(step.name), "name", actions)
                 : null
         ].flatMap((node) => node ?? []));
-        listSection.replaceChildren(...listContent(t, ui, errorId, active?.name, { collapsed, menu }, actions));
+        /** @type {ListOptions} */
+        const options = { collapsed, menu, sharing, active };
+        listSection.replaceChildren(
+            ...listContent(t, ui, errorId, options, actions),
+            ...(sharing ? sharedContent(t, ui, errorId, options, actions) : [])
+        );
         const target = focusTo ? focusKey(focusTo) : null;
         if (!target && (!focused?.isConnected || !panel.contains(focused))) nameInput.focus();
     };
 
-    // Runs an adapter action; failures stay in the panel as a message.
+    // Runs an adapter action on the own views; failures stay in the panel as a message.
     /**
      * @param {() => Promise<unknown>} action
      * @param {{ message: string, focus: string|(() => string), errorAt: ErrorAt, errorFocus: string }} options
@@ -196,10 +258,10 @@ export function buildViewsPanel({ t, views, announce, close, collapsed, menu = f
     const run = async (action, { message, focus, errorAt, errorFocus }) => {
         if (ui.busy) return;
         ui.busy = true;
-        panel.setAttribute("aria-busy", "true");
+        busy(true);
         try {
             await action();
-            ui.names = await views.list();
+            await refreshOwn();
             ui.step = null;
             ui.error = null;
             render(typeof focus === "function" ? focus() : focus);
@@ -210,7 +272,7 @@ export function buildViewsPanel({ t, views, announce, close, collapsed, menu = f
             if (isOpen()) announce(ui.error.text);
         } finally {
             ui.busy = false;
-            panel.removeAttribute("aria-busy");
+            busy(false);
         }
     };
     /**
@@ -269,48 +331,69 @@ export function buildViewsPanel({ t, views, announce, close, collapsed, menu = f
         });
     };
 
-    // A loaded view closes the panel; a vanished one refreshes the list.
-    /** @param {string} name */
-    const load = async (name) => {
+    // A loaded view closes the panel; a vanished one refreshes its list (focus
+    // moves to the group's heading).
+    /**
+     * @param {{ name: string, focus: string, at: "list"|"shared", load: () => Promise<boolean>, refresh: () => Promise<void> }} options
+     */
+    const loadView = async ({ name, focus, at, load, refresh }) => {
         if (ui.busy) return;
         ui.busy = true;
-        panel.setAttribute("aria-busy", "true");
+        busy(true);
         try {
-            if (await views.load(name)) {
+            if (await load()) {
                 close();
                 announce(t.viewLoaded(name));
                 return;
             }
-            ui.names = await views.list();
-            ui.error = { text: t.viewNotFound(name), at: "list" };
+            await refresh();
+            ui.error = { text: t.viewNotFound(name), at };
+            focus = at === "shared" ? "group:shared" : "group:own";
         } catch {
-            ui.error = { text: t.viewActionFailed, at: "list" };
+            ui.error = { text: t.viewActionFailed, at };
         } finally {
             ui.busy = false;
-            panel.removeAttribute("aria-busy");
+            busy(false);
         }
-        render(`load:${name}`);
+        render(focus);
         if (ui.error) announce(ui.error.text);
     };
 
-    /** @param {string} [focusKey] */
-    const loadList = async (focusKey) => {
+    /** @param {string} [focusTo] */
+    const loadOwn = async (focusTo) => {
         ui.names = null;
         ui.error = null;
-        render(focusKey === "retry" ? null : focusKey);
-        panel.setAttribute("aria-busy", "true");
+        render(focusTo === "retry" ? null : focusTo);
+        busy(true);
         try {
-            ui.names = await views.list();
+            await refreshOwn();
         } catch {
             ui.error = { text: t.viewsLoadFailed, at: "list" };
             if (isOpen()) announce(ui.error.text);
         } finally {
-            panel.removeAttribute("aria-busy");
+            busy(false);
         }
-        render(ui.error ? "retry" : (focusKey === "retry" ? "name" : null));
+        render(ui.names === null ? "retry" : (focusTo === "retry" ? "name" : null));
     };
 
-    return { panel, refresh: () => loadList() };
+    // Loads the views others shared; a failure only affects their group.
+    const loadShared = async (retry = false) => {
+        ui.others = null;
+        ui.othersFailed = false;
+        render(null);
+        busy(true);
+        try {
+            ui.others = await views.listShared();
+        } catch {
+            ui.othersFailed = true;
+            if (isOpen()) announce(t.sharedViewsLoadFailed);
+        } finally {
+            busy(false);
+        }
+        render(retry ? (ui.othersFailed ? "retry-shared" : "group:shared") : null);
+    };
+
+    return { panel, refresh: () => Promise.all([loadOwn(), sharing && loadShared()]) };
 }
 
 // ---- Parts ------------------------------------------------------------------
@@ -364,23 +447,31 @@ function question(t, text, okText, onOk, cancelKey, actions) {
 }
 
 // The view last saved or loaded; "Update" when the table differs from it.
+// A view others shared cannot be updated, only saved as an own view.
 /**
  * @param {Translations} t
- * @param {{ name: string, modified: boolean }} active
+ * @param {ActiveView} active
  * @param {Actions} actions
  */
 function activeView(t, active, actions) {
     const id = uid("jwdt-vact");
+    const detail = active.shared?.detail;
     return el("div", { class: "jw-dt-views-active" }, [
         el("p", { id }, [
             `${t.activeView}: `,
             el("strong", { text: active.name }),
+            detail && el("span", { class: "jw-dt-views-badge", text: ` · ${detail}` }),
             active.modified && el("span", { class: "jw-dt-views-badge", text: ` (${t.viewModified})` })
         ]),
-        active.modified && el("button", {
-            type: "button", class: "jw-dt-btn", text: t.updateView, "data-vk": "update", "aria-describedby": id,
-            onclick: () => actions.update(active.name)
-        })
+        active.shared
+            ? el("button", {
+                type: "button", class: "jw-dt-btn", text: t.saveAsOwnView, "data-vk": "save-as", "aria-describedby": id,
+                onclick: () => actions.saveAs(active.name)
+            })
+            : active.modified && el("button", {
+                type: "button", class: "jw-dt-btn", text: t.updateView, "data-vk": "update", "aria-describedby": id,
+                onclick: () => actions.update(active.name)
+            })
     ]);
 }
 
@@ -397,6 +488,38 @@ function matches(filter, text) {
 /** @param {PanelState} ui */
 function visibleNames(ui) {
     return (ui.names ?? []).filter((name) => name === ui.step?.name || matches(ui.filter, name));
+}
+
+// The views of others the filter lets through (by name or detail).
+/** @param {PanelState} ui */
+function visibleShared(ui) {
+    return (ui.others ?? []).filter((view) => matches(ui.filter, view.name) || (view.detail != null && matches(ui.filter, view.detail)));
+}
+
+// The list's text: the name, and a second, smaller line (e.g. who shared it).
+/**
+ * @param {string} name
+ * @param {string|null|undefined} detail
+ */
+function viewText(name, detail) {
+    return el("span", { class: "jw-dt-views-text" }, [
+        el("span", { class: "jw-dt-views-name", text: name }),
+        // The space keeps the accessible name readable ("Active by Anna").
+        detail && " ",
+        detail && el("span", { class: "jw-dt-views-detail", text: detail })
+    ]);
+}
+
+// The empty or loading text of a group, or null when there are views to show.
+/**
+ * @param {Translations} t
+ * @param {unknown[]|null} all
+ * @param {unknown[]} visible
+ * @param {string} emptyText
+ */
+function groupNote(t, all, visible, emptyText) {
+    const text = all === null ? t.viewsLoading : all.length === 0 ? emptyText : visible.length === 0 ? t.noMatchingViews : null;
+    return text == null ? null : el("p", { class: "jw-dt-views-empty", text });
 }
 
 // A collapsible group: a heading with a disclosure button ("My views (3)",
@@ -422,56 +545,94 @@ function group({ key, label, count, collapsed, content, actions }) {
     ]);
 }
 
+// A "Try again" button.
+/**
+ * @param {Translations} t
+ * @param {string} key
+ * @param {() => void} onclick
+ */
+function retryButton(t, key, onclick) {
+    return el("button", { type: "button", class: "jw-dt-btn", text: t.retry, "data-vk": key, onclick });
+}
+
 // The own views (or their loading, empty or error state) as a group.
 /**
  * @param {Translations} t
  * @param {PanelState} ui
  * @param {string} errorId
- * @param {string|undefined} activeName
- * @param {{ collapsed: Collapsed, menu: boolean }} options
+ * @param {ListOptions} options
  * @param {Actions} actions
  * @returns {HTMLElement[]}
  */
-function listContent(t, ui, errorId, activeName, { collapsed, menu }, actions) {
+function listContent(t, ui, errorId, { collapsed, menu, sharing, active }, actions) {
     // Errors stay outside the group, so a collapsed group does not hide them.
     const error = errorText(ui, "list", errorId);
-    if (ui.names === null && error) {
-        return [error, el("button", { type: "button", class: "jw-dt-btn", text: t.retry, "data-vk": "retry", onclick: () => actions.retry() })];
-    }
+    if (ui.names === null && error) return [error, retryButton(t, "retry", actions.retry)];
     const names = visibleNames(ui);
-    /** @type {HTMLElement} */
-    let content;
-    if (ui.names === null) {
-        content = el("p", { class: "jw-dt-views-empty", text: t.viewsLoading });
-    } else if (ui.names.length === 0) {
-        content = el("p", { class: "jw-dt-views-empty", text: t.noSavedViews });
-    } else if (names.length === 0) {
-        content = el("p", { class: "jw-dt-views-empty", text: t.noMatchingViews });
-    } else {
-        content = el("ul", { class: "jw-dt-views-items", "aria-label": t.myViews }, names.map((name) => {
+    const activeName = active && !active.shared ? active.name : null;
+    const content = groupNote(t, ui.names, names, t.noSavedViews)
+        ?? el("ul", { class: "jw-dt-views-items", "aria-label": t.myViews }, names.map((name) => {
             const step = ui.step?.name === name ? ui.step.kind : null;
+            const shared = sharing ? ui.sharedNames.has(name) : null;
             if (step === "delete") {
                 return el("li", { class: "jw-dt-views-item is-step" }, [
-                    question(t, t.confirmDelete(name), t.deleteView, () => actions.remove(name), `delete:${name}`, actions)
+                    question(t, shared ? t.confirmDeleteShared(name) : t.confirmDelete(name), t.deleteView,
+                        () => actions.remove(name), `delete:${name}`, actions)
                 ]);
             }
             if (step === "rename") return renameItem(t, ui, errorId, name, actions);
-            return viewItem(t, name, name === activeName, menu, actions);
+            return viewItem(t, name, { isActive: name === activeName, shared, menu }, actions);
         }));
-    }
     const own = group({ key: "own", label: t.myViews, count: ui.names && names.length, collapsed: collapsed.own, content: [content], actions });
     return error ? [error, own] : [own];
 }
 
-// A view: load it (the name), rename or delete it (with `menu`: open the menu that does).
+// The views others shared (or their loading, empty or error state) as a group.
+/**
+ * @param {Translations} t
+ * @param {PanelState} ui
+ * @param {string} errorId
+ * @param {ListOptions} options
+ * @param {Actions} actions
+ * @returns {HTMLElement[]}
+ */
+function sharedContent(t, ui, errorId, { collapsed, active }, actions) {
+    if (ui.others === null && ui.othersFailed) {
+        return [
+            el("p", { class: "jw-dt-views-error", text: t.sharedViewsLoadFailed }),
+            retryButton(t, "retry-shared", actions.retryShared)
+        ];
+    }
+    const error = errorText(ui, "shared", errorId);
+    const others = visibleShared(ui);
+    const activeId = active?.shared?.id;
+    const content = groupNote(t, ui.others, others, t.noSharedViews)
+        ?? el("ul", { class: "jw-dt-views-items", "aria-label": t.sharedViews }, others.map((view) =>
+            el("li", { class: "jw-dt-views-item" }, [
+                el("button", {
+                    type: "button",
+                    class: "jw-dt-views-load",
+                    title: t.loadView,
+                    "data-vk": `shared:${view.id}`,
+                    "aria-current": view.id === activeId ? "true" : null,
+                    onclick: () => actions.loadShared(view)
+                }, [view.id === activeId ? iconEl("check") : el("span", { class: "jw-dt-ic" }), viewText(view.name, view.detail)])
+            ])));
+    const shared = group({
+        key: "shared", label: t.sharedViews, count: ui.others && others.length, collapsed: collapsed.shared, content: [content], actions
+    });
+    return error ? [error, shared] : [shared];
+}
+
+// A view: load it (the name), share, rename or delete it (with `menu`: open
+// the menu that does). `shared`: null without sharing.
 /**
  * @param {Translations} t
  * @param {string} name
- * @param {boolean} isActive
- * @param {boolean} menu
+ * @param {{ isActive: boolean, shared: boolean|null, menu: boolean }} options
  * @param {Actions} actions
  */
-function viewItem(t, name, isActive, menu, actions) {
+function viewItem(t, name, { isActive, shared, menu }, actions) {
     return el("li", { class: "jw-dt-views-item" }, [
         el("button", {
             type: "button",
@@ -480,7 +641,16 @@ function viewItem(t, name, isActive, menu, actions) {
             "data-vk": `load:${name}`,
             "aria-current": isActive ? "true" : null,
             onclick: () => actions.load(name)
-        }, [isActive ? iconEl("check") : el("span", { class: "jw-dt-ic" }), el("span", { class: "jw-dt-views-name", text: name })]),
+        }, [
+            isActive ? iconEl("check") : el("span", { class: "jw-dt-ic" }),
+            // The menu hides the share toggle, so the list says which views are shared.
+            viewText(name, menu && shared ? t.viewIsShared : null)
+        ]),
+        !menu && shared !== null && el("button", {
+            type: "button", class: "jw-dt-icon-btn jw-dt-views-share", title: t.shareView,
+            "aria-label": t.shareViewNamed(name), "aria-pressed": String(shared), "data-vk": `share:${name}`,
+            onclick: () => actions.share(name, !shared)
+        }, [iconEl("share-2")]),
         menu && el("button", {
             type: "button", class: "jw-dt-icon-btn", title: t.viewActions,
             "aria-label": t.actionsFor(name), "aria-haspopup": "menu", "aria-expanded": "false", "data-vk": `more:${name}`,

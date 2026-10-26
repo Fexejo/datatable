@@ -146,6 +146,48 @@ export function memoryAdapter(views = {}, { fail = [] } = {}) {
     };
 }
 
+// A memoryAdapter that also shares: `sharedNames` are the own views shared,
+// `others` the views others shared ({ id, name, detail?, state }).
+/**
+ * @param {Record<string, any>} [views]
+ * @param {{ id: string, name: string, detail?: string, state: object }[]} [others]
+ * @param {{ fail?: string[] }} [options]
+ */
+export function sharingAdapter(views = {}, others = [], options = {}) {
+    const adapter = memoryAdapter(views, options);
+    /** @type {Set<string>} */
+    const sharedNames = new Set();
+    const list = adapter.list;
+    const rename = adapter.rename;
+    const remove = adapter.delete;
+    /** @param {string} method */
+    const fails = (method) => options.fail?.includes(method);
+    return Object.assign(adapter, {
+        sharedNames,
+        others,
+        list: () => Promise.resolve(list()).then((names) => names.map((name) => (sharedNames.has(name) ? { name, shared: true } : name))),
+        rename: (/** @type {string} */ from, /** @type {string} */ to) => {
+            if (sharedNames.delete(from)) sharedNames.add(to);
+            return rename(from, to);
+        },
+        delete: (/** @type {string} */ name) => { sharedNames.delete(name); return remove(name); },
+        share: (/** @type {string} */ name, /** @type {boolean} */ shared, /** @type {any} */ context) => {
+            adapter.calls.push(["share", name, shared, context]);
+            if (fails("share")) return Promise.reject(new Error("share failed"));
+            if (shared) sharedNames.add(name); else sharedNames.delete(name);
+        },
+        listShared: (/** @type {any} */ context) => {
+            adapter.calls.push(["listShared", context]);
+            if (fails("listShared")) return Promise.reject(new Error("listShared failed"));
+            return others.map(({ state, ...view }) => view);
+        },
+        getShared: (/** @type {string} */ id, /** @type {any} */ context) => {
+            adapter.calls.push(["getShared", id, context]);
+            return others.find((view) => view.id === id)?.state ?? null;
+        }
+    });
+}
+
 /** @type {import("../../src/types.js").SortSpec[]} */
 export const SORT_DESC = [{ key: "name", direction: "desc" }];
 

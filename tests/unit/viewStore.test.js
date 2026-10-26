@@ -111,3 +111,64 @@ test("damaged view data counts as empty (index, entries, adapter results)", asyn
     results.list = "x";
     assert.deepEqual(await store.list(), []);
 });
+
+// A complete adapter with sharing; `own` and `others` are what list() and listShared() return.
+/**
+ * @param {unknown} own
+ * @param {unknown} others
+ * @param {Record<string, unknown>} [states]
+ */
+function sharingAdapter(own, others, states = {}) {
+    /** @type {unknown[][]} */
+    const calls = [];
+    return {
+        calls,
+        list: () => own,
+        get: () => null,
+        save() {},
+        rename() {},
+        delete() {},
+        share: (/** @type {unknown[]} */ ...args) => { calls.push(["share", ...args]); },
+        listShared: (/** @type {unknown[]} */ ...args) => { calls.push(["listShared", ...args]); return others; },
+        getShared: (/** @type {string} */ id, /** @type {unknown} */ context) => { calls.push(["getShared", id, context]); return states[id]; }
+    };
+}
+
+test("ViewStore: sharing is on only with all three sharing methods", async () => {
+    const plain = new ViewStore(/** @type {any} */ ({ list: () => [], get() {}, save() {}, rename() {}, delete() {} }));
+    assert.equal(plain.canShare, false);
+    await assert.rejects(plain.share("A", true), /cannot share/);
+    await assert.rejects(plain.listShared(), /cannot share/);
+    await assert.rejects(plain.getShared("1"), /cannot share/);
+    assert.equal(new ViewStore(new LocalStorageAdapter("ns")).canShare, false);
+
+    const { getShared, ...partial } = sharingAdapter([], []);
+    assert.throws(() => new ViewStore(/** @type {any} */ (partial)), /missing: getShared/);
+    assert.equal(new ViewStore(/** @type {any} */ (sharingAdapter([], []))).canShare, true);
+});
+
+test("ViewStore: own views with their sharing state; damaged entries are dropped", async () => {
+    const store = new ViewStore(/** @type {any} */ (sharingAdapter(["A", { name: "B", shared: true }, { name: "C", shared: "yes" }, { shared: true }, 7, null], [])));
+    assert.deepEqual(await store.ownViews(), [{ name: "A", shared: false }, { name: "B", shared: true }, { name: "C", shared: false }]);
+    assert.deepEqual(await store.list(), ["A", "B", "C"]);
+});
+
+test("ViewStore: shares, lists and gets the views of others with the context", async () => {
+    const adapter = sharingAdapter([], [
+        { id: "1", name: "Theirs", detail: "by Anna" },
+        { id: "2", name: "No detail", detail: 5 },
+        { id: 3, name: "Bad id" },
+        { id: "4" },
+        "x"
+    ], { 1: { pageSize: 50 }, 2: "state" });
+    const store = new ViewStore(/** @type {any} */ (adapter), { key: "orders" });
+    const ctx = { key: "orders" };
+    await store.share("Mine", true);
+    assert.deepEqual(await store.listShared(), [{ id: "1", name: "Theirs", detail: "by Anna" }, { id: "2", name: "No detail" }]);
+    assert.deepEqual(await store.getShared("1"), { pageSize: 50 });
+    assert.equal(await store.getShared("2"), null, "a string is no state");
+    assert.equal(await store.getShared("9"), null);
+    assert.deepEqual(adapter.calls.slice(0, 3), [["share", "Mine", true, ctx], ["listShared", ctx], ["getShared", "1", ctx]]);
+    adapter.listShared = () => /** @type {any} */ ("nope");
+    assert.deepEqual(await store.listShared(), []);
+});

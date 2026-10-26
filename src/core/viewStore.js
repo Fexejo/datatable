@@ -3,19 +3,27 @@
 // localStorage. A backend adapter can be swapped in without changing the
 // component.
 //
-// Adapter interface (all methods required; each may return a Promise):
-//   list(): string[]                     — all view names, in display order
+// Adapter interface (each method may return a Promise):
+//   list(): (string | { name, shared })[] — own views, in display order
 //   get(name): object | null             — view state
 //   save(name, state): void              — save or overwrite a view
 //   rename(oldName, newName): void       — rename; overwrites `newName`
 //   delete(name): void                   — delete a view
+// Optional, all three or none (sharing):
+//   share(name, shared): void            — share an own view, or stop sharing it
+//   listShared(): { id, name, detail? }[] — views others shared
+//   getShared(id): object | null         — state of a view others shared
 // Every call gets the context `{ key }` (which table) as its last argument.
 
 /** @typedef {import("../types.js").ViewStorageAdapter} ViewStorageAdapter */
 /** @typedef {import("../types.js").ViewStorageContext} ViewStorageContext */
+/** @typedef {import("../types.js").SharedView} SharedView */
+/** @typedef {{ name: string, shared: boolean }} OwnView */
 
 /** @type {(keyof ViewStorageAdapter)[]} */
 export const ADAPTER_METHODS = ["list", "get", "save", "rename", "delete"];
+/** @type {(keyof ViewStorageAdapter)[]} */
+export const SHARING_METHODS = ["share", "listShared", "getShared"];
 
 // The strings of a list of view names (anything else, e.g. damaged data, is dropped).
 /**
@@ -24,6 +32,49 @@ export const ADAPTER_METHODS = ["list", "get", "save", "rename", "delete"];
  */
 function validNames(names) {
     return Array.isArray(names) ? names.filter((name) => typeof name === "string") : [];
+}
+
+/**
+ * @param {unknown} value
+ * @returns {value is Record<string, unknown>}
+ */
+function isObject(value) {
+    return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+// Own views from `list()`: names, or { name, shared } (anything else is dropped).
+/**
+ * @param {unknown} list
+ * @returns {OwnView[]}
+ */
+function validOwnViews(list) {
+    if (!Array.isArray(list)) return [];
+    return list.flatMap((item) => {
+        if (typeof item === "string") return [{ name: item, shared: false }];
+        return isObject(item) && typeof item.name === "string" ? [{ name: item.name, shared: item.shared === true }] : [];
+    });
+}
+
+// Views others shared: { id, name, detail? } with strings (anything else is dropped).
+/**
+ * @param {unknown} list
+ * @returns {SharedView[]}
+ */
+function validSharedViews(list) {
+    if (!Array.isArray(list)) return [];
+    return list.flatMap((item) => {
+        if (!isObject(item) || typeof item.id !== "string" || typeof item.name !== "string") return [];
+        return [{ id: item.id, name: item.name, ...(typeof item.detail === "string" ? { detail: item.detail } : {}) }];
+    });
+}
+
+// A view state is an object; anything else counts as missing.
+/**
+ * @param {unknown} state
+ * @returns {object|null}
+ */
+function validState(state) {
+    return isObject(state) ? state : null;
 }
 
 /** @implements {ViewStorageAdapter} */
@@ -107,25 +158,36 @@ export class LocalStorageAdapter {
 }
 
 // Thin facade over the adapter: checks the interface and turns every result
-// into a Promise. Results of the wrong type count as empty (`list()`: the
-// string names only; `get()`: an object or null); the component validates
-// the state itself (core/state.js `sanitizeState()`).
+// into a Promise. Results of the wrong type count as empty (`list()`: names
+// or { name, shared }; `get()`: an object or null); the component validates
+// the state itself (core/state.js `sanitizeState()`). Sharing is on when the
+// adapter has all three sharing methods (`canShare`).
 export class ViewStore {
     /**
      * @param {ViewStorageAdapter} [adapter]
      * @param {Partial<ViewStorageContext>} [context] Passed to every adapter call.
      */
     constructor(adapter, context = {}) {
+        /** @type {ViewStorageAdapter} */
         this.adapter = adapter ?? new LocalStorageAdapter();
         /** @type {ViewStorageContext} */
         this.context = { key: context.key ?? "default" };
-        const missing = ADAPTER_METHODS.filter((m) => typeof this.adapter[m] !== "function");
+        const has = (/** @type {keyof ViewStorageAdapter} */ m) => typeof this.adapter[m] === "function";
+        // The sharing methods only count as missing once one of them is there.
+        const sharing = SHARING_METHODS.some(has);
+        const missing = [...ADAPTER_METHODS, ...(sharing ? SHARING_METHODS : [])].filter((m) => !has(m));
         if (missing.length) throw new TypeError(`View storage adapter is missing: ${missing.join(", ")}`);
+        this.canShare = sharing;
     }
 
     // Async wrappers, so a throwing sync adapter also ends in a rejection.
     async list() {
-        return validNames(await this.adapter.list(this.context));
+        return (await this.ownViews()).map((view) => view.name);
+    }
+
+    // The own views with whether each is shared.
+    async ownViews() {
+        return validOwnViews(await this.adapter.list(this.context));
     }
 
     /**
@@ -133,8 +195,7 @@ export class ViewStore {
      * @returns {Promise<object|null>}
      */
     async get(name) {
-        const state = await this.adapter.get(name, this.context);
-        return typeof state === "object" && state !== null && !Array.isArray(state) ? state : null;
+        return validState(await this.adapter.get(name, this.context));
     }
 
     /**
@@ -156,5 +217,34 @@ export class ViewStore {
     /** @param {string} name */
     async delete(name) {
         await this.adapter.delete(name, this.context);
+    }
+
+    // Sharing: these reject when the adapter cannot share.
+
+    /**
+     * @param {string} name
+     * @param {boolean} shared
+     */
+    async share(name, shared) {
+        await this._sharing().share(name, shared, this.context);
+    }
+
+    async listShared() {
+        return validSharedViews(await this._sharing().listShared(this.context));
+    }
+
+    /**
+     * @param {string} id
+     * @returns {Promise<object|null>}
+     */
+    async getShared(id) {
+        return validState(await this._sharing().getShared(id, this.context));
+    }
+
+    // The sharing methods, bound to the adapter.
+    _sharing() {
+        const { share, listShared, getShared } = this.adapter;
+        if (!share || !listShared || !getShared) throw new Error("The view storage adapter cannot share views (share, listShared, getShared)");
+        return { share: share.bind(this.adapter), listShared: listShared.bind(this.adapter), getShared: getShared.bind(this.adapter) };
     }
 }

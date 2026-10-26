@@ -194,6 +194,17 @@ const en = {
     filterViews: "Filter views",
     noMatchingViews: "No view matches the filter.",
     viewActions: "Actions",
+    sharedViews: "Shared by others",
+    noSharedViews: "No views shared by others.",
+    sharedViewsLoadFailed: "The shared views could not be loaded.",
+    shareView: "Share",
+    /** @param {string} name */
+    shareViewNamed: (name) => `Share: ${name}`,
+    stopSharing: "Stop sharing",
+    viewIsShared: "Shared",
+    /** @param {string} name */
+    confirmDeleteShared: (name) => `Delete the view “${name}”? It is shared: others will no longer be able to use it.`,
+    saveAsOwnView: "Save as my view",
 
     // Accessibility: keyboard hints, accessible names, screen-reader announcements
     tableKeyboardHint: "Arrow keys move between cells, Enter opens a link, Shift+F10 opens the actions menu.",
@@ -251,6 +262,10 @@ const en = {
     viewDeleted: (name) => `View “${name}” deleted`,
     /** @param {number} n */
     viewsCount: (n) => (n === 1 ? "1 view" : `${n} views`),
+    /** @param {string} name */
+    viewShared: (name) => `View “${name}” shared`,
+    /** @param {string} name */
+    viewUnshared: (name) => `View “${name}” no longer shared`,
     /** @param {string} count e.g. "12 rows" (`resultsCount`) @param {string} filename */
     exported: (count, filename) => `${count} exported to “${filename}”`,
     /** @param {string} count e.g. "12 rows" (`resultsCount`) */
@@ -445,6 +460,15 @@ const de = {
     filterViews: "Ansichten filtern",
     noMatchingViews: "Keine Ansicht passt zum Filter.",
     viewActions: "Aktionen",
+    sharedViews: "Von anderen geteilt",
+    noSharedViews: "Keine Ansichten von anderen geteilt.",
+    sharedViewsLoadFailed: "Die geteilten Ansichten konnten nicht geladen werden.",
+    shareView: "Freigeben",
+    shareViewNamed: (name) => `Freigeben: ${name}`,
+    stopSharing: "Freigabe aufheben",
+    viewIsShared: "Freigegeben",
+    confirmDeleteShared: (name) => `Die Ansicht „${name}“ löschen? Sie ist freigegeben: Andere können sie dann nicht mehr nutzen.`,
+    saveAsOwnView: "Als meine Ansicht speichern",
 
     // Accessibility: keyboard hints, accessible names, screen-reader announcements
     tableKeyboardHint: "Pfeiltasten wechseln zwischen Zellen, Enter öffnet einen Link, Umschalt+F10 öffnet das Aktionsmenü.",
@@ -480,6 +504,8 @@ const de = {
     viewRenamed: (oldName, name) => `Ansicht „${oldName}“ in „${name}“ umbenannt`,
     viewDeleted: (name) => `Ansicht „${name}“ gelöscht`,
     viewsCount: (n) => (n === 1 ? "1 Ansicht" : `${n} Ansichten`),
+    viewShared: (name) => `Ansicht „${name}“ freigegeben`,
+    viewUnshared: (name) => `Freigabe der Ansicht „${name}“ aufgehoben`,
     exported: (count, filename) => `${count} als „${filename}“ exportiert`,
     exportedClipboard: (count) => `${count} in die Zwischenablage kopiert`,
 

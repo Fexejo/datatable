@@ -23,6 +23,9 @@ import { inferColumns, inferType } from "./src/core/columns.js";
 /** @typedef {import("./src/types.js").SerializedState} SerializedState */
 /** @typedef {import("./src/types.js").ViewStorageAdapter} ViewStorageAdapter */
 /** @typedef {import("./src/types.js").ViewStorageContext} ViewStorageContext */
+/** @typedef {import("./src/types.js").ViewEntry} ViewEntry */
+/** @typedef {import("./src/types.js").SharedView} SharedView */
+/** @typedef {import("./src/types.js").ActiveView} ActiveView */
 /** @typedef {import("./src/types.js").ExportOptions} ExportOptions */
 /** @typedef {import("./src/types.js").ExportDetail} ExportDetail */
 /** @typedef {import("./src/types.js").NavigateDetail} NavigateDetail */
