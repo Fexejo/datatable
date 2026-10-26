@@ -1,7 +1,8 @@
 # CLAUDE.md
 
 `<jw-datatable>`: reusable data table as a Web Component (Vanilla JS, ES modules,
-Shadow DOM). Projects use the release bundle `dist/jw-datatable.min.js` (one file).
+Shadow DOM). Projects use the release bundle `dist/jw-datatable.min.js` (one file)
+and its declarations `dist/jw-datatable.min.d.ts`.
 README.md is the only developer documentation (layout: "Files & layout",
 internals: "Architecture").
 
@@ -9,12 +10,15 @@ internals: "Architecture").
 
 - No build for the sources and no runtime dependencies; relative imports with
   `.js`. npm only for dev tools (`package.json`: exact-pinned devDependencies
-  ESLint, TypeScript, axe-core), locally and in CI. `tools/build.js` (esbuild)
-  and semantic-release run via `npx` with pinned versions, in CI only.
+  ESLint, TypeScript, API Extractor, axe-core), locally and in CI.
+  `tools/build.js` (esbuild via `npx`; declarations via tsc + API Extractor)
+  and semantic-release run with pinned versions, in CI only.
 - Never edit or commit `dist/`; CI builds it on release.
 - Conventional Commits (`fix`, `perf`, `feat`, `feat!`, `docs`, `test`,
   `refactor`, `chore`, `ci`); semantic-release derives the version. One topic per commit.
 - Public exports only in `datatable.js`; update the test "public API is exported".
+  Public types: typedefs in `datatable.js` (from `src/types.js`), used in
+  `tests/types/usage.ts`; they become the bundle's declarations.
 - Update README.md in the same change for any change to API, config, column
   options, events, features, CSS variables/parts, i18n or accessibility
   (keep the "Keyboard" table current). No other doc files.
@@ -51,12 +55,12 @@ from i18n. Ask the user which icon to use; remove unused ones.
 ## Test
 
 ```bash
-npm ci                            # dev tools: ESLint, TypeScript, axe-core
+npm ci                            # dev tools: ESLint, TypeScript, API Extractor, axe-core
 npm run check                     # lint + typecheck + tests + coverage ≥ 99%; must pass after every change
 node tests/run.js                 # all tests
 node tests/run.js --unit|--browser
 node tests/run.js --filter "context menu"
-node tools/build.js 0.0.0-dev && node tests/run.js --browser --dist; rm -rf dist
+node tools/build.js 0.0.0-dev && node tests/run.js --browser --dist; git checkout -- dist && git clean -fq dist
 python3 -m http.server 8000       # /demo.html, /tests/browser/
 ```
 

@@ -13,14 +13,17 @@
         [
             "@semantic-release/git",
             {
-                "assets": ["dist/jw-datatable.min.js"],
+                "assets": ["dist/jw-datatable.min.js", "dist/jw-datatable.min.d.ts"],
                 "message": "chore(release): ${nextRelease.version} [skip ci]"
             }
         ],
         [
             "@semantic-release/github",
             {
-                "assets": [{ "path": "dist/jw-datatable.min.js", "label": "jw-datatable.min.js" }]
+                "assets": [
+                    { "path": "dist/jw-datatable.min.js", "label": "jw-datatable.min.js" },
+                    { "path": "dist/jw-datatable.min.d.ts", "label": "jw-datatable.min.d.ts" }
+                ]
             }
         ]
     ]

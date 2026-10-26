@@ -71,12 +71,13 @@ written in Vanilla JS (ES modules, Shadow DOM). No external dependencies.
 | `src/panels/` | Filter panel, filter summary, export dialog, column chooser, record details, saved views |
 | `src/render/` | Table, cards, values (links, copy buttons), context-menu entries, toolbar and footer (pager) |
 | `src/ui/` | DOM building blocks: `el()`, overlay (modal panels), live-region announcer, context menu, clipboard, keyboard navigation, column drag, pinned layout, styles, [Lucide](https://lucide.dev) icons |
-| `src/types.js` | JSDoc types of the config, columns, state and adapters (no runtime code) |
+| `src/types.js` | JSDoc types of the config, columns, state, adapters and events (no runtime code); the source of the bundle's declarations |
 | `demo.html` | Runnable demo |
 | `tests/` | Unit and browser tests |
 | `dist/jw-datatable.min.js` | Single-file bundle for consuming projects (built by CI) |
-| `tools/build.js` | Builds the bundle (used by CI) |
-| `package.json`, `eslint.config.js`, `tsconfig.json`, `tsconfig.tests.json` | Dev tools only: ESLint, type check, axe-core (see [Development & tests](#development--tests)) |
+| `dist/jw-datatable.min.d.ts` | Its TypeScript declarations, one file (built by CI) |
+| `tools/build.js` | Builds the bundle and the declarations (used by CI) |
+| `package.json`, `eslint.config.js`, `tsconfig.json`, `tsconfig.tests.json` | Dev tools only: ESLint, type check, declaration build, axe-core (see [Development & tests](#development--tests)) |
 | `.github/dependabot.yml` | Weekly update PRs for the dev tools and the GitHub Actions |
 | `.github/workflows/release.yml`, `.releaserc.json` | CI tests + automated releases |
 
@@ -88,8 +89,8 @@ All modules are plain ES modules; the sources run without a build step. See
 ## Installation & import
 
 **Recommended: one file.** Copy `dist/jw-datatable.min.js` into your project
-(or download it from the [latest GitHub release](https://github.com/Fexejo/datatable/releases/latest))
-and import it:
+(or download it from the [latest GitHub release](https://github.com/Fexejo/datatable/releases/latest)),
+plus `dist/jw-datatable.min.d.ts` next to it if you want types, and import it:
 
 ```js
 import { createDataTable } from "./vendor/jw-datatable.min.js";
@@ -103,6 +104,34 @@ dependencies. Its first line names the version
 (`/*! jw-datatable vX.Y.Z … */`); the comment also carries the license notice
 of the bundled [Lucide](https://lucide.dev) icons, which must stay in the file. `dist/` always holds the latest release;
 it is built by CI and must not be edited by hand.
+
+**Types (TypeScript or JSDoc with `checkJs`).** With `jw-datatable.min.d.ts`
+in the same folder (same base name), TypeScript picks it up for the import —
+keep both files from the same release (same version in their first line). It
+declares `createDataTable` (also the default export), `JwDataTable` with the
+[instance API](#instance-api), `LocalStorageAdapter`, `ViewStore`,
+`inferColumns`, `inferType` and the types `DataTableConfig`, `Features`,
+`Column`, `ColumnFormat`, `ColumnLink`, `Row`, `Layout`, `SerializedState`
+(the [state shape](#instance-api)), `SortSpec`, `Filter`, `ValueFilter`,
+`PatternFilter`, `ViewStorageAdapter`, `ExportOptions`, `ExportDetail`,
+`NavigateDetail`, `DataTableEventDetails` and `DataTableEventMap`. It also
+types `document.querySelector("jw-datatable")` and the
+[events](#events) in `addEventListener` (on any element, as they bubble):
+
+```ts
+import { createDataTable, type Column } from "./vendor/jw-datatable.min.js";
+
+const columns: Column[] = [{ key: "name", label: "Name" }];
+const table = createDataTable("#people", { columns, features: { filtering: true } });
+table.addEventListener("jw-datatable:change", (event) => console.log(event.detail.state.sort));
+```
+
+**Exclude the bundle from your own type check:** the minified code has no
+JSDoc types left, so with `allowJs`/`checkJs` tsc would check it and report
+errors. The declarations are what tsc needs; add the folder (or the file) to
+`exclude` in your `tsconfig.json`, e.g. `"exclude": ["vendor/jw-datatable.min.js"]`,
+and to the ignores of your linter. Without `allowJs`, tsc reads only the
+`.d.ts` anyway.
 
 **Alternatively: the sources.** Copy `datatable.js` and the `src/` folder
 into one folder and import `datatable.js` — same API, unminified, handy for debugging:
@@ -763,7 +792,9 @@ createDataTable("#c", { /* … */ features: { savedViews: true }, storage: { ada
 
 ## Events
 
-All events are `composed` and `bubbles`.
+All events are `composed` and `bubbles`. The declarations type them
+(`DataTableEventMap`): `event.detail` in `addEventListener("jw-datatable:…")`
+has the shape below.
 
 | Event | `detail` | When |
 |-------|----------|------|
@@ -1224,7 +1255,9 @@ python3 -m http.server 8000
 
 The sources need no build and have no runtime dependencies. npm installs only
 the dev tools, pinned to exact versions in `package.json`: ESLint, TypeScript
-(type check only) and axe-core (accessibility checks in the browser tests).
+(type check and the bundle's declarations), API Extractor (bundles the
+declarations into one file) and axe-core (accessibility checks in the browser
+tests).
 Dependabot proposes updates weekly, only for versions at least two weeks old;
 GitHub Actions are pinned by commit SHA. `@types/node` stays on the major
 version of the Node.js that CI runs (24); raise both together.
@@ -1240,6 +1273,7 @@ node tests/run.js                 # all tests
 node tests/run.js --unit          # unit tests only (node:test)
 node tests/run.js --browser       # browser tests only (headless Chromium)
 node tests/run.js --filter "sort" # only tests whose name contains "sort"
+node tests/run.js --browser --dist # type test + browser tests against dist/ (after tools/build.js)
 ```
 
 | Path | Content |
@@ -1250,12 +1284,17 @@ node tests/run.js --filter "sort" # only tests whose name contains "sort"
 | `tests/browser/harness.js` | Tiny in-browser test harness (`test`, `assert`, `waitFor`, `input.press`, `input.longPress`, `input.viewport`, `input.touch`) |
 | `tests/run.js` | Runner: starts a static server and headless Chromium, drives it via the DevTools protocol |
 | `tests/coverage.js` | Line coverage from V8 data of both runs (`--coverage`, `--coverage-min <percent>`) |
+| `tests/types/usage.ts` | Type test of `dist/jw-datatable.min.d.ts` (with `--dist`): uses the API like a TypeScript project; must compile with `strict`, and each line after `// @ts-expect-error` must fail |
 
 **Types:** `datatable.js` and `src/` carry JSDoc types throughout (public ones
 in `src/types.js`); `npm run typecheck` checks them with `strict` — the sources
 without Node types, tests and tools with them. In tests, DOM lookups (`$`,
 `$$`, `deepActiveElement()`) are typed `any`: a missing element fails the test
-anyway. Editors show the same types as IntelliSense.
+anyway. Editors show the same types as IntelliSense. The public types are
+listed as typedefs in `datatable.js`; the build turns them into
+`dist/jw-datatable.min.d.ts`, so a new public type is added there (and used
+in `tests/types/usage.ts`). Class members named `_…` are internal and left
+out of the declarations.
 
 **Accessibility checks:** the browser tests named `axe: …` run axe-core over
 each layout and panel (`assertNoAxeViolations()`); a new UI state belongs there
@@ -1354,17 +1393,21 @@ Releases are fully automated with GitHub Actions
 [semantic-release](https://semantic-release.gitbook.io/):
 
 1. Every push and pull request runs ESLint, the type check and all tests
-   against the sources, builds a dev bundle and runs the browser tests
-   against it.
+   against the sources, builds a dev bundle with its declarations and runs
+   the type test and the browser tests against them.
 2. On `main`, semantic-release derives the next version from the commit
    messages since the last tag. If a release is due, it builds
-   `dist/jw-datatable.min.js` with that version, runs the browser tests
-   against the bundle, and only if they pass commits the bundle
-   (`chore(release): X.Y.Z [skip ci]`), tags `vX.Y.Z` and publishes a GitHub
-   release with the file attached and release notes from the commits.
+   `dist/jw-datatable.min.js` and `dist/jw-datatable.min.d.ts` with that
+   version, runs the type test and the browser tests against them, and only
+   if they pass commits both files (`chore(release): X.Y.Z [skip ci]`), tags
+   `vX.Y.Z` and publishes a GitHub release with both files attached and
+   release notes from the commits.
 
 Nothing is published to npm (`package.json` is private and holds only dev
 tools); the GitHub release and `dist/` on `main` are the distribution.
+A project copies **both files** of one release: `jw-datatable.min.js` and
+`jw-datatable.min.d.ts` side by side, and excludes the bundle from its own
+tsc and linter (see [Installation & import](#installation--import)).
 
 **Commit messages must follow [Conventional Commits](https://www.conventionalcommits.org/):**
 
@@ -1378,18 +1421,30 @@ tools); the GitHub release and `dist/` on `main` are the distribution.
 After a release, `main` on GitHub is one commit ahead (the release commit with
 `dist/`): pull before pushing again.
 
-**Local build** (optional, needs `npx` for the pinned esbuild version, or set
-`ESBUILD_BIN`):
+**Local build** (optional, needs the dev tools from `npm ci` and `npx` for the
+pinned esbuild version, or set `ESBUILD_BIN`):
 
 ```bash
-node tools/build.js 1.2.3-local       # writes dist/jw-datatable.min.js
-node tests/run.js --browser --dist     # browser tests against the bundle
-rm -rf dist                            # don't commit it — CI owns dist/
+node tools/build.js 1.2.3-local       # writes dist/jw-datatable.min.js + .min.d.ts
+node tests/run.js --browser --dist     # type test + browser tests against dist/
+git checkout -- dist && git clean -fq dist   # restore dist/ of the release — CI owns it
 ```
 
 The build minifies the CSS and icon markup, then bundles and minifies all
 modules with esbuild into one ES module (≈ 141 KB, ≈ 42 KB gzipped), with the
 version and the Lucide license notice in its banner comment.
+
+The declarations come from the JSDoc types, not from a hand-written file:
+`tsc --declaration --emitDeclarationOnly` emits one `.d.ts` per module, the
+internal `_…` class members are dropped, and
+[API Extractor](https://api-extractor.com/) bundles everything `datatable.js`
+exports (classes, functions and the typedefs listed there) into one
+self-contained file without imports (≈ 12 KB). The build then adds the banner
+(`/*! jw-datatable vX.Y.Z … */`) and a `declare global` block that maps the tag
+`jw-datatable` to `JwDataTable` and adds the events to `HTMLElementEventMap`.
+The type test (`tests/types/usage.ts`) checks the result with `strict` like a
+consuming project, including calls that must fail (e.g.
+`features: { csvExport: true }`).
 
 ### Repository setup
 

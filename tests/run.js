@@ -5,7 +5,8 @@
 //   node tests/run.js --unit     unit tests only (node:test)
 //   node tests/run.js --browser  browser tests only (headless Chromium)
 //   node tests/run.js --browser --filter "context menu"
-//   node tests/run.js --browser --dist   browser tests against dist/jw-datatable.min.js
+//   node tests/run.js --browser --dist   browser tests against dist/jw-datatable.min.js,
+//                                and the type test of dist/jw-datatable.min.d.ts
 //   node tests/run.js --coverage [--coverage-min 95]   line coverage of datatable.js
 //                                and src/ (unit + browser); fails below the minimum
 //
@@ -47,6 +48,33 @@ function runUnit() {
                 rmSync(coverageDir, { recursive: true, force: true });
             }
             done(code === 0);
+        });
+    });
+}
+
+// ---- Type test of the declarations (--dist) ------------------------------
+
+// The bundled declarations must stand alone (no imports) and type-check
+// tests/types/usage.ts, which uses them like a consuming project.
+function runTypes() {
+    const file = join(ROOT, "dist", "jw-datatable.min.d.ts");
+    if (!existsSync(file)) {
+        console.error("✖ dist/jw-datatable.min.d.ts not found. Run: node tools/build.js");
+        return Promise.resolve(false);
+    }
+    const source = readFileSync(file, "utf8");
+    const problems = [
+        !/^\/\*! jw-datatable v\S+ /.test(source) && "no version banner",
+        /^\s*import\b|\bfrom\s+["']|\bimport\(/m.test(source) && "imports another module"
+    ].filter(Boolean);
+    for (const problem of problems) console.error(`✖ dist/jw-datatable.min.d.ts: ${problem}`);
+    const tsc = join(ROOT, "node_modules", "typescript", "bin", "tsc");
+    return new Promise((done) => {
+        const child = spawn(process.execPath, [tsc, "-p", join(ROOT, "tests", "types", "tsconfig.json")], { stdio: "inherit" });
+        child.on("exit", (code) => {
+            const ok = code === 0 && problems.length === 0;
+            console.log(ok ? "✔ tests/types/usage.ts type-checks against the declarations" : "✖ type test failed");
+            done(ok);
         });
     });
 }
@@ -280,6 +308,10 @@ let ok = true;
 if (only !== "browser") {
     console.log("── Unit tests ──");
     ok = (await runUnit()) && ok;
+}
+if (dist) {
+    console.log("\n── Type test (dist) ──");
+    ok = (await runTypes()) && ok;
 }
 if (only !== "unit") {
     console.log("\n── Browser tests ──");

@@ -184,4 +184,42 @@
  * @property {string} [filename]
  */
 
+/**
+ * `detail` of each event, by name without the `jw-datatable:` prefix.
+ * @typedef {object} DataTableEventDetails
+ * @property {NavigateDetail} navigate
+ * @property {{ state: SerializedState }} change
+ * @property {{ data: Row[] }} datachange
+ * @property {ExportDetail} export
+ * @property {{ name: string, state: SerializedState }} viewsave
+ * @property {{ name: string, state: SerializedState }} viewload
+ * @property {{ oldName: string, name: string }} viewrename
+ * @property {{ name: string }} viewdelete
+ */
+
+/**
+ * Events of the component (README "Events"); all bubble and are composed.
+ * @typedef {{ [K in keyof DataTableEventDetails as `jw-datatable:${K}`]: CustomEvent<DataTableEventDetails[K]> }} DataTableEventMap
+ */
+
+/**
+ * @typedef {object} NavigateDetail
+ * @property {string|null} href                 null for an unsafe URL.
+ * @property {Row} row
+ * @property {Column} column
+ * @property {any} value
+ */
+
+/**
+ * Detail of `jw-datatable:export`, also returned by `exportData()`.
+ * @typedef {object} ExportDetail
+ * @property {ExportOptions["format"]} format
+ * @property {ExportOptions["destination"]} destination
+ * @property {string} filename
+ * @property {string|Uint8Array<ArrayBuffer>} content XLSX is binary.
+ * @property {number} rowCount
+ * @property {string[]} columns                Exported column keys.
+ * @property {ExportOptions} options
+ */
+
 export {};

@@ -1,9 +1,10 @@
 # Lint, type check and tests (incl. axe-core) on every push and pull request;
 # npm installs only the pinned dev tools, the sources need no build. On main,
 # semantic-release then determines the next version from Conventional Commits,
-# builds the minified bundle, runs the browser tests against it, and — only if
-# they pass — commits dist/jw-datatable.min.js, tags vX.Y.Z and creates a
-# GitHub release.
+# builds the minified bundle and its type declarations, runs the type test and
+# the browser tests against them, and — only if they pass — commits
+# dist/jw-datatable.min.js and dist/jw-datatable.min.d.ts, tags vX.Y.Z and
+# creates a GitHub release with both files.
 name: CI & Release
 
 on:
@@ -43,10 +44,10 @@ jobs:
       - name: Tests against sources (with line coverage, minimum 99%)
         run: npm run coverage
 
-      - name: Build bundle (dev version)
+      - name: Build bundle + declarations (dev version)
         run: node tools/build.js 0.0.0-ci
 
-      - name: Browser tests against bundle
+      - name: Type test + browser tests against bundle
         run: node tests/run.js --browser --dist
 
   release:
@@ -69,7 +70,8 @@ jobs:
           node-version: 24
           cache: npm
 
-      # The release runs the browser tests (incl. axe-core) against the bundle.
+      # The release builds the declarations (TypeScript, API Extractor) and runs
+      # the type test and browser tests (incl. axe-core) against the bundle.
       - name: Install dev tools
         run: npm ci
 

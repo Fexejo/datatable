@@ -54,6 +54,10 @@ import { contextMenuItems } from "./render/menuItems.js";
 /** @typedef {import("./types.js").SortSpec} SortSpec */
 /** @typedef {import("./types.js").TableState} TableState */
 /** @typedef {import("./types.js").ExportOptions} ExportOptions */
+/** @typedef {import("./types.js").ExportDetail} ExportDetail */
+/** @typedef {import("./types.js").DataTableConfig} DataTableConfig */
+/** @typedef {import("./types.js").SerializedState} SerializedState */
+/** @typedef {import("./types.js").DataTableEventDetails} DataTableEventDetails */
 /** @typedef {import("./render/values.js").ItemRecord} ItemRecord */
 /** @typedef {import("./render/values.js").RowRecord} RowRecord */
 /** @typedef {{ clientX: number, clientY: number, target: HTMLElement }} MenuPoint */
@@ -101,7 +105,7 @@ class JwDataTable extends HTMLElement {
         this.shadow = this.attachShadow({ mode: "open" });
         // Replaced by `configure()`; nothing renders before.
         this._configured = false;
-        /** @type {import("./types.js").DataTableConfig & { locale: string }} */
+        /** @type {DataTableConfig & { locale: string }} */
         this._config = { locale: "en-US" };
         this._t = getTranslations();
         this._features = { ...DEFAULT_FEATURES };
@@ -186,7 +190,7 @@ class JwDataTable extends HTMLElement {
 
     // ---- Public API -------------------------------------------------------
 
-    /** @param {import("./types.js").DataTableConfig} config */
+    /** @param {DataTableConfig} config */
     configure(config = {}) {
         this._config = {
             locale: "en-US",
@@ -258,13 +262,13 @@ class JwDataTable extends HTMLElement {
         this._render();
     }
 
-    /** @returns {import("./types.js").SerializedState} */
+    /** @returns {SerializedState} */
     getState() {
         return serializeState(this._state);
     }
 
     // Invalid parts and unknown columns are ignored (`sanitizeState()`).
-    /** @param {Partial<import("./types.js").SerializedState>} partial */
+    /** @param {Partial<SerializedState>} partial */
     setState(partial = {}) {
         const keys = this._columns.map((c) => c.key);
         const clean = sanitizeState(partial, keys);
@@ -279,7 +283,10 @@ class JwDataTable extends HTMLElement {
     // Builds the export and downloads it or copies it to the clipboard.
     // `options` override `config.exportDefaults`. Returns the event detail, or
     // null when a `jw-datatable:export` listener cancelled it.
-    /** @param {Partial<ExportOptions>} options */
+    /**
+     * @param {Partial<ExportOptions>} options
+     * @returns {ExportDetail|null}
+     */
     exportData(options = {}) {
         /** @type {ExportOptions} */
         const opts = { ...this._exportDefaults(), ...options };
@@ -1620,8 +1627,9 @@ class JwDataTable extends HTMLElement {
 
     // Returns false when a listener cancelled a `cancelable` event.
     /**
-     * @param {string} name
-     * @param {object} detail
+     * @template {keyof DataTableEventDetails} K
+     * @param {K} name
+     * @param {DataTableEventDetails[K]} detail
      */
     _emit(name, detail, { cancelable = false } = {}) {
         return this.dispatchEvent(new CustomEvent("jw-datatable:" + name, { detail, bubbles: true, composed: true, cancelable }));

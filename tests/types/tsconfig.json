@@ -1,0 +1,13 @@
+{
+    // Type test of dist/jw-datatable.min.d.ts, as a consuming project sees it:
+    // usage.ts imports the bundle, strict, without allowJs (node tests/run.js --dist).
+    "compilerOptions": {
+        "noEmit": true,
+        "strict": true,
+        "target": "es2022",
+        "module": "nodenext",
+        "lib": ["es2023", "dom", "dom.iterable"],
+        "types": []
+    },
+    "files": ["usage.ts"]
+}
