@@ -1,6 +1,8 @@
 # Weekly update PRs for the pinned dev tools (package.json) and the GitHub
 # Actions (pinned by commit SHA). Versions must be at least two weeks old;
-# commits are "chore(deps)" / "ci(deps)" (no release).
+# commits are "chore(deps)" / "ci(deps)" (no release). @types/node stays on
+# the major of the Node.js version CI runs (24, release.yml), so the type
+# check doesn't accept APIs that version lacks; raise both together.
 version: 2
 updates:
   - package-ecosystem: npm
@@ -10,6 +12,9 @@ updates:
     cooldown:
       default-days: 14
     versioning-strategy: increase
+    ignore:
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
     groups:
       dev-tools:
         patterns: ["*"]

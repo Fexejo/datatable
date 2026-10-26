@@ -1226,7 +1226,8 @@ The sources need no build and have no runtime dependencies. npm installs only
 the dev tools, pinned to exact versions in `package.json`: ESLint, TypeScript
 (type check only) and axe-core (accessibility checks in the browser tests).
 Dependabot proposes updates weekly, only for versions at least two weeks old;
-GitHub Actions are pinned by commit SHA.
+GitHub Actions are pinned by commit SHA. `@types/node` stays on the major
+version of the Node.js that CI runs (24); raise both together.
 Needs **Node.js ≥ 22** and, for browser tests, a Chromium-based browser.
 
 ```bash
