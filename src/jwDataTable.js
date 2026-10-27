@@ -34,7 +34,7 @@ import { openContextMenu, closeContextMenu } from "./ui/contextMenu.js";
 import { writeClipboard, confirmOnButton, flashCopied } from "./ui/clipboard.js";
 import { waitForLongPress } from "./ui/longPress.js";
 import { layoutPinned, updateScrollShadows } from "./ui/pinnedLayout.js";
-import { StickyHead, layoutHeadMargin } from "./ui/stickyHead.js";
+import { StickyHead, layoutHead, updateBodyStuck } from "./ui/stickyHead.js";
 import { buildToolbar, buildFilterButtons } from "./render/toolbar.js";
 import { buildFooter, pageInfoText } from "./render/footer.js";
 import { buildFilterPanel } from "./panels/filterPanel.js";
@@ -621,7 +621,11 @@ class JwDataTable extends HTMLElement {
     }
 
     _renderBody() {
-        const body = el("div", { class: "jw-dt-body", part: "body", onscroll: (e) => updateScrollShadows(/** @type {HTMLElement} */ (e.currentTarget.parentElement)) });
+        const body = el("div", { class: "jw-dt-body", part: "body", onscroll: (e) => {
+            const viewport = /** @type {HTMLElement} */ (e.currentTarget.parentElement);
+            updateScrollShadows(viewport);
+            if (this._config.maxHeight) updateBodyStuck(viewport);
+        } });
         if (this._config.maxHeight) body.style.maxHeight = this._config.maxHeight;
         body.appendChild(this._currentLayout() === "grid" ? buildGrid(this._gridView()) : buildTable(this._tableView()));
         return body;
@@ -874,7 +878,7 @@ class JwDataTable extends HTMLElement {
         // maxHeight: the header sticks in the body; else, with stickyHeader, to the page.
         const { maxHeight, stickyHeader } = this._config;
         const page = !!stickyHeader && !maxHeight && !!viewport?.querySelector(".jw-dt-table");
-        if (viewport) layoutHeadMargin(viewport, !!maxHeight || page);
+        if (viewport) layoutHead(viewport, maxHeight ? "body" : page ? "page" : null);
         this._stickyHead.sync(page ? viewport : null);
     }
 

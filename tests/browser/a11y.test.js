@@ -87,6 +87,17 @@ test("form field borders have 3:1 contrast with the default colors (WCAG 1.4.11)
     }
 });
 
+test("the line under the header has 3:1 contrast with header and rows (default colors)", () => {
+    const table = mount();
+    const th = getComputedStyle($(table, "thead th"));
+    const row = getComputedStyle($(table, "tbody td"));
+    assert.equal(th.borderBottomWidth, "2px");
+    for (const [name, background] of [["header", th.backgroundColor], ["rows", row.backgroundColor === "rgba(0, 0, 0, 0)" ? getComputedStyle($(table, ".jw-dt")).backgroundColor : row.backgroundColor]]) {
+        const ratio = contrast(th.borderBottomColor, background);
+        assert.ok(ratio >= 3, `against the ${name}: ${ratio.toFixed(2)}:1`);
+    }
+});
+
 test("an unknown icon name warns and renders an empty decorative SVG", () => {
     const warn = console.warn;
     /** @type {string[]} */

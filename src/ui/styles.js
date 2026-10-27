@@ -192,9 +192,12 @@ export const datatableStyles = `
 }
 .jw-dt-align-right { text-align: right; }
 .jw-dt-align-center { text-align: center; }
+/* Strong line under the header (3:1 against header and rows): it stays
+   distinct from the rows that pass under a sticky header. */
 .jw-dt-th {
     position: sticky;
     top: 0;
+    border-bottom: 2px solid var(--dt-border-strong);
     background: var(--dt-surface);
     z-index: 2;
     white-space: nowrap;
@@ -207,6 +210,18 @@ export const datatableStyles = `
 .jw-dt-viewport.is-sticky-head { scroll-margin-top: var(--jw-dt-sticky-top, 0px); }
 .is-sticky-head .jw-dt-th { transform: translateY(var(--dt-head-shift, 0px)); }
 .is-sticky-head .jw-dt-td { scroll-margin-top: calc(var(--dt-head-h, 0px) + var(--jw-dt-sticky-top, 0px)); }
+/* While rows lie under the header, it casts a shadow on them (box-shadow is
+   taken by the pin edge and the drop marker). */
+.is-head-stuck .jw-dt-th::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 100%;
+    height: 6px;
+    pointer-events: none;
+    background: linear-gradient(rgba(0,0,0,0.14), transparent);
+}
 /* Column drag and drop (desktop): dragged header dimmed, drop position as an accent bar. */
 .jw-dt-th[draggable="true"] { cursor: grab; }
 .jw-dt-th.is-dragging { opacity: 0.5; }

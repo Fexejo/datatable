@@ -349,6 +349,9 @@ test("stickyHeader: the header follows the page below --jw-dt-sticky-top and sto
     const tableBox = () => $(table, "table").getBoundingClientRect();
     scrollPagePast(table, 300);
     await waitFor(() => Math.abs(headerBox(table).top - 48) < 1, { message: "header 3rem below the window's top" });
+    const viewport = $(table, ".jw-dt-viewport");
+    assert.ok(viewport.classList.contains("is-head-stuck"), "shadow over the rows");
+    assert.equal(getComputedStyle($(table, "thead th"), "::before").content, '""');
     const th = $(table, 'thead th[data-key="name"]');
     const { left, bottom } = th.getBoundingClientRect();
     assert.equal(root(table).elementFromPoint(left + 5, bottom - 5)?.closest("th"), th, "header drawn over the rows");
@@ -358,6 +361,23 @@ test("stickyHeader: the header follows the page below --jw-dt-sticky-top and sto
     await waitFor(() => Math.abs(headerBox(table).bottom - tableBox().bottom) < 1, { message: "header stops at the table's end" });
     scrollTo(0, 0);
     await waitFor(() => !$(table, "thead").style.getPropertyValue("--dt-head-shift"), { message: "header back in place" });
+    assert.ok(!viewport.classList.contains("is-head-stuck"), "no shadow in place");
+});
+
+test("maxHeight: the header casts a shadow once the body scrolls; stickyHeader off: never", async () => {
+    const table = mount({ maxHeight: "200px" });
+    const viewport = $(table, ".jw-dt-viewport");
+    const body = $(table, ".jw-dt-body");
+    assert.ok(!viewport.classList.contains("is-head-stuck"), "at the top");
+    body.scrollTop = 50;
+    await waitFor(() => viewport.classList.contains("is-head-stuck"), { message: "shadow once scrolled" });
+    body.scrollLeft = 20;
+    body.scrollTop = 0;
+    await waitFor(() => !viewport.classList.contains("is-head-stuck"), { message: "no shadow back at the top" });
+    table.configure({ columns: COLUMNS, data: DATA });
+    assert.ok(!$(table, ".jw-dt-viewport").classList.contains("is-head-stuck"), "plain table");
+    $(table, ".jw-dt-body").dispatchEvent(new Event("scroll"));
+    assert.ok(!$(table, ".jw-dt-viewport").classList.contains("is-head-stuck"), "scrolling a plain table");
 });
 
 test("stickyHeader: follows a scrolling container, also after moving the table into one", async () => {

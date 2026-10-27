@@ -14,6 +14,9 @@
 // viewport), so a cell that gets focus under the header scrolls out from
 // under it (WCAG 2.4.11 Focus Not Obscured). The browser doesn't do that by
 // itself: a cell behind a sticky header counts as visible.
+//
+// While rows lie under the header, the viewport has `is-head-stuck`: the
+// header casts a shadow on them.
 
 import { clamp } from "../core/util.js";
 
@@ -22,15 +25,26 @@ import { clamp } from "../core/util.js";
 // readable (WCAG 1.4.10).
 export const MAX_HEAD_SHARE = 0.3;
 
+// Where the header sticks: "body" (maxHeight), "page" (stickyHeader) or nowhere (null).
 /**
  * @param {HTMLElement} viewport
- * @param {boolean} sticky  Whether the header sticks; without, no margin.
+ * @param {"body"|"page"|null} mode
  */
-export function layoutHeadMargin(viewport, sticky) {
+export function layoutHead(viewport, mode) {
     /** @type {HTMLTableElement|null} */
-    const table = sticky ? viewport.querySelector(".jw-dt-table") : null;
+    const table = mode ? viewport.querySelector(".jw-dt-table") : null;
     const value = table?.tHead ? `${table.tHead.getBoundingClientRect().height}px` : "";
     if (viewport.style.getPropertyValue("--dt-head-h") !== value) viewport.style.setProperty("--dt-head-h", value);
+    // With the page, StickyHead sets the shadow.
+    if (mode === "body") updateBodyStuck(viewport);
+    else if (!mode) viewport.classList.remove("is-head-stuck");
+}
+
+// maxHeight: rows lie under the header once the body is scrolled down.
+/** @param {HTMLElement} viewport */
+export function updateBodyStuck(viewport) {
+    const body = viewport.querySelector(".jw-dt-body");
+    viewport.classList.toggle("is-head-stuck", !!body && body.scrollTop > 0);
 }
 
 // Moves the header of one table along with the scrolling of the page or of
@@ -54,7 +68,7 @@ export class StickyHead {
     /** @param {HTMLElement|null} viewport */
     sync(viewport) {
         if (this._viewport && this._viewport !== viewport) {
-            this._viewport.classList.remove("is-sticky-head");
+            this._viewport.classList.remove("is-sticky-head", "is-head-stuck");
             this._head()?.style.removeProperty("--dt-head-shift");
         }
         this._viewport = viewport;
@@ -91,6 +105,7 @@ export class StickyHead {
         const shift = headHeight > visible * MAX_HEAD_SHARE ? 0 : clamp(top - table.top, 0, table.height - headHeight);
         const value = shift > 0 ? `${shift}px` : "";
         if (head.style.getPropertyValue("--dt-head-shift") !== value) head.style.setProperty("--dt-head-shift", value);
+        this._viewport.classList.toggle("is-head-stuck", shift > 0);
     }
 
     _head() {

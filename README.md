@@ -980,7 +980,7 @@ each has a built-in default, so none is required:
 | `--jw-dt-color-surface` | `#f0f0f0` | Column headers |
 | `--jw-dt-color-surface-muted` | `#f8f8f8` | Toolbar, footer, tabs, row hover |
 | `--jw-dt-color-border` | `#d8d8d8` | Borders (decorative: table, cards, buttons with a label, separators) |
-| `--jw-dt-color-border-strong` | `#808080` | Borders of form fields (search, inputs, selects), which show where to type; keep ≥ 3:1 against the page |
+| `--jw-dt-color-border-strong` | `#808080` | Borders of form fields (search, inputs, selects), which show where to type, and the line under the column headers; keep ≥ 3:1 against the page and `--jw-dt-color-surface` |
 | `--jw-dt-color-hover` | `#e8e8e8` | Hovered buttons and menu items |
 | `--jw-dt-color-accent` | `#1f7a3a` | Active sort and layout, pinned and filter buttons, primary buttons |
 | `--jw-dt-color-accent-text` | `#fff` | Text on the accent color |
@@ -1357,6 +1357,11 @@ focus in place.
 - Default colors meet contrast requirements on the default backgrounds: text
   ≥ 4.5:1 (muted text `#666`: 5.7:1 on white), form field borders
   (`--jw-dt-color-border-strong`, `#808080`) and focus indicators ≥ 3:1.
+  The line under the column headers uses the same color (2px, 3.5:1 against
+  the header, 3.9:1 against the rows), so the header stays distinct from the
+  rows passing under it; while rows lie under a sticky header, it also casts
+  a shadow on them. WCAG doesn't require this (the header is identified by
+  its position, bold text and `<th>`), but it helps orientation.
   `--jw-dt-color-border` is decorative only (table lines, cards, buttons that
   are identified by their label). When overriding `--jw-dt-*` variables, keep
   ≥ 4.5:1 for text and ≥ 3:1 for form field borders and focus indicators.
@@ -1540,7 +1545,10 @@ window or the nearest scrolling ancestor (found across shadow roots, again
 after the table moves) and shifts the header cells by `translateY`
 (`--dt-head-shift` on the thead), once per frame. In both modes the cells get
 the header height as `scroll-margin-top` (`--dt-head-h` on the viewport), so
-focus never stays under the header.
+focus never stays under the header. While rows lie under the header (body
+scrolled, or header shifted), the viewport has `is-head-stuck` and the header
+casts a shadow (`::before`, since `box-shadow` is taken by the pin edge and
+the drop marker).
 
 ---
 
