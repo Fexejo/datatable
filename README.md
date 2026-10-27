@@ -906,7 +906,10 @@ These reject when the adapter cannot share.
 **When the table calls the adapter.** Opening the panel calls `list()` (and
 `listShared()`, in parallel). After each change made in the panel — save,
 update, rename, delete, share — it calls `list()` again, so the list shows
-what the adapter stores. Loading calls `get()` / `getShared()`; when that
+what the adapter stores; if that `list()` fails, the panel says the change
+worked but the list could not be loaded, and offers “Try again”. Without the
+list, saving waits (while it loads) or does nothing (after it failed): the
+panel could not ask before overwriting. Loading calls `get()` / `getShared()`; when that
 finds nothing, the view counts as gone and its list is reloaded. Nothing is
 cached between openings, and the API methods call the adapter directly.
 Failures stay in their place: a failing `listShared()` only empties the

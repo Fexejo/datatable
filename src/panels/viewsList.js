@@ -11,7 +11,8 @@ import { uid } from "../core/util.js";
 /** @typedef {import("../types.js").ActiveView} ActiveView */
 /** @typedef {"name"|"rename"|"list"|"shared"} ErrorAt */
 /**
- * names: own views, null while loading; sharedNames: those of them that are
+ * names: own views, null while loading or when loading failed (then the
+ * error is at "list"); sharedNames: those of them that are
  * shared; others: views others shared, null while loading (othersFailed:
  * loading them failed); step: the open question or rename field; filter: the
  * text of the filter field.

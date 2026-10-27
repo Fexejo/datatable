@@ -190,6 +190,8 @@ const en = {
     viewNotFound: (name) => `The view “${name}” no longer exists.`,
     viewsLoadFailed: "The saved views could not be loaded.",
     viewActionFailed: "That did not work. Please try again.",
+    /** @param {string} message what was done, e.g. `viewSaved` */
+    viewsReloadFailed: (message) => `${message}. The saved views could not be loaded again.`,
     myViews: "My views",
     defaultView: "Default view",
     filterViews: "Filter views",
@@ -458,6 +460,7 @@ const de = {
     viewNotFound: (name) => `Die Ansicht „${name}“ gibt es nicht mehr.`,
     viewsLoadFailed: "Die gespeicherten Ansichten konnten nicht geladen werden.",
     viewActionFailed: "Das hat nicht geklappt. Bitte erneut versuchen.",
+    viewsReloadFailed: (message) => `${message}. Die gespeicherten Ansichten konnten nicht neu geladen werden.`,
     myViews: "Meine Ansichten",
     defaultView: "Standardansicht",
     filterViews: "Ansichten filtern",

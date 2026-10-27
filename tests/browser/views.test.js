@@ -257,6 +257,45 @@ test("saved views panel: adapter failures are shown and can be retried", async (
     assert.equal(vk(table, "name").value, "New", "typed name kept");
 });
 
+test("saved views panel: an action that worked, then a failing list, says both", async () => {
+    const adapter = memoryAdapter({ A: {} });
+    const table = mountViews(adapter);
+    await openViews(table);
+    const list = adapter.list;
+    adapter.list = () => Promise.reject(new Error("offline"));
+    vk(table, "name").value = "New";
+    vk(table, "save").click();
+    await announced(table, "View “New” saved. The saved views could not be loaded again.");
+    assert.ok(adapter.saved.has("New"), "saved");
+    assert.equal(vk(table, "name").value, "", "name field cleared");
+    assert.equal(deepActiveElement(), vk(table, "retry"), "focus on Try again");
+
+    // Without the list the panel can't ask before overwriting: nothing is saved.
+    vk(table, "name").value = "A";
+    vk(table, "save").click();
+    await announced(table, "The saved views could not be loaded.");
+    assert.equal(deepActiveElement(), vk(table, "retry"), "focus on Try again");
+    assert.equal(adapter.calls.filter(([method]) => method === "save").length, 1, "A not overwritten");
+    adapter.list = list;
+    vk(table, "retry").click();
+    await waitFor(() => viewNames(table).length === 2, { message: "list after retry" });
+});
+
+test("saved views panel: saving while the list loads waits for it", async () => {
+    /** @type {(names: string[]) => void} */
+    let resolve = () => {};
+    const adapter = { ...memoryAdapter({ A: {} }), list: () => new Promise((/** @type {typeof resolve} */ r) => { resolve = r; }) };
+    const table = mountViews(adapter);
+    $(table, '[data-fk="tb:saved-views"]').click();
+    await waitFor(() => vk(table, "name"));
+    vk(table, "name").value = "A";
+    vk(table, "save").click();
+    assert.equal(vk(table, "step-cancel"), null, "no question yet");
+    resolve(["A"]);
+    await waitFor(() => vk(table, "step-cancel"), { message: "asks before overwriting A" });
+    assert.equal(adapter.calls.filter(([method]) => method === "save").length, 0);
+});
+
 test("saved views panel: a view deleted elsewhere or failing to load stays in the panel", async () => {
     const adapter = memoryAdapter({ A: { sort: SORT_DESC }, B: {} });
     const table = mountViews(adapter);

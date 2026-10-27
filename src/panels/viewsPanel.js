@@ -68,6 +68,9 @@ export function buildViewsPanel({ t, views, announce, close, collapsed, menu = f
     let filterTimer;
     // Running adapter calls; the panel is `aria-busy` while there are any.
     let pending = 0;
+    // The running load of the own views; saving waits for it.
+    /** @type {Promise<void>} */
+    let ownLoad = Promise.resolve();
 
     const nameInput = el("input", {
         type: "text",
@@ -259,7 +262,9 @@ export function buildViewsPanel({ t, views, announce, close, collapsed, menu = f
         if (!target && (!focused?.isConnected || !panel.contains(focused))) nameInput.focus();
     };
 
-    // Runs an adapter action on the own views; failures stay in the panel as a message.
+    // Runs an adapter action on the own views; failures stay in the panel as a
+    // message. When the action worked but the list fails to load again, the
+    // list shows that (with "Try again"), not the action.
     /**
      * @param {() => Promise<unknown>} action
      * @param {{ message: string, focus: string|(() => string), errorAt: ErrorAt, errorFocus: string }} options
@@ -268,17 +273,20 @@ export function buildViewsPanel({ t, views, announce, close, collapsed, menu = f
         if (ui.busy) return;
         ui.busy = true;
         busy(true);
+        let done = false;
         try {
             await action();
-            await refreshOwn();
+            done = true;
             ui.step = null;
             ui.error = null;
+            await refreshOwn();
             render(typeof focus === "function" ? focus() : focus);
             if (isOpen()) announce(message);
         } catch {
-            ui.error = { text: t.viewActionFailed, at: errorAt };
-            render(errorFocus);
-            if (isOpen()) announce(ui.error.text);
+            if (done) ui.names = null;
+            ui.error = done ? { text: t.viewsLoadFailed, at: "list" } : { text: t.viewActionFailed, at: errorAt };
+            render(done ? "retry" : errorFocus);
+            if (isOpen()) announce(done ? t.viewsReloadFailed(message) : ui.error.text);
         } finally {
             ui.busy = false;
             busy(false);
@@ -295,11 +303,18 @@ export function buildViewsPanel({ t, views, announce, close, collapsed, menu = f
         announce(text);
     };
 
-    // Saving under an existing name asks first.
+    // Saving under an existing name asks first. That needs the list: saving
+    // waits while it loads; when it failed, nothing is saved (focus on "Try again").
     const save = () => {
         const name = nameInput.value.trim();
         if (!name) return fail(t.viewNameRequired, "name", "name");
-        if (ui.names?.includes(name)) {
+        if (ui.names === null) {
+            if (ui.error?.at !== "list") { ownLoad.then(() => { if (isOpen()) save(); }); return; }
+            focusKey("retry");
+            announce(t.viewsLoadFailed);
+            return;
+        }
+        if (ui.names.includes(name)) {
             ui.error = null;
             ui.step = { kind: "overwrite", name };
             render("step-cancel");
@@ -374,14 +389,12 @@ export function buildViewsPanel({ t, views, announce, close, collapsed, menu = f
         ui.error = null;
         render(focusTo === "retry" ? null : focusTo);
         busy(true);
-        try {
-            await refreshOwn();
-        } catch {
+        ownLoad = refreshOwn().catch(() => {
             ui.error = { text: t.viewsLoadFailed, at: "list" };
             if (isOpen()) announce(ui.error.text);
-        } finally {
-            busy(false);
-        }
+        });
+        await ownLoad;
+        busy(false);
         render(ui.names === null ? "retry" : (focusTo === "retry" ? "name" : null));
     };
 
