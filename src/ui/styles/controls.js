@@ -161,7 +161,9 @@ export const controlStyles = `
     border: 1px solid transparent;
     border-radius: var(--jw-dt-radius-s, 8px);
 }
-.jw-dt-pin-toggle:hover { background: var(--dt-hover); color: var(--jw-dt-color-text, #222); }
+.jw-dt-pin-toggle:hover:not(:disabled) { background: var(--dt-hover); color: var(--jw-dt-color-text, #222); }
+/* Hidden column: the pin keeps its state, dimmed (like the disabled move buttons). */
+.jw-dt-pin-toggle:disabled { opacity: 0.35; cursor: default; }
 .jw-dt-pin-toggle[aria-pressed="true"] { background: var(--dt-accent); border-color: var(--dt-accent); color: var(--dt-accent-text); }
 .jw-dt-check-all { font-weight: 600; border-bottom: 1px solid var(--dt-border); }
 .jw-dt-check-label { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

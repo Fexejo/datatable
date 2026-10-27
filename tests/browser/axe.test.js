@@ -124,6 +124,13 @@ test("axe: context menu and the record details dialog", async () => {
     await assertNoAxeViolations("details dialog");
 });
 
+test("axe: column chooser with a hidden, pinned column (disabled pin button)", async () => {
+    const table = mount({ features: { columnVisibility: true, columnPinning: true, columnReorder: true },
+        initial: { hiddenColumns: ["fee"], pinnedColumns: ["fee"] } });
+    $(table, '[data-fk="tb:columns"]').click();
+    await assertNoAxeViolations("column chooser, hidden pinned column");
+});
+
 test("axe: stickyHeader — header shifted over the rows, with pinned columns", async () => {
     const table = mountSticky({ title: "Members", features: { ...ALL_FEATURES, columnPinning: true }, initial: { pinnedColumns: ["name"] } });
     scrollPagePast(table, 300);

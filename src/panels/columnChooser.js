@@ -1,5 +1,7 @@
 // Column chooser: a visibility switch per column, plus pin and move buttons
-// when those features are on. Top of the list = left in the table.
+// when those features are on. Top of the list = left in the table. A hidden
+// column can't be pinned or unpinned (its pin button is disabled); it keeps
+// its pin and shows up pinned again.
 
 import { el, iconEl, switchEl, deepActiveElement, reorderAroundFocus } from "../ui/dom.js";
 
@@ -19,6 +21,17 @@ import { el, iconEl, switchEl, deepActiveElement, reorderAroundFocus } from "../
  */
 export function buildColumnChooser({ t, columns, isHidden, isPinned, pinning, reorder, onToggle, onPin, onMove }) {
     const list = el("div", { class: "jw-dt-check-list" });
+    // Toggle button: constant name, state in aria-pressed; disabled while the column is hidden.
+    /**
+     * @param {HTMLButtonElement} button
+     * @param {Column} column
+     */
+    const syncPin = (button, column) => {
+        const hidden = isHidden(column);
+        button.setAttribute("aria-pressed", String(isPinned(column)));
+        button.disabled = hidden;
+        button.title = hidden ? t.pinHiddenColumn : t.pinColumn;
+    };
     for (const column of columns()) {
         const check = switchEl(column.label, !isHidden(column), {
             onchange: (/** @type {Event & { currentTarget: HTMLInputElement }} */ e) => onToggle(column.key, e.currentTarget.checked)
@@ -26,15 +39,14 @@ export function buildColumnChooser({ t, columns, isHidden, isPinned, pinning, re
         if (!pinning && !reorder) { list.appendChild(check); continue; }
         const row = el("div", { class: "jw-dt-col-row", "data-key": column.key }, [check]);
         if (pinning) {
-            // Toggle button: constant name, state in aria-pressed.
-            row.appendChild(el("button", {
+            const pin = el("button", {
                 type: "button",
                 class: "jw-dt-pin-toggle",
-                title: t.pinColumn,
                 "aria-label": t.pinColumnNamed(column.label),
-                "aria-pressed": String(isPinned(column)),
                 onclick: () => onPin(column.key, !isPinned(column))
-            }, [iconEl("pin")]));
+            }, [iconEl("pin")]);
+            syncPin(pin, column);
+            row.appendChild(pin);
         }
         if (reorder) {
             /**
@@ -62,7 +74,8 @@ export function buildColumnChooser({ t, columns, isHidden, isPinned, pinning, re
         list
     ]);
 
-    // Rows are moved around the focused one (see `reorderAroundFocus`).
+    // Rows are moved around the focused one (see `reorderAroundFocus`); pin
+    // buttons follow the pins and the visibility.
     const sync = () => {
         if (!list.isConnected) return;
         const children = /** @type {HTMLElement[]} */ (Array.from(list.children));
@@ -72,7 +85,10 @@ export function buildColumnChooser({ t, columns, isHidden, isPinned, pinning, re
         const anchor = reorderAroundFocus(list, ordered);
         const byKey = new Map(columns().map((c) => [c.key, c]));
         ordered.forEach((row, i) => {
-            row.querySelector(".jw-dt-pin-toggle")?.setAttribute("aria-pressed", String(isPinned(byKey.get(row.dataset.key ?? ""))));
+            /** @type {HTMLButtonElement|null} */
+            const pin = row.querySelector(".jw-dt-pin-toggle");
+            const column = byKey.get(row.dataset.key ?? "");
+            if (pin && column) syncPin(pin, column);
             /** @type {NodeListOf<HTMLButtonElement>} */
             const moveButtons = row.querySelectorAll(".jw-dt-move-btn");
             const [up, down] = moveButtons;

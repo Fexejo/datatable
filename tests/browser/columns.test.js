@@ -70,6 +70,29 @@ test("column chooser offers pin toggle buttons with aria-pressed", () => {
     assert.equal(headerKeys(table)[0], "name");
 });
 
+test("column chooser: a hidden column's pin button is disabled and keeps its pin", () => {
+    const table = mount({ features: { columnVisibility: true, columnPinning: true }, initial: { pinnedColumns: ["fee"] } });
+    $(table, '[data-fk="tb:columns"]').click();
+    const row = (/** @type {string} */ key) => $(table, `.jw-dt-overlay .jw-dt-col-row[data-key="${key}"]`);
+    const pin = (/** @type {string} */ key) => /** @type {HTMLButtonElement} */ (row(key).querySelector(".jw-dt-pin-toggle"));
+    const visibility = (/** @type {string} */ key) => /** @type {HTMLInputElement} */ (row(key).querySelector('input[type="checkbox"]'));
+
+    visibility("name").click();
+    assert.ok(pin("name").disabled, "hidden: no pinning");
+    assert.equal(pin("name").title, "Show the column to pin or unpin it");
+    assert.equal(accessibleName(pin("name")), "Pin column: Name", "the name stays");
+    visibility("name").click();
+    assert.ok(!pin("name").disabled, "shown again: pinnable");
+    assert.equal(pin("name").title, "Pin column");
+
+    visibility("fee").click();
+    assert.ok(pin("fee").disabled);
+    assert.equal(pin("fee").getAttribute("aria-pressed"), "true", "a hidden column keeps its pin");
+    assert.ok(!headerKeys(table).includes("fee"));
+    visibility("fee").click();
+    assert.equal(headerKeys(table)[0], "fee", "shown again, pinned");
+});
+
 test("header unpin button keeps focus on the moved column header", async () => {
     const table = mount({ features: { columnPinning: true, sorting: true }, initial: { pinnedColumns: ["joined"] } });
     const button = $(table, '[data-fk="pin:joined"]');

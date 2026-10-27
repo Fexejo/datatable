@@ -539,6 +539,9 @@ is re-measured whenever the table or its container resizes.
   column”), or the pin toggle next to each column in the column chooser
   (`features.columnVisibility`). Pinned columns show a pin button in their
   header that unpins them.
+- **Hidden columns:** in the column chooser, a hidden column's pin toggle is
+  disabled (“Show the column to pin or unpin it”). A pinned column that is
+  hidden keeps its pin and comes back pinned when shown again.
 - **Start state:** `pinned: true` on a column, or `initial.pinnedColumns: ["key", …]`.
 - **State:** `pinnedColumns` is part of `getState()` / `setState()` and of
   saved views.
@@ -1311,7 +1314,8 @@ table.
   “Name” moved to position 3 of 8”, or pinned/unpinned when crossing the
   pinned block); the table and the focused control are kept in place.
 - Column pinning: the pin toggles in the column chooser are toggle buttons
-  (`aria-pressed`, named “Pin column: <column>”); the pin button in a pinned
+  (`aria-pressed`, named “Pin column: <column>”; `disabled` while the column
+  is hidden, so `Tab` skips it); the pin button in a pinned
   column's header is named “Unpin column: <column>”. After unpinning from the
   header, focus moves to the column's header button at its new position.
 - Pagination is a `navigation` landmark named “Pagination: <title>” (just
