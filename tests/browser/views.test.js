@@ -514,6 +514,21 @@ test("sharing API: share, list and load views of others; events and the active v
     assert.deepEqual(table.getActiveView(), { name: "Copy", modified: false }, "saved as an own view");
 });
 
+test("a view of others only sets a page size the table offers", async () => {
+    const adapter = sharingAdapter({}, [
+        { id: "1", name: "Offered", state: { pageSize: 50 } },
+        { id: "2", name: "Huge", state: { pageSize: 1000000, sort: SORT_DESC } }
+    ]);
+    const table = mountViews(adapter, { pagination: { pageSize: 10, pageSizeOptions: [10, 50] } });
+    await table.loadSharedView({ id: "1", name: "Offered" });
+    assert.equal(table.getState().pageSize, 50);
+    await table.loadSharedView({ id: "2", name: "Huge" });
+    assert.equal(table.getState().pageSize, 50, "the page size stays");
+    assert.equal(columnTexts(table, 1)[0], "Felix", "the rest of the view applies");
+    table.setState({ pageSize: 37 });
+    assert.equal(table.getState().pageSize, 37, "setState() and own views are not limited");
+});
+
 test("sharing API rejects without a sharing adapter", async () => {
     const table = mountViews(memoryAdapter());
     for (const call of [() => table.shareView("A"), () => table.listSharedViews(), () => table.loadSharedView({ id: "1", name: "A" })]) {

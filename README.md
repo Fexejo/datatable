@@ -865,6 +865,19 @@ names. Renaming a shared view should keep it shared (the panel says so);
 deleting it ends the sharing. Malformed entries of `listShared()` (no string
 `id` or `name`) are skipped, a non-string `detail` is ignored.
 
+**Views of others are input from other users.** The table applies them like
+`setState()`: unknown columns and damaged parts are dropped, names and
+`detail` are shown as text (never as HTML). On top of that, a view of others
+only sets a page size that `pagination.pageSizeOptions` (or the default
+sizes) offers, so it cannot render all rows at once. A RegEx filter in it
+still applies (up to 256 characters); since a RegEx cannot be stopped once
+it runs, a malicious pattern can freeze the page of whoever loads the view.
+The backend decides what may be shared: it must check that `share()`,
+`rename()` and `delete()` only touch the signed-in user's own views and that
+`getShared()` only returns views shared with them; if needed, it can also
+reject or strip RegEx filters (`{ kind: "pattern", operator: "regex" }`)
+when a view is shared.
+
 ```js
 const sharingAdapter = {
     ...backendAdapter,
