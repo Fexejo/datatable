@@ -1,4 +1,4 @@
-/*! jw-datatable v1.2.0 | Type declarations of jw-datatable.min.js */
+/*! jw-datatable v1.3.0 | Type declarations of jw-datatable.min.js */
 
 export declare type ActiveView = {
     name: string;
@@ -178,6 +178,10 @@ export declare type DataTableConfig = {
      */
     maxHeight?: string;
     /**
+     * Keep the header in sight while the page scrolls (not with maxHeight).
+     */
+    stickyHeader?: boolean;
+    /**
      * Minimum width of text columns.
      */
     columnMinWidth?: string;
@@ -354,6 +358,7 @@ export declare class JwDataTable extends HTMLElement {
     getState(): SerializedState;
     /** @param {Partial<SerializedState>} partial */
     setState(partial?: Partial<SerializedState>): void;
+    resetState(): void;
     clearFilters(): void;
     /**
      * @param {Partial<ExportOptions>} options
