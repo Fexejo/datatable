@@ -453,3 +453,20 @@ test("announcements while a panel is open go to the panel's live region", async 
         message: "expected the announcement inside the open dialog"
     });
 });
+
+// WCAG 2.4.11: a cell focused under the sticky header scrolls out from under it.
+test("maxHeight: arrow keys never leave the focused cell under the sticky header", async () => {
+    const table = mount({ maxHeight: "240px", pagination: { pageSize: 30 } });
+    $(table, "tbody td").focus();
+    await input.press("End", ["Control"]);
+    const headerBottom = $(table, "thead").getBoundingClientRect().bottom;
+    /** @type {string[]} */
+    const covered = [];
+    for (let i = 0; i < 29; i++) {
+        await input.press("ArrowUp");
+        const cell = deepActiveElement();
+        if (cell && cell.getBoundingClientRect().top < headerBottom - 1) covered.push(cell.dataset.fk ?? "");
+    }
+    assert.equal(deepActiveElement()?.dataset.fk, "cell:0:joined");
+    assert.deepEqual(covered, [], "cells focused under the header");
+}, { cdp: true });

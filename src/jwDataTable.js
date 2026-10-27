@@ -34,6 +34,7 @@ import { openContextMenu, closeContextMenu } from "./ui/contextMenu.js";
 import { writeClipboard, confirmOnButton, flashCopied } from "./ui/clipboard.js";
 import { waitForLongPress } from "./ui/longPress.js";
 import { layoutPinned, updateScrollShadows } from "./ui/pinnedLayout.js";
+import { layoutHeadMargin } from "./ui/stickyHead.js";
 import { buildToolbar, buildFilterButtons } from "./render/toolbar.js";
 import { buildFooter, pageInfoText } from "./render/footer.js";
 import { buildFilterPanel } from "./panels/filterPanel.js";
@@ -850,16 +851,24 @@ class JwDataTable extends HTMLElement {
 
     // ---- Pinned columns & scroll shadows ----------------------------------
 
-    // Lays out pinned columns now and again whenever the body or table resizes.
+    // Lays out pinned columns and the header's scroll margin now and again
+    // whenever the body or table resizes.
     _observeLayout() {
-        this._layoutPinned();
+        this._layout();
         if (typeof ResizeObserver !== "function") return;
-        this._resizeObserver ??= new ResizeObserver(() => this._layoutPinned());
+        this._resizeObserver ??= new ResizeObserver(() => this._layout());
         this._resizeObserver.disconnect();
         const body = this.shadow.querySelector(".jw-dt-body");
         const table = this.shadow.querySelector(".jw-dt-table");
         if (body) this._resizeObserver.observe(body);
         if (table) this._resizeObserver.observe(table);
+    }
+
+    _layout() {
+        this._layoutPinned();
+        /** @type {HTMLElement|null} */
+        const viewport = this.shadow.querySelector(".jw-dt-viewport");
+        if (viewport) layoutHeadMargin(viewport, !!this._config.maxHeight);
     }
 
     // Pinned columns that don't fit are paused (see ui/pinnedLayout.js).

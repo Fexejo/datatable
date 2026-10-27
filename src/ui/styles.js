@@ -200,6 +200,8 @@ export const datatableStyles = `
     white-space: nowrap;
     font-weight: 700;
 }
+/* A cell focused under the sticky header scrolls out from under it (set from JS). */
+.jw-dt-td { scroll-margin-top: var(--dt-head-h, 0px); }
 /* Column drag and drop (desktop): dragged header dimmed, drop position as an accent bar. */
 .jw-dt-th[draggable="true"] { cursor: grab; }
 .jw-dt-th.is-dragging { opacity: 0.5; }

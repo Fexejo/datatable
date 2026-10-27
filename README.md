@@ -70,7 +70,7 @@ written in Vanilla JS (ES modules, Shadow DOM). No external dependencies.
 | `src/export/` | CSV / XLSX / JSON export and the XLSX writer |
 | `src/panels/` | Filter panel, filter summary, export dialog, column chooser, record details, saved views |
 | `src/render/` | Table, cards, values (links, copy buttons), context-menu entries, toolbar and footer (pager) |
-| `src/ui/` | DOM building blocks: `el()`, overlay (modal panels), live-region announcer, context menu, clipboard, keyboard navigation, column drag, pinned layout, styles, [Lucide](https://lucide.dev) icons |
+| `src/ui/` | DOM building blocks: `el()`, overlay (modal panels), live-region announcer, context menu, clipboard, keyboard navigation, column drag, pinned layout, sticky header, styles, [Lucide](https://lucide.dev) icons |
 | `src/types.js` | JSDoc types of the config, columns, state, adapters and events (no runtime code); the source of the bundle's declarations |
 | `demo.html` | Runnable demo |
 | `tests/` | Unit and browser tests |
@@ -1324,6 +1324,9 @@ focus in place.
 - Visible focus indicator (`:focus-visible` outline) on every interactive
   element, including cells, cards and menu items; copy buttons that are hidden
   until hover become visible on keyboard focus.
+- A cell that gets focus never stays hidden under the sticky header
+  (`maxHeight`; WCAG 2.4.11): cells keep a scroll margin of the header
+  height, so the body scrolls them out from under it.
 - Touch targets ≥ 44px on narrow screens and on every touch screen
   (`pointer: coarse`, also tablets in the desktop layout); copy buttons stay
   small next to the value but have a 44px tap area. With a mouse at desktop
