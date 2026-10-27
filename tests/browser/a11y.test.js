@@ -24,7 +24,7 @@ test("icons are decorative SVGs hidden from assistive tech", () => {
 // their size; the copy button counts its (larger) tap area.
 /** @param {HTMLElement} table */
 function targetSizes(table) {
-    const selector = ".jw-dt-btn, .jw-dt-icon-btn, .jw-dt-filter-btn, .jw-dt-page-btn, .jw-dt-copy, .jw-dt-tab, .jw-dt-check";
+    const selector = ".jw-dt-btn, .jw-dt-icon-btn, .jw-dt-filter-btn, .jw-dt-page-btn, .jw-dt-select, .jw-dt-copy, .jw-dt-tab, .jw-dt-check";
     return $$(table, selector).filter((node) => node.getClientRects().length > 0).map((node) => {
         const r = node.getBoundingClientRect();
         const inset = node.classList.contains("jw-dt-copy") ? -(parseFloat(getComputedStyle(node, "::after").top) || 0) : 0;
@@ -32,8 +32,8 @@ function targetSizes(table) {
     });
 }
 
-test("target sizes: at least 24px on desktop, 44px with visible copy buttons on a touch tablet", async () => {
-    for (const [width, touch, min] of /** @type {const} */ ([[1280, false, 24], [820, true, 44]])) {
+test("target sizes: at least 24px on desktop, 44px on a phone and with visible copy buttons on a touch tablet", async () => {
+    for (const [width, touch, min] of /** @type {const} */ ([[1280, false, 24], [820, true, 44], [390, true, 44]])) {
         await input.viewport(width, 900);
         await input.touch(touch);
         const table = mount({ features: ALL_FEATURES });
@@ -47,7 +47,7 @@ test("target sizes: at least 24px on desktop, 44px with visible copy buttons on 
         $(table, 'th[data-key="name"] .jw-dt-filter-btn').click();
         await waitFor(() => $(table, ".jw-dt-check")?.getClientRects().length, { message: "value filter open" });
         const sizes = targetSizes(table);
-        for (const name of ["jw-dt-btn", "jw-dt-filter-btn", "jw-dt-page-btn", "jw-dt-copy", "jw-dt-tab", "jw-dt-check"]) {
+        for (const name of ["jw-dt-btn", "jw-dt-filter-btn", "jw-dt-page-btn", "jw-dt-select", "jw-dt-copy", "jw-dt-tab", "jw-dt-check"]) {
             assert.ok(sizes.some((s) => s.name === name), `${name} measured at ${width}px`);
         }
         const small = sizes.filter((s) => Math.round(s.width) < min || Math.round(s.height) < min)
