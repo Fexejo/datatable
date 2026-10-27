@@ -44,10 +44,7 @@ import { activeView, defaultView, errorText, listContent, question, sharedConten
 /** @typedef {import("./viewsList.js").Actions} Actions */
 /** @typedef {import("./viewsList.js").ListOptions} ListOptions */
 
-// `views`: async { list() → [{ name, shared }], save(name), load(name) → found?,
-// rename(old, new), remove(name), share(name, shared), listShared(),
-// loadShared(view) → found? }, active() → { name, modified, shared? } | null,
-// isDefault() and reset().
+// `views`: the actions on the storage and the table (`ViewsApi`).
 // `announce(message)`, `close()`: status message, close the panel.
 // `collapsed`: which groups are collapsed; the panel updates it.
 // `menu`: the actions of a view in a menu (mobile). `sharing`: the adapter shares views.
@@ -150,7 +147,7 @@ export function buildViewsPanel({ t, views, announce, close, collapsed, menu = f
             if (clearError) ui.error = null;
             render(focusKey);
         },
-        retry: () => loadOwn("retry"),
+        retry: () => loadOwn(true),
         retryShared: () => loadShared(true),
         toggleGroup: (group) => { collapsed[group] = !collapsed[group]; render(`group:${group}`); },
         // The menu lives in the panel, so the panel treats it as inside (no outside click, its own Escape).
@@ -362,6 +359,7 @@ export function buildViewsPanel({ t, views, announce, close, collapsed, menu = f
      */
     const loadView = async ({ name, focus, at, load, refresh }) => {
         if (ui.busy) return;
+        let focusTo = focus;
         ui.busy = true;
         busy(true);
         try {
@@ -372,22 +370,23 @@ export function buildViewsPanel({ t, views, announce, close, collapsed, menu = f
             }
             await refresh();
             ui.error = { text: t.viewNotFound(name), at };
-            focus = at === "shared" ? "group:shared" : "group:own";
+            focusTo = at === "shared" ? "group:shared" : "group:own";
         } catch {
             ui.error = { text: t.viewActionFailed, at };
         } finally {
             ui.busy = false;
             busy(false);
         }
-        render(focus);
+        render(focusTo);
         if (ui.error) announce(ui.error.text);
     };
 
-    /** @param {string} [focusTo] */
-    const loadOwn = async (focusTo) => {
+    // Loads the own views; after "Try again", focus moves to the name field
+    // (or back to "Try again" when it failed again).
+    const loadOwn = async (retry = false) => {
         ui.names = null;
         ui.error = null;
-        render(focusTo === "retry" ? null : focusTo);
+        render(null);
         busy(true);
         ownLoad = refreshOwn().catch(() => {
             ui.error = { text: t.viewsLoadFailed, at: "list" };
@@ -395,7 +394,7 @@ export function buildViewsPanel({ t, views, announce, close, collapsed, menu = f
         });
         await ownLoad;
         busy(false);
-        render(ui.names === null ? "retry" : (focusTo === "retry" ? "name" : null));
+        render(ui.names === null ? "retry" : (retry ? "name" : null));
     };
 
     // Loads the views others shared; a failure only affects their group.
