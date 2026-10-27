@@ -2,7 +2,7 @@
 // tab (operator + operands), as WAI-ARIA tabs.
 
 import { el, segmentedEl } from "../ui/dom.js";
-import { operatorsForType, operatorMeta, isActiveFilter } from "../core/filtering.js";
+import { MAX_REGEX_LENGTH, operatorsForType, operatorMeta, isActiveFilter } from "../core/filtering.js";
 import { typeGroup, uid } from "../core/util.js";
 
 /** @typedef {import("../core/i18n.js").Translations} Translations */
@@ -248,6 +248,9 @@ function patternFilter(t, column, existing) {
         const n = arity();
         operand1.setAttribute("aria-label", n >= 2 ? t.operandFrom : t.operandValue);
         operand2.setAttribute("aria-label", t.operandTo);
+        // A longer RegEx would match nothing (see core/filtering.js).
+        if (select.value === "regex") operand1.maxLength = MAX_REGEX_LENGTH;
+        else operand1.removeAttribute("maxlength");
         operandWrap.replaceChildren(...[operand1, operand2].slice(0, n));
     };
     renderOperands();

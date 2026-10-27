@@ -50,6 +50,11 @@ export const OPERATORS = {
     ]
 };
 
+// Longest RegEx operand that is applied; a longer one matches nothing. JS has
+// no timeout for a RegExp, so this does not rule out catastrophic
+// backtracking (a short `(a+)+$` is enough), it only bounds the input.
+export const MAX_REGEX_LENGTH = 256;
+
 /** @param {string} [type] */
 export function operatorsForType(type) {
     return OPERATORS[typeGroup(type)] ?? OPERATORS.text;
@@ -81,13 +86,6 @@ function matchesText(value, operator, operand) {
         case "notEquals": return haystack !== needle;
         case "startsWith": return haystack.startsWith(needle);
         case "endsWith": return haystack.endsWith(needle);
-        case "regex": {
-            try {
-                return new RegExp(operand, "i").test(String(value ?? ""));
-            } catch {
-                return false;
-            }
-        }
         default: return true;
     }
 }
@@ -163,6 +161,42 @@ function matchesBoolean(value, operator) {
     return true;
 }
 
+// The RegExp of a "regex" operand (case-insensitive), or null when it is
+// invalid or longer than MAX_REGEX_LENGTH.
+/**
+ * @param {any} operand
+ * @returns {RegExp|null}
+ */
+function compileRegex(operand) {
+    const source = String(operand ?? "");
+    if (source.length > MAX_REGEX_LENGTH) return null;
+    try {
+        return new RegExp(source, "i");
+    } catch {
+        return null;
+    }
+}
+
+// A test of one pattern filter against a raw value; a RegEx is compiled once,
+// not per row.
+/**
+ * @param {PatternFilter} filter
+ * @param {string} [type]
+ * @returns {(value: any) => boolean}
+ */
+function patternMatcher(filter, type) {
+    const { operator, operand, operand2 } = filter;
+    const group = typeGroup(type);
+    if (group === "number") return (value) => matchesNumber(value, operator, operand, operand2);
+    if (group === "date") return (value) => matchesDate(value, operator, operand, operand2);
+    if (group === "boolean") return (value) => matchesBoolean(value, operator);
+    if (operator === "regex") {
+        const regex = compileRegex(operand);
+        return (value) => regex !== null && regex.test(String(value ?? ""));
+    }
+    return (value) => matchesText(value, operator, operand);
+}
+
 // Tests a single pattern filter against a raw value.
 /**
  * @param {any} value
@@ -170,11 +204,7 @@ function matchesBoolean(value, operator) {
  * @param {string} [type]
  */
 export function matchesPattern(value, filter, type) {
-    const group = typeGroup(type);
-    if (group === "number") return matchesNumber(value, filter.operator, filter.operand, filter.operand2);
-    if (group === "date") return matchesDate(value, filter.operator, filter.operand, filter.operand2);
-    if (group === "boolean") return matchesBoolean(value, filter.operator);
-    return matchesText(value, filter.operator, filter.operand);
+    return patternMatcher(filter, type)(value);
 }
 
 // Text conditions test the displayed text (enum labels, custom formatters),
@@ -205,8 +235,8 @@ export function applyFilters(data, filters, columns, { locale = "en-US", globalS
         const column = columnByKey.get(key);
         if (!column || !isActiveFilter(filter)) return [];
         return [filter.kind === "value"
-            ? { column, filter: null, values: new Set(filter.values.map(String)) }
-            : { column, filter, values: null }];
+            ? { column, match: null, values: new Set(filter.values.map(String)) }
+            : { column, match: patternMatcher(filter, column.type), values: null }];
     });
     const search = String(globalSearch || "").trim().toLowerCase();
     const searchableColumns = columns.filter((c) => c.searchable !== false);
@@ -214,11 +244,11 @@ export function applyFilters(data, filters, columns, { locale = "en-US", globalS
     if (activeFilters.length === 0 && !search) return data.slice();
 
     return data.filter((row) => {
-        for (const { column, filter, values } of activeFilters) {
+        for (const { column, match, values } of activeFilters) {
             const value = getCellValue(row, column);
             if (values) {
                 if (!values.has(String(value))) return false;
-            } else if (filter && !matchesPattern(patternSubject(value, column, locale, row), filter, column.type)) {
+            } else if (match && !match(patternSubject(value, column, locale, row))) {
                 return false;
             }
         }

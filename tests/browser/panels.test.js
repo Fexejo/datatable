@@ -2,6 +2,7 @@
 
 import { test, assert, waitFor, deepActiveElement, accessibleName, input } from "./harness.js";
 import { COLUMNS, mount, $, $$, statusText, announced, hasIcon, root } from "./helpers.js";
+import { MAX_REGEX_LENGTH } from "../../src/core/filtering.js";
 
 // ---- Panels as dialogs -----------------------------------------------------
 
@@ -64,6 +65,21 @@ test("Enter in a pattern operand applies the condition", async () => {
     assert.equal(/** @type {any} */ (table.getState().filters.name)?.operand, "ann");
     assert.equal(deepActiveElement(), $(table, '[data-fk="filter:name"]'), "focus back on the filter button");
 }, { cdp: true });
+
+test("the RegEx operand is limited to the length that applies", async () => {
+    const table = mount({ features: { filtering: true } });
+    await openNameFilter(table);
+    $(table, '[role="tab"]:last-child').click();
+    const select = /** @type {HTMLSelectElement} */ ($(table, ".jw-dt-overlay select"));
+    const operand = /** @type {HTMLInputElement} */ ($(table, ".jw-dt-overlay .jw-dt-operands input"));
+    assert.equal(operand.maxLength, -1, "no limit for contains");
+    select.value = "regex";
+    select.dispatchEvent(new Event("change"));
+    assert.equal(operand.maxLength, MAX_REGEX_LENGTH);
+    select.value = "equals";
+    select.dispatchEvent(new Event("change"));
+    assert.equal(operand.maxLength, -1, "limit gone with another operator");
+});
 
 test("value search checks the matches and restores the selection when cleared", async () => {
     const table = mount({ features: { filtering: true } });

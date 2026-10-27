@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { applyFilters, matchesPattern, isActiveFilter, distinctValues, operatorsForType, describeFilter } from "../../src/core/filtering.js";
+import { MAX_REGEX_LENGTH, applyFilters, matchesPattern, isActiveFilter, distinctValues, operatorsForType, describeFilter } from "../../src/core/filtering.js";
 import { getTranslations } from "../../src/core/i18n.js";
 
 const columns = [
@@ -27,6 +27,17 @@ test("text patterns are case-insensitive", () => {
     assert.ok(matchesPattern("Anna", { kind: "pattern", operator: "startsWith", operand: "an" }, "string"));
     assert.ok(!matchesPattern("Anna", { kind: "pattern", operator: "equals", operand: "ann" }, "string"));
     assert.ok(!matchesPattern("Anna", { kind: "pattern", operator: "regex", operand: "(" }, "string"), "invalid regex never matches");
+});
+
+test("a RegEx applies up to MAX_REGEX_LENGTH characters; a longer one matches nothing", () => {
+    /** @param {string} operand @returns {import("../../src/types.js").PatternFilter} */
+    const regex = (operand) => ({ kind: "pattern", operator: "regex", operand, arity: 1 });
+    const longest = "a?".repeat(MAX_REGEX_LENGTH / 2);
+    assert.equal(longest.length, MAX_REGEX_LENGTH);
+    assert.ok(matchesPattern("Anna", regex(longest), "string"));
+    assert.ok(!matchesPattern("Anna", regex(longest + "?"), "string"));
+    assert.deepEqual(applyFilters(data, { name: regex("^(anna|ben)$") }, columns).map((r) => r.name), ["Anna", "Ben"]);
+    assert.deepEqual(applyFilters(data, { name: regex(longest + "?") }, columns), []);
 });
 
 test("number patterns incl. between with swapped bounds", () => {

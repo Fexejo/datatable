@@ -497,6 +497,13 @@ Per column (filter icon in header or context menu):
 Text conditions test the displayed text (e.g. the label of an `enum` value or
 the output of a `formatter`), number and date conditions the raw value.
 
+**RegEx** is case-insensitive (JavaScript syntax, e.g. `^(anna|ben)$`); an
+invalid one matches nothing. It applies up to 256 characters (the operand
+field takes no more); a longer one matches nothing. JavaScript has no timeout for a RegEx: a pattern with catastrophic
+backtracking (e.g. `(a+)+$`) can freeze the page. That only hurts the user
+who types it, unless the pattern comes from someone else — see
+[views others shared](#sharing-views).
+
 **Quick filter:** right-click a cell → “Filter by value” or “Exclude value”.
 
 **Active filters:** while a filter or the global search is active, the toolbar
