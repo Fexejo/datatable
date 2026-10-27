@@ -71,7 +71,7 @@ written in Vanilla JS (ES modules, Shadow DOM). No external dependencies.
 | `src/export/` | CSV / XLSX / JSON export and the XLSX writer |
 | `src/panels/` | Filter panel, filter summary, export dialog, column chooser, record details, saved views |
 | `src/render/` | Table, cards, values (links, copy buttons), context-menu entries, toolbar and footer (pager) |
-| `src/ui/` | DOM building blocks: `el()`, overlay (modal panels), live-region announcer, context menu, clipboard, keyboard navigation, column drag, pinned layout, sticky header, styles, [Lucide](https://lucide.dev) icons |
+| `src/ui/` | DOM building blocks: `el()`, overlay (modal panels), live-region announcer, context menu, clipboard, keyboard navigation, column drag, pinned layout, sticky header, styles (`styles.js` joins the parts in `styles/`), [Lucide](https://lucide.dev) icons |
 | `src/types.js` | JSDoc types of the config, columns, state, adapters and events (no runtime code); the source of the bundle's declarations |
 | `demo.html` | Runnable demo |
 | `tests/` | Unit and browser tests |
@@ -1571,9 +1571,13 @@ and card grid use roving tabindex (`src/ui/keyboard.js`). Panels open through
 Status messages go through `_announce()` to the shared live region under
 `<body>`, or the open panel's own region.
 
-**Styles.** `src/ui/styles.js` is one CSS string (Mobile First, breakpoint
-640px; a `(pointer: coarse)` block keeps touch sizes on tablets), parsed once
-into a constructed stylesheet shared by all tables. Class
+**Styles.** The CSS is split by area into `src/ui/styles/` (`base`, `table`,
+`cards`, `footer`, `overlays`, `controls`, `panels`, `a11y`, `responsive`);
+`src/ui/styles.js` joins them into one string in that order — later rules win,
+and the media blocks of `responsive.js` (Mobile First, breakpoint 640px; a
+`(pointer: coarse)` block keeps touch sizes on tablets) come last. The string
+is parsed once into a constructed stylesheet shared by all tables (the
+release build minifies it). Class
 prefix `jw-dt-` (context menu `jw-ctx-`). Theme variables `--jw-dt-*` are read
 with their default as fallback (never set inside, so they inherit from the
 page); internal variables are `--dt-*` (set on `:host` or by JS, e.g. the

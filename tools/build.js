@@ -12,8 +12,9 @@
 //
 // Steps:
 // 1. Copy the entry point and src/ to a temp dir.
-// 2. Shrink what esbuild can't: minify the CSS string in src/ui/styles.js and
-//    compact the Lucide SVG markup in src/ui/icons.js.
+// 2. Shrink what esbuild can't: minify the CSS string of src/ui/styles.js (it
+//    joins the parts in src/ui/styles/) and compact the Lucide SVG markup in
+//    src/ui/icons.js.
 // 3. Bundle + minify from datatable.js into one ES module with a banner
 //    (version and the Lucide license notice from src/ui/icons.js).
 // 4. Declarations: tsc emits one .d.ts per module from the JSDoc types; the
