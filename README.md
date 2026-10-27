@@ -246,7 +246,7 @@ Each column:
 | `filterable` | `boolean` | Allow filter (default `true`) |
 | `searchable` | `boolean` | Include in global search (default `true`) |
 | `exportable` | `boolean` | Include in exports (default `true`) |
-| `copyable` | `boolean` | Copy button next to the value (with a mouse at desktop width: shown on hover/focus) |
+| `copyable` | `boolean` | Copy button next to the value (with a mouse at desktop width: shown on hover/focus); none for an empty value (`null`, `undefined`, `""`, `NaN`, also when shown as `emptyText`) or one whose formatted text is blank |
 | `link` | `object \| function` | Link behind the value (see below) |
 | `action` | `(row, value, event) => void` | Render value as a button |
 | `cellClass` | `(value, row) => string` | CSS class(es) per cell |

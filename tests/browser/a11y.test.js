@@ -1,7 +1,7 @@
 // Accessibility: roles and names, keyboard, focus management, roving focus, announcements.
 
 import { test, assert, sleep, waitFor, nextFrame, deepActiveElement, accessibleName, input } from "./harness.js";
-import { COLUMNS, ALL_FEATURES, mount, $, $$, columnTexts, rightClick, statusText, announced, hasIcon, status, root, mountSticky, headerBox } from "./helpers.js";
+import { COLUMNS, ALL_FEATURES, mount, $, $$, columnTexts, rightClick, statusText, announced, hasIcon, status, root, mountSticky, headerBox, menuItem } from "./helpers.js";
 import { createIcon } from "../../src/ui/icons.js";
 
 // ---- Accessibility --------------------------------------------------------
@@ -275,6 +275,31 @@ test("empty values get no link or action button", () => {
     assert.ok($(table, '[data-fk="cell:0:fee:action"]'), "filled value is a button");
     assert.equal($(table, '[data-fk="cell:1:name:link"]'), null, "empty value: no link");
     assert.equal($(table, '[data-fk="cell:1:fee:action"]'), null, "empty value: no button");
+});
+
+test("copy buttons only for values with something to copy (table, cards, details dialog)", async () => {
+    const columns = [
+        { key: "id", label: "ID", type: "integer" },
+        { key: "name", label: "Name", copyable: true },
+        { key: "note", label: "Note", copyable: true, emptyText: "—" },
+        { key: "code", label: "Code", copyable: true, formatter: (/** @type {any} */ v) => (v === "x" ? " " : String(v)) },
+        { key: "fee", label: "Fee", type: "number", copyable: true }
+    ];
+    const data = [
+        { id: 1, name: "Anna", note: "Hi", code: "A1", fee: 0 },
+        { id: 2, name: "", note: null, code: "x", fee: NaN },
+        { id: 3, name: "   ", code: "B2" }
+    ];
+    const table = mount({ columns, data, features: { grid: true, rowDetails: true } });
+    const copyKeys = () => $$(table, ".jw-dt-copy").map((b) => b.dataset.fk);
+    assert.deepEqual(copyKeys(), ["cell:0:name:copy", "cell:0:note:copy", "cell:0:code:copy", "cell:0:fee:copy", "cell:2:code:copy"],
+        "no button for \"\", whitespace, null/undefined (also behind an emptyText), NaN or a blank formatted text; 0 is a value");
+    table.setState({ layout: "grid" });
+    assert.equal($$(table, ".jw-dt-copy").length, 5, "cards: the same buttons");
+    rightClick($(table, ".jw-dt-card:nth-child(2)"));
+    menuItem(table, "Show details").click();
+    await waitFor(() => $(table, ".jw-dt-overlay .jw-dt-fields"), { message: "details dialog open" });
+    assert.equal($$(table, ".jw-dt-overlay .jw-dt-copy").length, 0, "details of the empty record: no buttons");
 });
 
 test("links with an unsafe URL scheme render as text; SPA links get a safe href", () => {

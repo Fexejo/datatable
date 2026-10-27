@@ -4,7 +4,7 @@
 // (delegated events); `register(node, record)` connects a node to its record.
 
 import { el, iconEl } from "../ui/dom.js";
-import { getCellValue, safeUrl } from "../core/util.js";
+import { getCellValue, isEmptyValue, safeUrl } from "../core/util.js";
 import { formatValue } from "../core/formatters.js";
 
 /** @typedef {import("../types.js").NormalizedColumn} Column */
@@ -41,7 +41,38 @@ export function linkHref(link, row, value) {
  * @param {string} locale
  */
 export function valueNode(column, row, value, fk, locale) {
+    return displayNode(column, row, formatValue(value, column, locale, row), value, fk);
+}
+
+// The value node and, for a `copyable` column, its copy button. Without
+// anything to copy there is no button: neither for an empty value (null, "",
+// NaN; also when the column shows an `emptyText` for it) nor for one whose
+// formatted text is blank.
+/**
+ * @param {Translations} t
+ * @param {Column} column
+ * @param {Row} row
+ * @param {any} value
+ * @param {string|null} fk
+ * @param {string} locale
+ * @returns {Node[]}
+ */
+export function valueNodes(t, column, row, value, fk, locale) {
     const display = formatValue(value, column, locale, row);
+    const node = displayNode(column, row, display, value, fk);
+    if (!column.copyable || isEmptyValue(value)) return [node];
+    const text = typeof display === "string" ? display : display.textContent;
+    return text?.trim() ? [node, copyButton(t, column, fk)] : [node];
+}
+
+/**
+ * @param {Column} column
+ * @param {Row} row
+ * @param {string|Node} display  The formatted value.
+ * @param {any} value
+ * @param {string|null} fk
+ */
+function displayNode(column, row, display, value, fk) {
     const content = display instanceof Node ? display : document.createTextNode(display);
     // An empty value gets no link or button: it would be a focus stop without a name.
     if (typeof display === "string" && !display.trim()) return el("span", { class: "jw-dt-value" }, [content]);
@@ -64,7 +95,7 @@ export function valueNode(column, row, value, fk, locale) {
  * @param {Column} column
  * @param {string|null} fk
  */
-export function copyButton(t, column, fk) {
+function copyButton(t, column, fk) {
     return el("button", {
         type: "button",
         class: "jw-dt-copy",
@@ -82,8 +113,7 @@ export function buildFields({ t, locale, columns, row, fk, register }) {
     return el("dl", { class: "jw-dt-fields" }, columns.map((column) => {
         const value = getCellValue(row, column);
         const key = fk ? `${fk}:${column.key}` : null;
-        const val = el("dd", { class: "jw-dt-pair-value jw-dt-card-val" }, [valueNode(column, row, value, key, locale)]);
-        if (column.copyable) val.appendChild(copyButton(t, column, key));
+        const val = el("dd", { class: "jw-dt-pair-value jw-dt-card-val" }, valueNodes(t, column, row, value, key, locale));
         register(val, { column, row, value });
         return el("div", { class: "jw-dt-pair jw-dt-card-row" }, [
             el("dt", { class: "jw-dt-pair-label jw-dt-card-label", text: column.label }),

@@ -11,7 +11,7 @@ import { initRoving, tableCellTarget } from "../ui/keyboard.js";
 import { bindColumnMove } from "../ui/columnDrag.js";
 import { isActiveFilter } from "../core/filtering.js";
 import { getCellValue, typeGroup } from "../core/util.js";
-import { copyButton, valueNode } from "./values.js";
+import { valueNodes } from "./values.js";
 
 /** @typedef {import("../types.js").NormalizedColumn} Column */
 /** @typedef {import("../types.js").Row} Row */
@@ -323,8 +323,7 @@ function buildCell(view, column, row, index) {
         if (cls) td.classList.add(...String(cls).split(/\s+/));
     }
 
-    const content = el("div", { class: "jw-dt-cell" }, [valueNode(column, row, value, fk, view.locale)]);
-    if (column.copyable) content.appendChild(copyButton(view.t, column, fk));
+    const content = el("div", { class: "jw-dt-cell" }, valueNodes(view.t, column, row, value, fk, view.locale));
     td.appendChild(content);
     // Single-line cell with an ellipsis; the full text shows as a tooltip
     // (set by the component on hover) and while the cell has focus (CSS).
