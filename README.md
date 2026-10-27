@@ -540,6 +540,10 @@ is re-measured whenever the table or its container resizes.
   in place and the older ones scroll with the table until there is room again;
   pinning announces which columns scroll along.
 
+A strong 2px line (`--jw-dt-color-border-strong`) marks the right edge of
+the pinned columns, so the cells scrolling behind them stay apart; its width
+is reserved even while all pins scroll along (the line is then hidden).
+
 Horizontal **scroll shadows** appear on the edges that have more content
 (with pinned columns, on the edge of the last pinned column). This is
 independent of pinning and always on.
@@ -980,7 +984,7 @@ each has a built-in default, so none is required:
 | `--jw-dt-color-surface` | `#f0f0f0` | Column headers |
 | `--jw-dt-color-surface-muted` | `#f8f8f8` | Toolbar, footer, tabs, row hover |
 | `--jw-dt-color-border` | `#d8d8d8` | Borders (decorative: table, cards, buttons with a label, separators) |
-| `--jw-dt-color-border-strong` | `#808080` | Borders of form fields (search, inputs, selects), which show where to type, and the line under the column headers; keep ≥ 3:1 against the page and `--jw-dt-color-surface` |
+| `--jw-dt-color-border-strong` | `#808080` | Borders of form fields (search, inputs, selects), which show where to type, the lines under the column headers and after the pinned columns; keep ≥ 3:1 against the page and `--jw-dt-color-surface` |
 | `--jw-dt-color-hover` | `#e8e8e8` | Hovered buttons and menu items |
 | `--jw-dt-color-accent` | `#1f7a3a` | Active sort and layout, pinned and filter buttons, primary buttons |
 | `--jw-dt-color-accent-text` | `#fff` | Text on the accent color |
@@ -1357,11 +1361,13 @@ focus in place.
 - Default colors meet contrast requirements on the default backgrounds: text
   ≥ 4.5:1 (muted text `#666`: 5.7:1 on white), form field borders
   (`--jw-dt-color-border-strong`, `#808080`) and focus indicators ≥ 3:1.
-  The line under the column headers uses the same color (2px, 3.5:1 against
-  the header, 3.9:1 against the rows), so the header stays distinct from the
-  rows passing under it; while rows lie under a sticky header, it also casts
-  a shadow on them. WCAG doesn't require this (the header is identified by
-  its position, bold text and `<th>`), but it helps orientation.
+  The lines under the column headers and after the pinned columns use the
+  same color (2px, 3.5:1 against the header, 3.9:1 against the rows), so
+  header and pinned columns stay distinct from the cells passing behind
+  them; while rows lie under a sticky header or cells scroll behind pinned
+  columns, a shadow is added. WCAG doesn't require this (header and pinned
+  cells are identified by their position, bold text and `<th>`), but it
+  helps orientation.
   `--jw-dt-color-border` is decorative only (table lines, cards, buttons that
   are identified by their label). When overriding `--jw-dt-*` variables, keep
   ≥ 4.5:1 for text and ≥ 3:1 for form field borders and focus indicators.

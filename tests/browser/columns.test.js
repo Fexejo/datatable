@@ -1,7 +1,7 @@
 // Columns: pinning, scroll shadows, order (keyboard, drag and drop, menu).
 
 import { test, assert, nextFrame, waitFor, deepActiveElement, accessibleName, input } from "./harness.js";
-import { COLUMNS, mount, $, $$, columnTexts, rightClick, announced, headerKeys, menuItem } from "./helpers.js";
+import { COLUMNS, mount, $, $$, columnTexts, rightClick, announced, headerKeys, menuItem, root } from "./helpers.js";
 
 // ---- Column pinning & scroll shadows ----------------------------------------
 
@@ -36,6 +36,10 @@ test("pinned columns move to the front, stick with summed offsets and are part o
     assert.ok(Math.abs(cellLeft(table, "fee")) < 1.5, `fee at ${cellLeft(table, "fee")}`);
     assert.ok(Math.abs(cellLeft(table, "name") - feeWidth) < 1.5, `name at ${cellLeft(table, "name")}, expected ${feeWidth}`);
     assert.ok(Math.abs(cellLeft(table, "id") - (idLeft - 40)) < 1.5, "unpinned column scrolls underneath");
+    const nameCell = $(table, '[data-fk="cell:0:name"]');
+    const edge = nameCell.getBoundingClientRect();
+    assert.equal(getComputedStyle(nameCell).borderRightWidth, "2px");
+    assert.equal(root(table).elementFromPoint(edge.right - 1, edge.top + edge.height / 2), nameCell, "edge drawn over the cells behind it");
 });
 
 test("context menu pins and unpins a column with an announcement", async () => {

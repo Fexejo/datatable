@@ -87,14 +87,22 @@ test("form field borders have 3:1 contrast with the default colors (WCAG 1.4.11)
     }
 });
 
-test("the line under the header has 3:1 contrast with header and rows (default colors)", () => {
-    const table = mount();
-    const th = getComputedStyle($(table, "thead th"));
-    const row = getComputedStyle($(table, "tbody td"));
-    assert.equal(th.borderBottomWidth, "2px");
-    for (const [name, background] of [["header", th.backgroundColor], ["rows", row.backgroundColor === "rgba(0, 0, 0, 0)" ? getComputedStyle($(table, ".jw-dt")).backgroundColor : row.backgroundColor]]) {
-        const ratio = contrast(th.borderBottomColor, background);
-        assert.ok(ratio >= 3, `against the ${name}: ${ratio.toFixed(2)}:1`);
+test("the lines under the header and after the pinned columns have 3:1 contrast with header and rows (default colors)", () => {
+    const table = mount({ features: { columnPinning: true }, initial: { pinnedColumns: ["name"] } });
+    const page = getComputedStyle($(table, ".jw-dt")).backgroundColor;
+    const th = getComputedStyle($(table, 'thead th[data-key="name"]'));
+    const td = getComputedStyle($(table, 'tbody td[data-fk$=":name"]'));
+    const lines = [
+        ["header", th.borderBottomWidth, th.borderBottomColor],
+        ["pinned header", th.borderRightWidth, th.borderRightColor],
+        ["pinned cell", td.borderRightWidth, td.borderRightColor]
+    ];
+    for (const [name, width, color] of lines) {
+        assert.equal(width, "2px", `${name}: width`);
+        for (const [against, background] of [["header", th.backgroundColor], ["rows", page]]) {
+            const ratio = contrast(color, background);
+            assert.ok(ratio >= 3, `${name} against the ${against}: ${ratio.toFixed(2)}:1`);
+        }
     }
 });
 

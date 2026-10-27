@@ -172,13 +172,18 @@ export const datatableStyles = `
     background: var(--jw-dt-color-page, #fff);
 }
 .jw-dt-th.jw-dt-pinned { z-index: 3; background: var(--dt-surface); }
-.has-pins .jw-dt-pinned-last { box-shadow: inset -1px 0 0 var(--dt-border); }
+/* Edge of the pinned block: a strong line (3:1 against header and rows), like
+   the one under the header, so the cells scrolling behind it stay apart. Its
+   width is always reserved (transparent while no pin is sticky): the widths
+   decide which pins fit, and must not change with the result. */
+.jw-dt-pinned-last { border-right: 2px solid transparent; }
+.has-pins .jw-dt-pinned-last { border-right-color: var(--dt-border-strong); }
 .jw-dt-viewport.has-pins.is-overflow-left .jw-dt-pinned-last::after {
     content: "";
     position: absolute;
     top: 0;
     bottom: -1px;
-    right: -12px;
+    right: -14px;
     width: 12px;
     pointer-events: none;
     background: linear-gradient(to right, rgba(0,0,0,0.16), transparent);
