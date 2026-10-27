@@ -751,7 +751,8 @@ renames and deletes views:
   the name, ignoring case). **“My views”** collapses; the panel remembers
   that while the table lives. Its heading shows how many views match.
 - **On mobile** (below `responsive.breakpoint`) each view has one “⋮”
-  button instead of rename and delete; it opens a menu with both.
+  button instead of the share, rename and delete buttons; it opens a menu
+  with these actions.
 - **Sharing** (only with an [adapter that shares](#sharing-views)): each own
   view gets a share toggle (on mobile: “Share” / “Stop sharing” in its menu,
   and “Shared” under its name). A second group, **“Shared by others”**,
@@ -823,11 +824,12 @@ missing view), and the state from `get()` is validated like `setState()` (see
 const views = "/api/table-views";
 const ok = (r) => { if (!r.ok) throw new Error(r.statusText); return r; };
 const url = (key, name = "") => `${views}/${encodeURIComponent(key)}/${encodeURIComponent(name)}`;
+const send = (method, body) => ({ method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
 const backendAdapter = {
     list:   ({ key })            => fetch(url(key)).then(ok).then((r) => r.json()),
     get:    (name, { key })      => fetch(url(key, name)).then((r) => (r.status === 404 ? null : ok(r).json())),
-    save:   (name, s, { key })   => fetch(url(key, name), { method: "PUT", body: JSON.stringify(s) }).then(ok),
-    rename: (from, to, { key })  => fetch(url(key, from), { method: "PATCH", body: JSON.stringify({ name: to }) }).then(ok),
+    save:   (name, s, { key })   => fetch(url(key, name), send("PUT", s)).then(ok),
+    rename: (from, to, { key })  => fetch(url(key, from), send("PATCH", { name: to })).then(ok),
     delete: (name, { key })      => fetch(url(key, name), { method: "DELETE" }).then(ok)
 };
 
@@ -879,11 +881,10 @@ reject or strip RegEx filters (`{ kind: "pattern", operator: "regex" }`)
 when a view is shared.
 
 ```js
+// The backend's list() now answers [{ name, shared }] for the signed-in user.
 const sharingAdapter = {
     ...backendAdapter,
-    // [{ name, shared }] of the signed-in user
-    list:       ({ key })                 => fetch(url(key)).then(ok).then((r) => r.json()),
-    share:      (name, shared, { key })   => fetch(url(key, name), { method: "PATCH", body: JSON.stringify({ shared }) }).then(ok),
+    share:      (name, shared, { key })   => fetch(url(key, name), send("PATCH", { shared })).then(ok),
     listShared: ({ key })                 => fetch(`${views}/${encodeURIComponent(key)}?shared=others`).then(ok).then((r) => r.json())
                                                  .then((list) => list.map((v) => ({ id: v.id, name: v.name, detail: `by ${v.owner}` }))),
     getShared:  (id, { key })             => fetch(`${views}/${encodeURIComponent(key)}/shared/${encodeURIComponent(id)}`)
@@ -1067,6 +1068,10 @@ while the page scrolls past the table, and leaves with the table's last row.
 Inside an element that scrolls itself (`overflow: auto` or `scroll`, e.g. a
 dialog or a side panel), it stays at that element's top. A fixed bar of the
 page would cover it; leave room for one with `--jw-dt-sticky-top`:
+
+```js
+createDataTable("#members", { columns, data, stickyHeader: true, pagination: { pageSize: 100 } });
+```
 
 ```css
 jw-datatable { --jw-dt-sticky-top: 4rem; }   /* height of the page's fixed bar */
