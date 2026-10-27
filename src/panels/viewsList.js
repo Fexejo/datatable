@@ -317,8 +317,9 @@ function viewItem(t, name, { isActive, shared, menu }, actions) {
             // The menu hides the share toggle, so the list says which views are shared.
             viewText(name, menu && shared ? t.viewIsShared : null)
         ]),
+        // A toggle: the name stays, `aria-pressed` gives the state; the tooltip says what a click does.
         !menu && shared !== null && el("button", {
-            type: "button", class: "jw-dt-icon-btn jw-dt-views-share", title: t.shareView,
+            type: "button", class: "jw-dt-icon-btn jw-dt-views-share", title: shared ? t.stopSharing : t.shareView,
             "aria-label": t.shareViewNamed(name), "aria-pressed": String(shared), "data-vk": `share:${name}`,
             onclick: () => actions.share(name, !shared)
         }, [iconEl("share-2")]),

@@ -1283,7 +1283,8 @@ table.
   of matches is announced once typing pauses. On mobile, each view's “⋮”
   button is named “Actions: <view>” (`aria-haspopup="menu"`,
   `aria-expanded`) and opens a `menu` with the same name. With sharing, each
-  own view's share toggle is named “Share: <view>” with `aria-pressed`; the
+  own view's share toggle is named “Share: <view>” with `aria-pressed` (its
+  tooltip says what a click does: “Share” or “Stop sharing”); the
   views of others are a second list in the group “Shared by others”, whose
   buttons include the second line in their name (“Desc by Anna Smith”). Above the groups, “Default view” is a button of its own (`aria-current="true"` while the table is in its initial state). The current view's button has
   `aria-current="true"` and a check mark. Rename/delete buttons are named

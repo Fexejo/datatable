@@ -597,10 +597,13 @@ test("saved views panel: share toggle and the views of others", async () => {
     const toggle = vk(table, "share:Mine");
     assert.equal(accessibleName(toggle), "Share: Mine");
     assert.equal(toggle.getAttribute("aria-pressed"), "false");
+    assert.equal(toggle.title, "Share");
     assert.ok(hasIcon(toggle, "share-2"));
     toggle.click();
     await announced(table, "View “Mine” shared");
     assert.equal(vk(table, "share:Mine").getAttribute("aria-pressed"), "true");
+    assert.equal(vk(table, "share:Mine").title, "Stop sharing", "the tooltip says what a click does");
+    assert.equal(accessibleName(vk(table, "share:Mine")), "Share: Mine", "the name stays");
     assert.equal(deepActiveElement(), vk(table, "share:Mine"), "focus stays on the toggle");
     vk(table, "share:Mine").click();
     await announced(table, "View “Mine” no longer shared");
