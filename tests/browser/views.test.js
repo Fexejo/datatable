@@ -549,6 +549,10 @@ test("sharing API: share, list and load views of others; events and the active v
     await table.deleteView("Desc");
     assert.deepEqual(table.getActiveView()?.shared, shared, "deleting the own view keeps it");
     assert.equal(await table.loadSharedView({ id: "99", name: "Gone" }), false);
+    const error = await table.loadSharedView(/** @type {any} */ ({ id: "7" })).catch((/** @type {unknown} */ e) => e);
+    assert.ok(error instanceof TypeError, "a view needs a name");
+    await table.loadSharedView(/** @type {any} */ ({ id: 7, name: " Desc ", detail: 5 }));
+    assert.deepEqual(table.getActiveView()?.shared, { id: "7", name: "Desc" }, "id and name as strings, no detail");
     await table.saveView("Copy");
     assert.deepEqual(table.getActiveView(), { name: "Copy", modified: false }, "saved as an own view");
 });

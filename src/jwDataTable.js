@@ -449,9 +449,11 @@ class JwDataTable extends HTMLElement {
      */
     async loadSharedView(view) {
         const store = this._requireViewStore();
-        const saved = await store.getShared(String(view?.id ?? ""));
+        /** @type {SharedView} */
+        const shared = { id: String(view?.id ?? ""), name: viewName(view?.name) };
+        if (typeof view.detail === "string") shared.detail = view.detail;
+        const saved = await store.getShared(shared.id);
         if (!saved) return false;
-        const shared = { id: view.id, name: view.name, ...(view.detail != null ? { detail: view.detail } : {}) };
         // Another user's state may only pick a page size this table offers:
         // a huge one would render every row at once.
         const state = { ...saved, page: 1 };

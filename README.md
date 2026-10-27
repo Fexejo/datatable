@@ -863,7 +863,7 @@ under the name — typically the owner. `id` only has to identify the view for
 `getShared()`; names of others may repeat each other and the user's own
 names. Renaming a shared view should keep it shared (the panel says so);
 deleting it ends the sharing. Malformed entries of `listShared()` (no string
-`id` or `name`) are skipped, a non-string `detail` is ignored.
+`id` or `name`, a blank `name`) are skipped, a non-string `detail` is ignored.
 
 **Views of others are input from other users.** The table applies them like
 `setState()`: unknown columns and damaged parts are dropped, names and
@@ -969,7 +969,7 @@ has the shape below.
 | `deleteView(name)` | `Promise` | Delete a view |
 | `shareView(name, shared = true)` | `Promise` | Share an own view, or stop sharing it ([sharing adapter](#sharing-views)) |
 | `listSharedViews()` | `Promise<{ id, name, detail? }[]>` | The views others shared |
-| `loadSharedView(view)` | `Promise<boolean>` | Load one of `listSharedViews()`; `false` if it no longer exists |
+| `loadSharedView(view)` | `Promise<boolean>` | Load one of `listSharedViews()`; `false` if it no longer exists (rejects without a `name`) |
 | `getActiveView()` | `{ name, modified, shared? } \| null` | The view last saved or loaded, whether the state differs from it, and — for a view others shared — that view |
 
 **State shape** (`getState` / `setState` / `initial`):

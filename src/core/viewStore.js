@@ -55,7 +55,8 @@ function validOwnViews(list) {
     });
 }
 
-// Views others shared: { id, name, detail? } with strings (anything else is dropped).
+// Views others shared: { id, name, detail? } with strings, the name not blank
+// (anything else is dropped).
 /**
  * @param {unknown} list
  * @returns {SharedView[]}
@@ -63,7 +64,7 @@ function validOwnViews(list) {
 function validSharedViews(list) {
     if (!Array.isArray(list)) return [];
     return list.flatMap((item) => {
-        if (!isObject(item) || typeof item.id !== "string" || typeof item.name !== "string") return [];
+        if (!isObject(item) || typeof item.id !== "string" || typeof item.name !== "string" || !item.name.trim()) return [];
         return [{ id: item.id, name: item.name, ...(typeof item.detail === "string" ? { detail: item.detail } : {}) }];
     });
 }

@@ -159,6 +159,7 @@ test("ViewStore: shares, lists and gets the views of others with the context", a
         { id: "2", name: "No detail", detail: 5 },
         { id: 3, name: "Bad id" },
         { id: "4" },
+        { id: "5", name: "  " },
         "x"
     ], { 1: { pageSize: 50 }, 2: "state" });
     const store = new ViewStore(/** @type {any} */ (adapter), { key: "orders" });
