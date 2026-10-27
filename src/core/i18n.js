@@ -191,6 +191,7 @@ const en = {
     viewsLoadFailed: "The saved views could not be loaded.",
     viewActionFailed: "That did not work. Please try again.",
     myViews: "My views",
+    defaultView: "Default view",
     filterViews: "Filter views",
     noMatchingViews: "No view matches the filter.",
     viewActions: "Actions",
@@ -256,6 +257,7 @@ const en = {
     viewUpdated: (name) => `View “${name}” updated`,
     /** @param {string} name */
     viewLoaded: (name) => `View “${name}” loaded`,
+    defaultViewRestored: "Default view restored",
     /** @param {string} oldName @param {string} name */
     viewRenamed: (oldName, name) => `View “${oldName}” renamed to “${name}”`,
     /** @param {string} name */
@@ -457,6 +459,7 @@ const de = {
     viewsLoadFailed: "Die gespeicherten Ansichten konnten nicht geladen werden.",
     viewActionFailed: "Das hat nicht geklappt. Bitte erneut versuchen.",
     myViews: "Meine Ansichten",
+    defaultView: "Standardansicht",
     filterViews: "Ansichten filtern",
     noMatchingViews: "Keine Ansicht passt zum Filter.",
     viewActions: "Aktionen",
@@ -501,6 +504,7 @@ const de = {
     viewSaved: (name) => `Ansicht „${name}“ gespeichert`,
     viewUpdated: (name) => `Ansicht „${name}“ aktualisiert`,
     viewLoaded: (name) => `Ansicht „${name}“ geladen`,
+    defaultViewRestored: "Standardansicht wiederhergestellt",
     viewRenamed: (oldName, name) => `Ansicht „${oldName}“ in „${name}“ umbenannt`,
     viewDeleted: (name) => `Ansicht „${name}“ gelöscht`,
     viewsCount: (n) => (n === 1 ? "1 Ansicht" : `${n} Ansichten`),

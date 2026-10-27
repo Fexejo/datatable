@@ -1,4 +1,5 @@
-// Saved views panel: save, load, rename and delete views. Questions
+// Saved views panel: save, load, rename and delete views, or go back to the
+// default view (the table's initial state). Questions
 // (overwrite? delete?), the rename field and errors appear inside the panel;
 // the parts are rebuilt in place and focus moves to the element with that
 // `data-vk`. The name and filter fields are never rebuilt, so typing
@@ -18,7 +19,7 @@
 import { el, deepActiveElement } from "../ui/dom.js";
 import { openContextMenu } from "../ui/contextMenu.js";
 import { uid } from "../core/util.js";
-import { activeView, errorText, listContent, question, sharedContent, visibleNames, visibleShared } from "./viewsList.js";
+import { activeView, defaultView, errorText, listContent, question, sharedContent, visibleNames, visibleShared } from "./viewsList.js";
 
 /** @typedef {import("../core/i18n.js").Translations} Translations */
 /** @typedef {import("../types.js").SharedView} SharedView */
@@ -34,6 +35,8 @@ import { activeView, errorText, listContent, question, sharedContent, visibleNam
  * @property {() => Promise<SharedView[]>} listShared
  * @property {(view: SharedView) => Promise<boolean>} loadShared
  * @property {() => ActiveView|null} active
+ * @property {() => boolean} isDefault  The table is in its initial state.
+ * @property {() => void} reset         Back to the initial state (announces it).
  */
 /** @typedef {import("./viewsList.js").PanelState} PanelState */
 /** @typedef {import("./viewsList.js").ErrorAt} ErrorAt */
@@ -43,7 +46,8 @@ import { activeView, errorText, listContent, question, sharedContent, visibleNam
 
 // `views`: async { list() → [{ name, shared }], save(name), load(name) → found?,
 // rename(old, new), remove(name), share(name, shared), listShared(),
-// loadShared(view) → found? } and active() → { name, modified, shared? } | null.
+// loadShared(view) → found? }, active() → { name, modified, shared? } | null,
+// isDefault() and reset().
 // `announce(message)`, `close()`: status message, close the panel.
 // `collapsed`: which groups are collapsed; the panel updates it.
 // `menu`: the actions of a view in a menu (mobile). `sharing`: the adapter shares views.
@@ -111,6 +115,12 @@ export function buildViewsPanel({ t, views, announce, close, collapsed, menu = f
         load: (name) => loadView({
             name, focus: `load:${name}`, at: "list", load: () => views.load(name), refresh: refreshOwn
         }),
+        // Like loading a view: the panel closes (focus back on its button), then the table announces it.
+        loadDefault: () => {
+            if (ui.busy) return;
+            close();
+            views.reset();
+        },
         loadShared: (view) => loadView({
             name: view.name, focus: `shared:${view.id}`, at: "shared", load: () => views.loadShared(view),
             refresh: async () => { ui.others = await views.listShared(); }
@@ -238,8 +248,9 @@ export function buildViewsPanel({ t, views, announce, close, collapsed, menu = f
                 : null
         ].flatMap((node) => node ?? []));
         /** @type {ListOptions} */
-        const options = { collapsed, menu, sharing, active };
+        const options = { collapsed, menu, sharing, active, isDefault: views.isDefault() };
         listSection.replaceChildren(
+            defaultView(t, options, actions),
             ...listContent(t, ui, errorId, options, actions),
             ...(sharing ? sharedContent(t, ui, errorId, options, actions) : [])
         );

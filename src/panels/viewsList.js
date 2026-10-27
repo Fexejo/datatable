@@ -1,6 +1,7 @@
 // Parts of the saved views panel (`viewsPanel.js`), built from its state:
-// the current view, questions, the groups of own views and of views others
-// shared, and their items. They get the state and the actions, nothing else.
+// the current view, questions, the default view, the groups of own views and
+// of views others shared, and their items. They get the state and the
+// actions, nothing else.
 
 import { el, iconEl } from "../ui/dom.js";
 import { uid } from "../core/util.js";
@@ -23,6 +24,7 @@ import { uid } from "../core/util.js";
  * What the parts can trigger.
  * @typedef {object} Actions
  * @property {(name: string) => void} load
+ * @property {() => void} loadDefault             Back to the table's initial state.
  * @property {(view: SharedView) => void} loadShared
  * @property {(name: string) => void} update      Save the active view again.
  * @property {(name: string) => void} saveAs      Fill the name field to save the active view as an own one.
@@ -40,7 +42,8 @@ import { uid } from "../core/util.js";
  */
 /**
  * How the lists are drawn.
- * @typedef {{ collapsed: Collapsed, menu: boolean, sharing: boolean, active: ActiveView|null }} ListOptions
+ * isDefault: the table is in its initial state.
+ * @typedef {{ collapsed: Collapsed, menu: boolean, sharing: boolean, active: ActiveView|null, isDefault: boolean }} ListOptions
  */
 
 // The error message, when it belongs at `at`.
@@ -155,6 +158,25 @@ function viewText(name, detail) {
         // The space keeps the accessible name readable ("Active by Anna").
         detail && " ",
         detail && el("span", { class: "jw-dt-views-detail", text: detail })
+    ]);
+}
+
+// The table's initial state, as a view above the groups; the filter doesn't hide it.
+/**
+ * @param {Translations} t
+ * @param {ListOptions} options
+ * @param {Actions} actions
+ */
+export function defaultView(t, { isDefault }, actions) {
+    return el("div", { class: "jw-dt-views-item jw-dt-views-default" }, [
+        el("button", {
+            type: "button",
+            class: "jw-dt-views-load",
+            title: t.loadView,
+            "data-vk": "default",
+            "aria-current": isDefault ? "true" : null,
+            onclick: () => actions.loadDefault()
+        }, [isDefault ? iconEl("check") : el("span", { class: "jw-dt-ic" }), viewText(t.defaultView, null)])
     ]);
 }
 

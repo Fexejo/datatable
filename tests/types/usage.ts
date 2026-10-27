@@ -34,6 +34,7 @@ const config: DataTableConfig = {
 const table: JwDataTable = createDataTable("#people", config);
 const same: JwDataTable = createDefault(document.body);
 table.setData([{ id: 2 }]);
+table.resetState();
 table.setState({ pageSize: 25, filters: { name: { kind: "value", values: ["Ada"] } } });
 const state: SerializedState = table.getState();
 const pageSize: number = state.pageSize;

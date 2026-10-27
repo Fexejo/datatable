@@ -729,6 +729,10 @@ With `features.savedViews`, the toolbar gets a **Saved views** button
 (bookmark icon). Its panel saves the current state under a name, loads,
 renames and deletes views:
 
+- **Default view:** the first entry restores the state the table started
+  with (`initial`, the column options `pinned` / `hidden`, `pagination`,
+  `defaultLayout`), like `resetState()`. It is marked as current while
+  nothing differs from it; the filter doesn't hide it.
 - **Saving** a name that already exists asks before overwriting.
 - **Deleting** asks first.
 - **Renaming** happens in place; a name that is already taken is refused.
@@ -767,6 +771,7 @@ await table.loadView("Active only");          // false if there is no such view
 await table.renameView("Active only", "Active");
 await table.deleteView("Active");
 table.getActiveView();                        // { name, modified, shared? } or null
+table.resetState();                           // back to the default view
 ```
 
 The methods return Promises that reject when the storage fails or
@@ -931,6 +936,7 @@ has the shape below.
 | `getState()` | `object` | Serializable state |
 | `setState(partial)` | — | Apply partial state; invalid parts are ignored |
 | `clearFilters()` | — | Clear filters and search |
+| `resetState()` | — | Back to the state the table started with: `initial`, the column options (`pinned`, `hidden`), `pagination.pageSize`, `defaultLayout`; without a configured layout the automatic layout switching is on again. The data stays, a loaded view is no longer active; announced as “Default view restored” |
 | `openExportDialog()` | — | Open the export dialog (also without `features.export`) |
 | `exportData(options?)` | `object \| null` | Export without the dialog; `options` as in [Export](#export) plus `format`, `destination` (XLSX always downloads) and `filename`. Returns the event detail, `null` if cancelled |
 | `saveView(name)` | `Promise` | Save the current state as a view (overwrites) |
@@ -1220,7 +1226,7 @@ or touch also works with the keyboard alone.
 | Filter panel tabs | `←` `→`, `Home` / `End` | Switch between “Values” and “Pattern” |
 | Filter panel, “Values” tab | `Enter` in the search field or on a search-result option | Apply (same as the “Apply” button); the search-result options are radio buttons (`↑` `↓`) |
 | Filter panel, “Pattern” tab | `Enter` in a value field | Apply (same as the “Apply” button) |
-| Saved views panel | `Tab` / `Shift+Tab` stay inside an open question, rename field or actions menu; `Enter` in the name field or the rename field, `Esc` in a question, the rename field or the filled filter field, `Enter` / `Space` on a group heading | Save / rename; `Esc` cancels the question or the rename (the panel stays open, focus returns to the button that started it) or clears the filter; collapse / expand the group. Questions open with focus on “Cancel”; after deleting, focus moves to the next (matching) view. On mobile, `Enter` on a view's “⋮” opens its actions menu (keys as in the actions menu; focus returns to “⋮”). Sharing: `Enter` / `Space` on a share toggle shares or stops sharing (focus stays); “Save as my view” moves focus to the filled name field |
+| Saved views panel | `Tab` / `Shift+Tab` stay inside an open question, rename field or actions menu; `Enter` in the name field or the rename field, `Esc` in a question, the rename field or the filled filter field, `Enter` / `Space` on a group heading | Save / rename; `Esc` cancels the question or the rename (the panel stays open, focus returns to the button that started it) or clears the filter; collapse / expand the group. Questions open with focus on “Cancel”; after deleting, focus moves to the next (matching) view. On mobile, `Enter` on a view's “⋮” opens its actions menu (keys as in the actions menu; focus returns to “⋮”). Sharing: `Enter` / `Space` on a share toggle shares or stops sharing (focus stays); “Save as my view” moves focus to the filled name field. `Enter` on “Default view” (or on a view) loads it, closes the panel and returns focus to the “Saved views” button |
 | Export dialog | `←` `→` (or `↑` `↓`) in a segmented control, `Space` on a switch or “More options”, `Enter` in the file name or on an option | Select an option, toggle a switch, export (same as the “Export” button); focus starts on the selected format and returns to the opener afterwards |
 
 Focus is kept across re-renders (sorting, filtering, paging, …): the same
@@ -1256,7 +1262,7 @@ table.
   `aria-expanded`) and opens a `menu` with the same name. With sharing, each
   own view's share toggle is named “Share: <view>” with `aria-pressed`; the
   views of others are a second list in the group “Shared by others”, whose
-  buttons include the second line in their name (“Desc by Anna Smith”). The current view's button has
+  buttons include the second line in their name (“Desc by Anna Smith”). Above the groups, “Default view” is a button of its own (`aria-current="true"` while the table is in its initial state). The current view's button has
   `aria-current="true"` and a check mark. Rename/delete buttons are named
   “Rename: <view>” / “Delete: <view>”. Questions (overwrite, delete) are an
   `alertdialog` named by the question, which also describes its buttons; the
@@ -1323,6 +1329,7 @@ announced again. Messages:
 - hidden, pinned/unpinned and moved columns (including when there is not
   enough room to keep pinned columns in place);
 - the record shown in the details dialog;
+- the restored default view (`resetState()`, also from the saved views panel);
 - saved/updated/loaded/renamed/deleted/shared/unshared views, the number of
   views matching the filter, and errors of the saved views panel.
 

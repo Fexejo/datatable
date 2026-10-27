@@ -1,7 +1,7 @@
 // Saved views: API, events, panel, adapter errors.
 
 import { test, assert, sleep, waitFor, deepActiveElement, accessibleName, input } from "./harness.js";
-import { mount, $, $$, columnTexts, announced, hasIcon, memoryAdapter, sharingAdapter, SORT_DESC, mountViews, root } from "./helpers.js";
+import { mount, $, $$, columnTexts, announced, hasIcon, memoryAdapter, sharingAdapter, SORT_DESC, mountViews, root, COLUMNS, DATA } from "./helpers.js";
 
 // ---- Saved views ----------------------------------------------------------
 
@@ -10,7 +10,7 @@ const openViews = async (/** @type {HTMLElement} */ table) => {
     await waitFor(() => !$(table, ".jw-dt-overlay").hasAttribute("aria-busy"), { message: "views panel did not load" });
     return $(table, ".jw-dt-overlay");
 };
-const viewNames = (/** @type {HTMLElement} */ table) => $$(table, ".jw-dt-overlay .jw-dt-views-name").map((n) => n.textContent);
+const viewNames = (/** @type {HTMLElement} */ table) => $$(table, ".jw-dt-overlay .jw-dt-views-group .jw-dt-views-name").map((n) => n.textContent);
 const vk = (/** @type {HTMLElement} */ table, /** @type {string} */ key) => $(table, `.jw-dt-overlay [data-vk="${CSS.escape(key)}"]`);
 
 test("saved views store the state without the page and fire events", async () => {
@@ -273,6 +273,82 @@ test("saved views panel: a view deleted elsewhere or failing to load stays in th
     await announced(table, "That did not work. Please try again.");
     assert.equal(deepActiveElement(), vk(table, "load:B"), "focus stays on the view");
 });
+
+// ---- Default view (resetState) ---------------------------------------------
+
+/** @type {Partial<import("../../src/types.js").DataTableConfig>} */
+const STARTED = {
+    features: { savedViews: true, sorting: true, filtering: true, columnPinning: true, columnVisibility: true },
+    columns: COLUMNS.map((c) => (c.key === "name" ? { ...c, pinned: true } : c.key === "joined" ? { ...c, hidden: true } : c)),
+    initial: { sort: SORT_DESC, filters: { active: { kind: "value", values: [true] } } },
+    pagination: { pageSize: 25 }
+};
+
+test("resetState() goes back to the initial state, keeps the data and ends the active view", async () => {
+    const table = mountViews(memoryAdapter({ Asc: { sort: [{ key: "id", direction: "asc" }], pinnedColumns: [] } }), STARTED);
+    const initial = table.getState();
+    assert.deepEqual(initial.pinnedColumns, ["name"], "column option pinned");
+    assert.deepEqual(initial.hiddenColumns, ["joined"], "column option hidden");
+    table.setData(DATA.slice(0, 12));
+    await table.loadView("Asc");
+    table.setState({ page: 2, pageSize: 10, globalSearch: "a", hiddenColumns: [], columnOrder: ["fee", "id", "name", "active", "joined"] });
+    /** @type {any[]} */
+    const changes = [];
+    table.addEventListener("jw-datatable:change", (/** @type {any} */ e) => changes.push(e.detail));
+
+    table.resetState();
+    assert.deepEqual(table.getState(), initial);
+    assert.equal(table.getActiveView(), null, "no active view");
+    assert.equal(table.data.length, 12, "data kept");
+    assert.equal(changes.length, 1, "one change event");
+    await announced(table, "Default view restored");
+});
+
+test("resetState() turns the automatic layout back on; a configured layout stays", async () => {
+    await input.viewport(390, 800);
+    const table = mountViews(memoryAdapter(), { ...STARTED, features: { ...STARTED.features, grid: true }, responsive: { enabled: true } });
+    assert.equal(table.getState().layout, "grid", "cards on a phone");
+    table.setState({ layout: "table" });
+    table.resetState();
+    assert.equal(table.getState().layout, "grid");
+    await input.viewport(1280, 800);
+    await waitFor(() => table.getState().layout === "table", { message: "switches with the width again" });
+
+    const pinned = mountViews(memoryAdapter(), { features: { savedViews: true, grid: true }, defaultLayout: "grid", responsive: { enabled: true } });
+    pinned.setState({ layout: "table" });
+    pinned.resetState();
+    assert.equal(pinned.getState().layout, "grid", "defaultLayout");
+}, { cdp: true });
+
+test("saved views panel: the default view on top restores the initial state", async () => {
+    const table = mountViews(memoryAdapter({ Asc: { sort: [{ key: "id", direction: "asc" }] } }), STARTED);
+    const initial = table.getState();
+    await openViews(table);
+    const entry = () => vk(table, "default");
+    assert.equal(entry().closest(".jw-dt-views-list")?.firstElementChild, entry().parentElement, "first in the list");
+    assert.equal(accessibleName(entry()), "Default view");
+    assert.equal(entry().getAttribute("aria-current"), "true", "current while nothing changed");
+    assert.ok(hasIcon(entry(), "check"));
+    vk(table, "load:Asc").click();
+    await announced(table, "View “Asc” loaded");
+
+    $(table, '[data-fk="tb:saved-views"]').focus();
+    await openViews(table);
+    assert.equal(entry().getAttribute("aria-current"), null, "a view is loaded");
+    vk(table, "filter").value = "zzz";
+    vk(table, "filter").dispatchEvent(new Event("input"));
+    assert.ok(entry(), "the filter doesn't hide it");
+    entry().focus();
+    await input.press("Enter");
+    await announced(table, "Default view restored");
+    assert.equal($(table, ".jw-dt-overlay"), null, "panel closed");
+    assert.equal(deepActiveElement(), $(table, '[data-fk="tb:saved-views"]'), "focus back on the toolbar button");
+    assert.deepEqual(table.getState(), initial);
+
+    table.setState({ globalSearch: "x" });
+    await openViews(table);
+    assert.equal(entry().getAttribute("aria-current"), null, "changed by hand");
+}, { cdp: true });
 
 test("saved views panel: the filter narrows the list as you type", async () => {
     const table = mountViews(memoryAdapter({ Active: {}, Archive: {}, Blocked: {} }));
@@ -579,6 +655,7 @@ test("German saved views panel", async () => {
     assert.equal(accessibleName(vk(table, "rename:A")), "Umbenennen: A");
     assert.equal(vk(table, "group:own").textContent, "Meine Ansichten (1)");
     assert.equal(accessibleName(vk(table, "filter")), "Ansichten filtern");
+    assert.equal(accessibleName(vk(table, "default")), "Standardansicht");
     const sharing = mountViews(sharingAdapter({ A: {} }, OTHERS()), { locale: "de-DE" });
     await openViews(sharing);
     assert.equal(vk(sharing, "group:shared").textContent, "Von anderen geteilt (2)");

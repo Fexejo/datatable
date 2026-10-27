@@ -230,15 +230,8 @@ class JwDataTable extends HTMLElement {
             this._viewStore = new ViewStore(storage.adapter || new LocalStorageAdapter(namespace), { key: storageKey });
         }
 
-        const initial = config.initial || {};
-        this._state = createState(this._columns, initial, {
-            pageSize: pagination.pageSize || this._pageSizeOptions[0] || 25,
-            layout: config.defaultLayout
-        });
-
-        // An explicit layout choice (config or initial state) pins the layout and
-        // opts out of the automatic breakpoint-driven switching.
-        this._layoutUserSet = !!(initial.layout || config.defaultLayout);
+        this._state = this._initialState();
+        this._layoutUserSet = this._layoutConfigured();
 
         this._configured = true;
         this._setupResponsive();
@@ -283,6 +276,42 @@ class JwDataTable extends HTMLElement {
         const clean = sanitizeState(partial, keys);
         if (clean.layout) this._layoutUserSet = true;
         this._commit(mergeState(this._state, clean, keys));
+    }
+
+    // Back to the state configure() started from; the data stays, a loaded
+    // view is no longer active.
+    resetState() {
+        if (!this._configured) return;
+        this._layoutUserSet = this._layoutConfigured();
+        this._activeView = null;
+        const state = this._initialState();
+        state.layout = this._autoLayout() ?? state.layout;
+        this._commit(state, { announce: () => this._announce(this._t.defaultViewRestored) });
+    }
+
+    // The state from `initial`, the column options (`pinned`, `hidden`),
+    // `pagination` and `defaultLayout`.
+    /** @returns {TableState} */
+    _initialState() {
+        const config = this._config;
+        return createState(this._columns, config.initial || {}, {
+            pageSize: config.pagination?.pageSize || this._pageSizeOptions[0] || 25,
+            layout: config.defaultLayout
+        });
+    }
+
+    // An explicit layout choice (config or initial state) pins the layout and
+    // opts out of the automatic breakpoint-driven switching.
+    _layoutConfigured() {
+        return !!(this._config.initial?.layout || this._config.defaultLayout);
+    }
+
+    // Whether the state matches the initial one (no view loaded, nothing changed).
+    _isDefaultState() {
+        if (this._activeView) return false;
+        const state = this._initialState();
+        state.layout = this._autoLayout() ?? state.layout;
+        return viewSignature(serializeState(state, { includePage: false })) === this._viewSignature();
     }
 
     clearFilters() {
@@ -472,9 +501,15 @@ class JwDataTable extends HTMLElement {
     }
 
     _applyAutoLayout() {
-        if (!this._responsive || !this._responsive.enabled || !this._responsive.autoLayout) return;
-        if (this._layoutUserSet || !this._availableLayouts().includes(this._responsive.mobileLayout)) return;
-        this._state.layout = this._mobileMatches ? this._responsive.mobileLayout : "table";
+        this._state.layout = this._autoLayout() ?? this._state.layout;
+    }
+
+    // The layout for the screen width while it switches automatically, else null.
+    /** @returns {Layout|null} */
+    _autoLayout() {
+        if (!this._responsive || !this._responsive.enabled || !this._responsive.autoLayout) return null;
+        if (this._layoutUserSet || !this._availableLayouts().includes(this._responsive.mobileLayout)) return null;
+        return this._mobileMatches ? this._responsive.mobileLayout : "table";
     }
 
     /** @param {boolean} matches */
@@ -1569,7 +1604,9 @@ class JwDataTable extends HTMLElement {
                 load: (name) => this.loadView(name),
                 rename: (oldName, newName) => this.renameView(oldName, newName),
                 remove: (name) => this.deleteView(name),
-                active: () => this.getActiveView()
+                active: () => this.getActiveView(),
+                isDefault: () => this._isDefaultState(),
+                reset: () => this.resetState()
             },
             announce: (message) => this._announce(message),
             close: () => this._closeOverlay(),
