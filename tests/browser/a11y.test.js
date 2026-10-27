@@ -1,7 +1,7 @@
 // Accessibility: roles and names, keyboard, focus management, roving focus, announcements.
 
-import { test, assert, sleep, waitFor, deepActiveElement, accessibleName, input } from "./harness.js";
-import { COLUMNS, ALL_FEATURES, mount, $, $$, columnTexts, rightClick, statusText, announced, hasIcon, status, root } from "./helpers.js";
+import { test, assert, sleep, waitFor, nextFrame, deepActiveElement, accessibleName, input } from "./harness.js";
+import { COLUMNS, ALL_FEATURES, mount, $, $$, columnTexts, rightClick, statusText, announced, hasIcon, status, root, mountSticky, headerBox } from "./helpers.js";
 import { createIcon } from "../../src/ui/icons.js";
 
 // ---- Accessibility --------------------------------------------------------
@@ -466,6 +466,25 @@ test("maxHeight: arrow keys never leave the focused cell under the sticky header
         await input.press("ArrowUp");
         const cell = deepActiveElement();
         if (cell && cell.getBoundingClientRect().top < headerBottom - 1) covered.push(cell.dataset.fk ?? "");
+    }
+    assert.equal(deepActiveElement()?.dataset.fk, "cell:0:joined");
+    assert.deepEqual(covered, [], "cells focused under the header");
+}, { cdp: true });
+
+test("stickyHeader: arrow keys never leave the focused cell under the header or a fixed bar", async () => {
+    const table = mountSticky();
+    table.style.setProperty("--jw-dt-sticky-top", "40px");
+    $(table, "tbody td").focus();
+    await input.press("End", ["Control"]);
+    /** @type {string[]} */
+    const covered = [];
+    for (let i = 0; i < 29; i++) {
+        await input.press("ArrowUp");
+        await nextFrame();
+        await nextFrame();
+        const cell = deepActiveElement();
+        const header = headerBox(table);
+        if (cell && cell.getBoundingClientRect().top < Math.max(header.bottom, 40) - 1) covered.push(cell.dataset.fk ?? "");
     }
     assert.equal(deepActiveElement()?.dataset.fk, "cell:0:joined");
     assert.deepEqual(covered, [], "cells focused under the header");

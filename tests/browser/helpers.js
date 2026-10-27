@@ -203,3 +203,20 @@ export const menuItem = (/** @type {HTMLElement} */ table, /** @type {string} */
 
 /** @type {Partial<import("../../src/types.js").DataTableConfig>} */
 export const COMPACT = { features: { compact: true }, defaultLayout: "compact" };
+
+// stickyHeader: a table of 30 rows with room below it to scroll the page past it.
+/** @param {Partial<import("../../src/types.js").DataTableConfig>} [config] */
+export function mountSticky(config = {}) {
+    const table = mount({ stickyHeader: true, pagination: { pageSize: 30 }, ...config });
+    const spacer = document.createElement("div");
+    spacer.style.height = "2000px";
+    table.after(spacer);
+    return table;
+}
+
+// Scrolls the page until the top of the table lies `by` px above the window's top.
+export const scrollPagePast = (/** @type {HTMLElement} */ table, /** @type {number} */ by) =>
+    scrollTo(0, scrollY + $(table, "table").getBoundingClientRect().top + by);
+
+// Box of the (shifted) header row; the thead itself isn't transformed.
+export const headerBox = (/** @type {HTMLElement} */ table) => $(table, "thead th").getBoundingClientRect();

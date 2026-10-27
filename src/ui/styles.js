@@ -202,6 +202,11 @@ export const datatableStyles = `
 }
 /* A cell focused under the sticky header scrolls out from under it (set from JS). */
 .jw-dt-td { scroll-margin-top: var(--dt-head-h, 0px); }
+/* stickyHeader: the header follows the page, shifted from JS (ui/stickyHead.js);
+   the viewport's scroll margin carries the offset below a fixed bar of the page. */
+.jw-dt-viewport.is-sticky-head { scroll-margin-top: var(--jw-dt-sticky-top, 0px); }
+.is-sticky-head .jw-dt-th { transform: translateY(var(--dt-head-shift, 0px)); }
+.is-sticky-head .jw-dt-td { scroll-margin-top: calc(var(--dt-head-h, 0px) + var(--jw-dt-sticky-top, 0px)); }
 /* Column drag and drop (desktop): dragged header dimmed, drop position as an accent bar. */
 .jw-dt-th[draggable="true"] { cursor: grab; }
 .jw-dt-th.is-dragging { opacity: 0.5; }

@@ -508,6 +508,7 @@
                 cellOverflow: "ellipsis",
                 columnMinWidth: "8rem",
                 maxHeight: "",
+                stickyHeader: true,
                 defaultLayout: "",
                 pageSize: 25,
                 pageSizeOptions: "",
@@ -578,6 +579,7 @@
                 responsive: { enabled: r.enabled, autoLayout: r.autoLayout, mobileLayout: r.mobileLayout, breakpoint: Number(r.breakpoint) || 640 },
                 grid: { titleColumn: blank(cfg.grid.titleColumn), minWidth: blank(cfg.grid.minWidth) },
                 maxHeight: blank(cfg.maxHeight),
+                stickyHeader: cfg.stickyHeader,
                 columnMinWidth: blank(cfg.columnMinWidth),
                 cellOverflow: cfg.cellOverflow,
                 exportFilename: blank(cfg.exportFilename),
@@ -865,7 +867,8 @@
                 select("defaultLayout", optionLabel("defaultLayout"), [["", "— automatic —"], ["table", "table"], ["grid", "grid"], ["compact", "compact"]], { drop: ["layout"] }),
                 select("cellOverflow", optionLabel("cellOverflow"), [["wrap", "wrap"], ["ellipsis", "ellipsis"]]),
                 text("columnMinWidth", optionLabel("columnMinWidth"), { placeholder: "e.g. 10rem" }),
-                text("maxHeight", optionLabel("maxHeight"), { placeholder: "e.g. 60vh" })
+                text("maxHeight", optionLabel("maxHeight"), { placeholder: "e.g. 60vh" }),
+                checkbox("stickyHeader", optionLabel("stickyHeader"))
             ),
             section("Pagination",
                 select("pageSize", optionLabel("pagination.pageSize"), [10, 25, 50, 100, 250, 500, 1000].map((n) => [String(n), String(n)]), { drop: ["pageSize", "page"] }),

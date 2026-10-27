@@ -18,6 +18,7 @@
  * @property {{ minWidth?: string, titleColumn?: string }} [grid] Card layout.
  * @property {{ enabled?: boolean, breakpoint?: number, autoLayout?: boolean, mobileLayout?: Layout }} [responsive]
  * @property {string} [maxHeight]               Scroll the body above this height (sticky header).
+ * @property {boolean} [stickyHeader]           Keep the header in sight while the page scrolls (not with maxHeight).
  * @property {string} [columnMinWidth]          Minimum width of text columns.
  * @property {"wrap"|"ellipsis"} [cellOverflow] Long cell text wraps or ends in "…".
  * @property {{ adapter?: ViewStorageAdapter, namespace?: string, key?: string }} [storage] Saved views.

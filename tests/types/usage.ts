@@ -27,6 +27,7 @@ const config: DataTableConfig = {
     features: { filtering: true, export: true, savedViews: true },
     initial: { sort: [{ key: "name", direction: "asc" }], layout: "grid" },
     storage: { adapter: new LocalStorageAdapter("people") },
+    stickyHeader: true,
     onRowClick: (row, index) => console.log(row.name, index)
 };
 

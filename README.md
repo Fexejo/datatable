@@ -13,6 +13,7 @@ written in Vanilla JS (ES modules, Shadow DOM). No external dependencies.
 - **Context menu** – sort, filter, copy (cell/row/column), pin/hide column, export
 - **Record details** – dialog with all fields of a row (including hidden columns), previous/next through all results
 - **Column order** – move columns via drag and drop on the header (desktop), the context menu, `Ctrl+Shift+←/→` or the column chooser
+- **Sticky header** – the column headers stay in sight while the page scrolls past the table (`stickyHeader`), or the body scrolls under them (`maxHeight`)
 - **Column pinning** – pin any columns to the left edge (sticky while scrolling horizontally); scroll shadows show where more content is
 - **Export** – CSV, Excel (XLSX) or JSON as a download or to the clipboard, via a dialog (rows, columns, raw or formatted values, header, delimiter); entirely in the browser, protected against formula injection
 - **Card layout** – cards with label/value pairs as an alternative to the table (two columns, stacked on narrow cards)
@@ -203,6 +204,7 @@ table.configure({ /* … */ });
 | `grid` | `object` | — | `{ minWidth, titleColumn }` |
 | `responsive` | `object` | *(on)* | `{ enabled, breakpoint, autoLayout, mobileLayout }` — see [Responsive & touch](#responsive--touch) |
 | `maxHeight` | `string` | — | e.g. `"60vh"`; scroll body, sticky header |
+| `stickyHeader` | `boolean` | `false` | Header stays in sight while the page scrolls past the table; not with `maxHeight` (see [Size & placement](#size--placement)) |
 | `columnMinWidth` | `string` | — | Minimum width of text columns, e.g. `"10rem"` (see [Column widths](#column-widths)) |
 | `cellOverflow` | `"wrap" \| "ellipsis"` | `"wrap"` | Long cell text wraps, or stays on one line with “…” (see [Long cell content](#long-cell-content)) |
 | `storage` | `object` | — | Saved views: `{ adapter, namespace, key }` (see [Saved views](#saved-views--storage-adapter)) |
@@ -986,6 +988,7 @@ each has a built-in default, so none is required:
 | `--jw-dt-space-2xs` / `-xs` / `-s` / `-l` / `-4xl` | `4px` / `6px` / `8px` / `12px` / `24px` | Spacing |
 | `--jw-dt-radius-s` / `-m` / `-l` | `8px` / `10px` / `12px` | Corner radius |
 | `--jw-dt-cell-max-width` | `16rem` | Width of truncated cells (see `cellOverflow`) |
+| `--jw-dt-sticky-top` | `0px` | Room above the `stickyHeader` header, e.g. for a fixed bar of the page |
 
 **Dark mode:** set the color variables for it, e.g. under your own
 `[data-theme="dark"]` or `@media (prefers-color-scheme: dark)` (the demo does
@@ -1025,6 +1028,21 @@ jw-datatable { max-width: 48rem; }                 /* fixed or capped width */
 
 Height grows with the rows; set `maxHeight` (e.g. `"60vh"`) to scroll the body
 vertically under a sticky header.
+
+**Sticky header.** With `stickyHeader: true` the header row stays at the top
+while the page scrolls past the table, and leaves with the table's last row.
+Inside an element that scrolls itself (`overflow: auto` or `scroll`, e.g. a
+dialog or a side panel), it stays at that element's top. A fixed bar of the
+page would cover it; leave room for one with `--jw-dt-sticky-top`:
+
+```css
+jw-datatable { --jw-dt-sticky-top: 4rem; }   /* height of the page's fixed bar */
+```
+
+While the header would cover more than 30% of the visible height (strong zoom,
+a phone in landscape), it scrolls away with the rows. The card layout has no
+header; with `maxHeight` the header already sticks in the body, so
+`stickyHeader` is ignored there.
 
 The switch to the mobile layout follows the **viewport** width
 (`responsive.breakpoint`), not the component's own width: a narrow table on a
@@ -1325,8 +1343,13 @@ focus in place.
   element, including cells, cards and menu items; copy buttons that are hidden
   until hover become visible on keyboard focus.
 - A cell that gets focus never stays hidden under the sticky header
-  (`maxHeight`; WCAG 2.4.11): cells keep a scroll margin of the header
-  height, so the body scrolls them out from under it.
+  (`maxHeight`, `stickyHeader` with `--jw-dt-sticky-top`; WCAG 2.4.11): cells
+  keep a scroll margin of the header height, so the body or the page scrolls
+  them out from under it.
+- The `stickyHeader` header is the table's own header row, moved along
+  (not a copy), so it keeps labelling its columns for screen readers. It
+  does not stick while it would cover more than 30% of the visible height
+  (WCAG 1.4.10).
 - Touch targets ≥ 44px on narrow screens and on every touch screen
   (`pointer: coarse`, also tablets in the desktop layout); copy buttons stay
   small next to the value but have a 44px tap area. With a mouse at desktop
@@ -1508,6 +1531,16 @@ prefix `jw-dt-` (context menu `jw-ctx-`). Theme variables `--jw-dt-*` are read
 with their default as fallback (never set inside, so they inherit from the
 page); internal variables are `--dt-*` (set on `:host` or by JS, e.g. the
 pinned column offsets).
+
+**Sticky header.** `src/ui/stickyHead.js`. With `maxHeight` the header cells
+are `position: sticky` in the body. With `stickyHeader` CSS sticky can't
+follow the page: the body scrolls horizontally, which makes it the sticky
+container on both axes. So `StickyHead` listens to the scrolling of the
+window or the nearest scrolling ancestor (found across shadow roots, again
+after the table moves) and shifts the header cells by `translateY`
+(`--dt-head-shift` on the thead), once per frame. In both modes the cells get
+the header height as `scroll-margin-top` (`--dt-head-h` on the viewport), so
+focus never stays under the header.
 
 ---
 

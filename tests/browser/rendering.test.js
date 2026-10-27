@@ -1,7 +1,7 @@
 // Rendering: public API, table, sorting, pagination, search, layouts, responsive, widths, cards.
 
 import { test, assert, nextFrame, waitFor, deepActiveElement, accessibleName, input } from "./harness.js";
-import { ENTRY, api, createDataTable, DATA, COLUMNS, mount, $, $$, columnTexts, rightClick, headerKeys, menuItem, root, announced } from "./helpers.js";
+import { ENTRY, api, createDataTable, DATA, COLUMNS, mount, $, $$, columnTexts, rightClick, headerKeys, menuItem, root, announced, mountSticky, scrollPagePast, headerBox } from "./helpers.js";
 
 // ---- Public API -----------------------------------------------------------
 
@@ -339,6 +339,51 @@ test("numbers, dates and booleans never wrap; text does", () => {
     const whiteSpace = (/** @type {string} */ key) => getComputedStyle($(table, `[data-fk="cell:0:${key}"] .jw-dt-value`)).whiteSpace;
     for (const key of ["id", "fee", "active", "joined"]) assert.equal(whiteSpace(key), "nowrap", key);
     assert.equal(whiteSpace("name"), "normal");
+});
+
+// ---- Sticky header ----------------------------------------------------------
+
+test("stickyHeader: the header follows the page below --jw-dt-sticky-top and stops at the table's end", async () => {
+    const table = mountSticky();
+    table.style.setProperty("--jw-dt-sticky-top", "3rem");
+    const tableBox = () => $(table, "table").getBoundingClientRect();
+    scrollPagePast(table, 300);
+    await waitFor(() => Math.abs(headerBox(table).top - 48) < 1, { message: "header 3rem below the window's top" });
+    const th = $(table, 'thead th[data-key="name"]');
+    const { left, bottom } = th.getBoundingClientRect();
+    assert.equal(root(table).elementFromPoint(left + 5, bottom - 5)?.closest("th"), th, "header drawn over the rows");
+    assert.equal($(table, "table").tHead.rows[0], th.parentElement, "same table: headers keep labelling their columns");
+
+    scrollPagePast(table, tableBox().height);
+    await waitFor(() => Math.abs(headerBox(table).bottom - tableBox().bottom) < 1, { message: "header stops at the table's end" });
+    scrollTo(0, 0);
+    await waitFor(() => !$(table, "thead").style.getPropertyValue("--dt-head-shift"), { message: "header back in place" });
+});
+
+test("stickyHeader: follows a scrolling container, also after moving the table into one", async () => {
+    const table = mountSticky();
+    const box = document.createElement("div");
+    box.style.cssText = "height: 400px; overflow: auto";
+    table.after(box);
+    box.append(table);
+    box.scrollTop = 300;
+    await waitFor(() => Math.abs(headerBox(table).top - box.getBoundingClientRect().top) < 1, { message: "header at the container's top" });
+    // While the header would cover more than 30% of the container, it scrolls away with the rows.
+    box.style.height = "100px";
+    box.scrollTop = 310;
+    await waitFor(() => !$(table, "thead").style.getPropertyValue("--dt-head-shift"), { message: "no shift in a low container" });
+    assert.ok(headerBox(table).bottom < box.getBoundingClientRect().top, "header scrolled out of sight");
+});
+
+test("stickyHeader: only for tables without maxHeight; cards have no header to follow", async () => {
+    const table = mountSticky({ maxHeight: "300px", features: { grid: true } });
+    assert.ok(!$(table, ".jw-dt-viewport").classList.contains("is-sticky-head"), "maxHeight: sticks in the body");
+    table.configure({ columns: COLUMNS, data: DATA, stickyHeader: true, features: { grid: true }, defaultLayout: "grid" });
+    assert.ok(!$(table, ".jw-dt-viewport").classList.contains("is-sticky-head"), "cards");
+    $(table, '[data-fk="tb:layout:table"]').click();
+    assert.ok($(table, ".jw-dt-viewport").classList.contains("is-sticky-head"), "table layout");
+    table.remove();
+    assert.ok(!$(table, ".jw-dt-viewport").classList.contains("is-sticky-head"), "removed: stops following");
 });
 
 // ---- Cards --------------------------------------------------------------------

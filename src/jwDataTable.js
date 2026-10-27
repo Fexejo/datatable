@@ -34,7 +34,7 @@ import { openContextMenu, closeContextMenu } from "./ui/contextMenu.js";
 import { writeClipboard, confirmOnButton, flashCopied } from "./ui/clipboard.js";
 import { waitForLongPress } from "./ui/longPress.js";
 import { layoutPinned, updateScrollShadows } from "./ui/pinnedLayout.js";
-import { layoutHeadMargin } from "./ui/stickyHead.js";
+import { StickyHead, layoutHeadMargin } from "./ui/stickyHead.js";
 import { buildToolbar, buildFilterButtons } from "./render/toolbar.js";
 import { buildFooter, pageInfoText } from "./render/footer.js";
 import { buildFilterPanel } from "./panels/filterPanel.js";
@@ -158,6 +158,7 @@ class JwDataTable extends HTMLElement {
         this._suppressContextUntil = 0;
         /** @type {ResizeObserver|null} */
         this._resizeObserver = null;
+        this._stickyHead = new StickyHead();
         // Rendered row, cell, card, header and field elements → their record
         // { row, index, column, value }, read by the delegated event handlers.
         /** @type {WeakMap<Element, ItemRecord|RowRecord>} */
@@ -181,6 +182,7 @@ class JwDataTable extends HTMLElement {
         if (!this._configured) return;
         if (!this._mql) this._setupResponsive();
         if (!this.shadow.querySelector(".jw-dt")) this._render();
+        else this._observeLayout();   // moved: observers and the scroll container are new
     }
 
     disconnectedCallback() {
@@ -192,6 +194,7 @@ class JwDataTable extends HTMLElement {
         this._cancelLongPress();
         this._teardownResponsive();
         this._resizeObserver?.disconnect();
+        this._stickyHead.sync(null);
     }
 
     // ---- Public API -------------------------------------------------------
@@ -851,8 +854,8 @@ class JwDataTable extends HTMLElement {
 
     // ---- Pinned columns & scroll shadows ----------------------------------
 
-    // Lays out pinned columns and the header's scroll margin now and again
-    // whenever the body or table resizes.
+    // Lays out pinned columns and the sticky header now and again whenever
+    // the body or table resizes.
     _observeLayout() {
         this._layout();
         if (typeof ResizeObserver !== "function") return;
@@ -868,7 +871,11 @@ class JwDataTable extends HTMLElement {
         this._layoutPinned();
         /** @type {HTMLElement|null} */
         const viewport = this.shadow.querySelector(".jw-dt-viewport");
-        if (viewport) layoutHeadMargin(viewport, !!this._config.maxHeight);
+        // maxHeight: the header sticks in the body; else, with stickyHeader, to the page.
+        const { maxHeight, stickyHeader } = this._config;
+        const page = !!stickyHeader && !maxHeight && !!viewport?.querySelector(".jw-dt-table");
+        if (viewport) layoutHeadMargin(viewport, !!maxHeight || page);
+        this._stickyHead.sync(page ? viewport : null);
     }
 
     // Pinned columns that don't fit are paused (see ui/pinnedLayout.js).
