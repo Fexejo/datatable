@@ -1591,8 +1591,9 @@ pinned column offsets).
 are `position: sticky` in the body. With `stickyHeader` CSS sticky can't
 follow the page: the body scrolls horizontally, which makes it the sticky
 container on both axes. So `StickyHead` listens to the scrolling of the
-window or the nearest scrolling ancestor (found across shadow roots, again
-after the table moves) and shifts the header cells by `translateY`
+window or the nearest scrolling ancestor (`ScrollWatch` in
+`src/ui/scrollWatch.js`: found across shadow roots, again after the table
+moves) and shifts the header cells by `translateY`
 (`--dt-head-shift` on the thead), once per frame. In both modes the cells get
 the header height as `scroll-margin-top` (`--dt-head-h` on the viewport), so
 focus never stays under the header. While rows lie under the header (body

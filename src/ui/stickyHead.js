@@ -19,6 +19,7 @@
 // header casts a shadow on them.
 
 import { clamp } from "../core/util.js";
+import { ScrollWatch } from "./scrollWatch.js";
 
 // The header doesn't follow the page while it would cover more than this share
 // of the visible height (zoomed in, phone in landscape): the rows must stay
@@ -53,15 +54,7 @@ export class StickyHead {
     constructor() {
         /** @type {HTMLElement|null} */
         this._viewport = null;
-        /** @type {Element|Window|null} */
-        this._scroller = null;
-        this._frame = 0;
-        this._onScroll = () => {
-            this._frame ||= requestAnimationFrame(() => {
-                this._frame = 0;
-                this.update();
-            });
-        };
+        this._scroll = new ScrollWatch(() => this.update());
     }
 
     // Follows the header in `viewport`; null stops following.
@@ -73,24 +66,14 @@ export class StickyHead {
         }
         this._viewport = viewport;
         viewport?.classList.add("is-sticky-head");
-        const scroller = viewport ? scrollParent(viewport) : null;
-        if (scroller !== this._scroller) {
-            this._scroller?.removeEventListener("scroll", this._onScroll);
-            scroller?.addEventListener("scroll", this._onScroll, { passive: true });
-            if (!scroller) {
-                removeEventListener("resize", this._onScroll);
-                cancelAnimationFrame(this._frame);
-                this._frame = 0;
-            } else if (!this._scroller) addEventListener("resize", this._onScroll, { passive: true });
-            this._scroller = scroller;
-        }
+        this._scroll.watch(viewport);
         this.update();
     }
 
     // Reads the positions, then writes the shift only if it changed.
     update() {
         const head = this._head();
-        const scroller = this._scroller;
+        const scroller = this._scroll.scroller;
         if (!this._viewport || !scroller || !head) return;
         // The offset is a length in any unit; scroll-margin-top resolves it to px.
         const offset = parseFloat(getComputedStyle(this._viewport).scrollMarginTop) || 0;
@@ -113,26 +96,4 @@ export class StickyHead {
         const table = this._viewport?.querySelector(".jw-dt-table");
         return table?.tHead ?? null;
     }
-}
-
-// The element whose scrolling moves `node` (across shadow roots), else the window.
-/**
- * @param {Element} node
- * @returns {Element|Window}
- */
-function scrollParent(node) {
-    for (let n = parentOf(node); n && n !== document.body && n !== document.documentElement; n = parentOf(n)) {
-        const { overflowY } = getComputedStyle(n);
-        if (overflowY === "auto" || overflowY === "scroll") return n;
-    }
-    return window;
-}
-
-/**
- * @param {Element} node
- * @returns {Element|null}
- */
-function parentOf(node) {
-    const parent = node.parentNode;
-    return parent instanceof ShadowRoot ? parent.host : node.parentElement;
 }
