@@ -214,6 +214,26 @@ export function mountSticky(config = {}) {
     return table;
 }
 
+// Sticky scrollbar: a table of 30 rows, narrower than its columns, at the top
+// of the page and taller than the window, with room below it to scroll past it.
+/** @param {Partial<import("../../src/types.js").DataTableConfig>} [config] */
+export function mountWide(config = {}) {
+    scrollTo(0, 0);
+    const table = mount({ pagination: { pageSize: 30 }, columnMinWidth: "12rem", ...config });
+    table.style.width = "320px";
+    const spacer = document.createElement("div");
+    spacer.style.height = "2000px";
+    table.after(spacer);
+    return table;
+}
+
+// The sticky scrollbar, once it is shown.
+export const shownBar = (/** @type {HTMLElement} */ table) => waitFor(() => {
+    /** @type {HTMLElement|null} */
+    const bar = table.shadowRoot?.querySelector(".jw-dt-hscroll") ?? null;
+    return bar && !bar.hidden ? bar : null;
+}, { message: "sticky scrollbar shown" });
+
 // Scrolls the page until the top of the table lies `by` px above the window's top.
 export const scrollPagePast = (/** @type {HTMLElement} */ table, /** @type {number} */ by) =>
     scrollTo(0, scrollY + $(table, "table").getBoundingClientRect().top + by);

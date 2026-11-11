@@ -1,5 +1,5 @@
-// The table: borders, scroll shadows, pinned columns, header (sticky), column
-// drag, widths, compact layout, cells and copy buttons.
+// The table: borders, scroll shadows, pinned columns, header (sticky), sticky
+// scrollbar, column drag, widths, compact layout, cells and copy buttons.
 
 export const tableStyles = `
 /* Table */
@@ -95,6 +95,23 @@ export const tableStyles = `
     pointer-events: none;
     background: linear-gradient(rgba(0,0,0,0.14), transparent);
 }
+/* Sticky horizontal scrollbar (ui/stickyScrollbar.js): lifted from JS to the
+   bottom of the visible area; cells keep a scroll margin of its height. */
+.jw-dt-hscroll {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 5;
+    overflow-x: scroll;
+    overflow-y: hidden;
+    background: var(--jw-dt-color-page, #fff);
+    border-top: 1px solid var(--dt-border);
+}
+.jw-dt-hscroll-track { height: 1px; }
+.jw-dt-viewport.is-sticky-scrollbar { scroll-margin-bottom: var(--jw-dt-sticky-bottom, 0px); }
+.has-hscroll .jw-dt-td { scroll-margin-bottom: calc(var(--dt-hscroll-h, 0px) + var(--jw-dt-sticky-bottom, 0px)); }
+@media print { .jw-dt-hscroll { display: none; } }
 /* Column drag and drop (desktop): dragged header dimmed, drop position as an accent bar. */
 .jw-dt-th[draggable="true"] { cursor: grab; }
 .jw-dt-th.is-dragging { opacity: 0.5; }

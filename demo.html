@@ -509,6 +509,7 @@
                 columnMinWidth: "8rem",
                 maxHeight: "",
                 stickyHeader: true,
+                stickyScrollbar: true,
                 defaultLayout: "",
                 pageSize: 25,
                 pageSizeOptions: "",
@@ -580,6 +581,7 @@
                 grid: { titleColumn: blank(cfg.grid.titleColumn), minWidth: blank(cfg.grid.minWidth) },
                 maxHeight: blank(cfg.maxHeight),
                 stickyHeader: cfg.stickyHeader,
+                stickyScrollbar: cfg.stickyScrollbar,
                 columnMinWidth: blank(cfg.columnMinWidth),
                 cellOverflow: cfg.cellOverflow,
                 exportFilename: blank(cfg.exportFilename),
@@ -868,7 +870,8 @@
                 select("cellOverflow", optionLabel("cellOverflow"), [["wrap", "wrap"], ["ellipsis", "ellipsis"]]),
                 text("columnMinWidth", optionLabel("columnMinWidth"), { placeholder: "e.g. 10rem" }),
                 text("maxHeight", optionLabel("maxHeight"), { placeholder: "e.g. 60vh" }),
-                checkbox("stickyHeader", optionLabel("stickyHeader"))
+                checkbox("stickyHeader", optionLabel("stickyHeader")),
+                checkbox("stickyScrollbar", optionLabel("stickyScrollbar"))
             ),
             section("Pagination",
                 select("pageSize", optionLabel("pagination.pageSize"), [10, 25, 50, 100, 250, 500, 1000].map((n) => [String(n), String(n)]), { drop: ["pageSize", "page"] }),

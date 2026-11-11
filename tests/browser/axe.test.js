@@ -1,7 +1,7 @@
 // Automated accessibility checks with axe-core (from node_modules: npm ci).
 
 import { test, assert, nextFrame, waitFor, input } from "./harness.js";
-import { ALL_FEATURES, mount, $, $$, rightClick, memoryAdapter, sharingAdapter, SORT_DESC, mountViews, COMPACT, mountSticky, scrollPagePast } from "./helpers.js";
+import { ALL_FEATURES, mount, $, $$, rightClick, memoryAdapter, sharingAdapter, SORT_DESC, mountViews, COMPACT, mountSticky, scrollPagePast, mountWide, shownBar } from "./helpers.js";
 
 // ---- Automated accessibility checks (axe-core) ------------------------------
 
@@ -136,6 +136,12 @@ test("axe: stickyHeader — header shifted over the rows, with pinned columns", 
     scrollPagePast(table, 300);
     await waitFor(() => $(table, "thead").style.getPropertyValue("--dt-head-shift"), { message: "header shifted" });
     await assertNoAxeViolations("sticky header");
+});
+
+test("axe: stickyScrollbar — shown at the window's bottom, with a sticky header", async () => {
+    const table = mountWide({ title: "Members", stickyHeader: true, features: { ...ALL_FEATURES } });
+    await shownBar(table);
+    await assertNoAxeViolations("sticky scrollbar");
 });
 
 test("axe: mobile — cards, bottom sheet and context menu", async () => {

@@ -35,6 +35,7 @@ import { writeClipboard, confirmOnButton, flashCopied } from "./ui/clipboard.js"
 import { waitForLongPress } from "./ui/longPress.js";
 import { layoutPinned, updateScrollShadows } from "./ui/pinnedLayout.js";
 import { StickyHead, layoutHead, updateBodyStuck } from "./ui/stickyHead.js";
+import { StickyScrollbar } from "./ui/stickyScrollbar.js";
 import { buildToolbar, buildFilterButtons } from "./render/toolbar.js";
 import { buildFooter, pageInfoText } from "./render/footer.js";
 import { buildFilterPanel } from "./panels/filterPanel.js";
@@ -159,6 +160,7 @@ class JwDataTable extends HTMLElement {
         /** @type {ResizeObserver|null} */
         this._resizeObserver = null;
         this._stickyHead = new StickyHead();
+        this._stickyScrollbar = new StickyScrollbar();
         // Rendered row, cell, card, header and field elements → their record
         // { row, index, column, value }, read by the delegated event handlers.
         /** @type {WeakMap<Element, ItemRecord|RowRecord>} */
@@ -195,6 +197,7 @@ class JwDataTable extends HTMLElement {
         this._teardownResponsive();
         this._resizeObserver?.disconnect();
         this._stickyHead.sync(null);
+        this._stickyScrollbar.sync(null);
     }
 
     // ---- Public API -------------------------------------------------------
@@ -665,6 +668,7 @@ class JwDataTable extends HTMLElement {
         const body = el("div", { class: "jw-dt-body", part: "body", onscroll: (e) => {
             const viewport = /** @type {HTMLElement} */ (e.currentTarget.parentElement);
             updateScrollShadows(viewport);
+            this._stickyScrollbar.followBody();
             if (this._config.maxHeight) updateBodyStuck(viewport);
         } });
         if (this._config.maxHeight) body.style.maxHeight = this._config.maxHeight;
@@ -921,6 +925,8 @@ class JwDataTable extends HTMLElement {
         const page = !!stickyHeader && !maxHeight && !!viewport?.querySelector(".jw-dt-table");
         if (viewport) layoutHead(viewport, maxHeight ? "body" : page ? "page" : null);
         this._stickyHead.sync(page ? viewport : null);
+        // Without maxHeight the body's own scrollbar may lie below the visible area.
+        this._stickyScrollbar.sync(viewport && !maxHeight && this._config.stickyScrollbar !== false ? viewport : null);
     }
 
     // Pinned columns that don't fit are paused (see ui/pinnedLayout.js).

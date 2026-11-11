@@ -28,6 +28,7 @@ const config: DataTableConfig = {
     initial: { sort: [{ key: "name", direction: "asc" }], layout: "grid" },
     storage: { adapter: new LocalStorageAdapter("people") },
     stickyHeader: true,
+    stickyScrollbar: false,
     onRowClick: (row, index) => console.log(row.name, index)
 };
 

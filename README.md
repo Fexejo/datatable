@@ -14,6 +14,7 @@ written in Vanilla JS (ES modules, Shadow DOM). No external dependencies.
 - **Record details** – dialog with all fields of a row (including hidden columns), previous/next through all results
 - **Column order** – move columns via drag and drop on the header (desktop), the context menu, `Ctrl+Shift+←/→` or the column chooser
 - **Sticky header** – the column headers stay in sight while the page scrolls past the table (`stickyHeader`), or the body scrolls under them (`maxHeight`)
+- **Sticky scrollbar** – a table wider than its container keeps a horizontal scrollbar at the bottom of the window while its own one lies below the visible area (on by default, `stickyScrollbar`)
 - **Column pinning** – pin any columns to the left edge (sticky while scrolling horizontally); scroll shadows show where more content is
 - **Export** – CSV, Excel (XLSX) or JSON as a download or to the clipboard, via a dialog (rows, columns, raw or formatted values, header, delimiter); entirely in the browser, protected against formula injection
 - **Card layout** – cards with label/value pairs as an alternative to the table (two columns, stacked on narrow cards)
@@ -71,7 +72,7 @@ written in Vanilla JS (ES modules, Shadow DOM). No external dependencies.
 | `src/export/` | CSV / XLSX / JSON export and the XLSX writer |
 | `src/panels/` | Filter panel, filter summary, export dialog, column chooser, record details, saved views |
 | `src/render/` | Table, cards, values (links, copy buttons), context-menu entries, toolbar and footer (pager) |
-| `src/ui/` | DOM building blocks: `el()`, overlay (modal panels), live-region announcer, context menu, clipboard, keyboard navigation, column drag, pinned layout, sticky header, styles (`styles.js` joins the parts in `styles/`), [Lucide](https://lucide.dev) icons |
+| `src/ui/` | DOM building blocks: `el()`, overlay (modal panels), live-region announcer, context menu, clipboard, keyboard navigation, column drag, pinned layout, sticky header, sticky scrollbar, styles (`styles.js` joins the parts in `styles/`), [Lucide](https://lucide.dev) icons |
 | `src/types.js` | JSDoc types of the config, columns, state, adapters and events (no runtime code); the source of the bundle's declarations |
 | `demo.html` | Runnable demo |
 | `tests/` | Unit and browser tests |
@@ -205,6 +206,7 @@ table.configure({ /* … */ });
 | `responsive` | `object` | *(on)* | `{ enabled, breakpoint, autoLayout, mobileLayout }` — see [Responsive & touch](#responsive--touch) |
 | `maxHeight` | `string` | — | e.g. `"60vh"`; scroll body, sticky header |
 | `stickyHeader` | `boolean` | `false` | Header stays in sight while the page scrolls past the table; not with `maxHeight` (see [Size & placement](#size--placement)) |
+| `stickyScrollbar` | `boolean` | `true` | A table wider than its container keeps a horizontal scrollbar at the bottom of the window while its own one is out of sight; `false` turns it off; not with `maxHeight` (see [Size & placement](#size--placement)) |
 | `columnMinWidth` | `string` | — | Minimum width of text columns, e.g. `"10rem"` (see [Column widths](#column-widths)) |
 | `cellOverflow` | `"wrap" \| "ellipsis"` | `"wrap"` | Long cell text wraps, or stays on one line with “…” (see [Long cell content](#long-cell-content)) |
 | `storage` | `object` | — | Saved views: `{ adapter, namespace, key }` (see [Saved views](#saved-views--storage-adapter)) |
@@ -1026,6 +1028,7 @@ each has a built-in default, so none is required:
 | `--jw-dt-radius-s` / `-m` / `-l` | `8px` / `10px` / `12px` | Corner radius |
 | `--jw-dt-cell-max-width` | `16rem` | Width of truncated cells (see `cellOverflow`) |
 | `--jw-dt-sticky-top` | `0px` | Room above the `stickyHeader` header, e.g. for a fixed bar of the page |
+| `--jw-dt-sticky-bottom` | `0px` | Room below the sticky scrollbar (`stickyScrollbar`), e.g. for a fixed bar at the bottom of the page |
 
 **Dark mode:** set the color variables for it, e.g. under your own
 `[data-theme="dark"]` or `@media (prefers-color-scheme: dark)` (the demo does
@@ -1038,7 +1041,7 @@ jw-datatable::part(toolbar) { background: #eef; }
 jw-datatable::part(card)    { box-shadow: 0 2px 8px rgba(0,0,0,.1); }
 ```
 
-Parts: `root`, `toolbar`, `body`, `table`, `grid`, `card`, `footer`.
+Parts: `root`, `toolbar`, `body`, `table`, `grid`, `card`, `footer`, `sticky-scrollbar`.
 
 **3. `config.styles`** (an extra stylesheet in this table's shadow root, after the built-in styles):
 
@@ -1084,6 +1087,28 @@ While the header would cover more than 30% of the visible height (strong zoom,
 a phone in landscape), it scrolls away with the rows. The card layout has no
 header; with `maxHeight` the header already sticks in the body, so
 `stickyHeader` is ignored there.
+
+**Sticky scrollbar.** A table wider than its container scrolls horizontally,
+but on a long table the scrollbar sits under the last row, far below the
+window. So while the table's own scrollbar is out of sight, a second one stays
+at the bottom of the window (or of the scrolling element the table sits in)
+and scrolls the table in step; once the table's end comes into view, it gives
+way to the table's own. It is on by default and only shows while it is
+needed: not without horizontal overflow, not while the window shows too
+little of the table to keep the header clear, not where scrollbars take no
+room (touch screens, overlay scrollbars), and not with `maxHeight`, where the
+body's scrollbar is always in sight. Turn it off with `stickyScrollbar:
+false`; leave room for a fixed bar at the bottom of the page with
+`--jw-dt-sticky-bottom`:
+
+```js
+createDataTable("#members", { columns, data, stickyScrollbar: false });
+```
+
+```css
+jw-datatable { --jw-dt-sticky-bottom: 3rem; }   /* height of the page's fixed bottom bar */
+jw-datatable::part(sticky-scrollbar) { background: #f4f4f4; }
+```
 
 The switch to the mobile layout follows the **viewport** width
 (`responsive.breakpoint`), not the component's own width: a narrow table on a
@@ -1390,6 +1415,11 @@ focus in place.
   (`maxHeight`, `stickyHeader` with `--jw-dt-sticky-top`; WCAG 2.4.11): cells
   keep a scroll margin of the header height, so the body or the page scrolls
   them out from under it.
+- The sticky scrollbar (`stickyScrollbar`) is a mouse aid only: it is hidden
+  from assistive tech and not in the tab order, since the arrow keys in the
+  table scroll it horizontally and touch users swipe. While it is in use,
+  cells keep a scroll margin of its height (plus `--jw-dt-sticky-bottom`), so
+  a cell that gets focus never stays hidden under it (WCAG 2.4.11).
 - The `stickyHeader` header is the table's own header row, moved along
   (not a copy), so it keeps labelling its columns for screen readers. It
   does not stick while it would cover more than 30% of the visible height
@@ -1600,6 +1630,20 @@ focus never stays under the header. While rows lie under the header (body
 scrolled, or header shifted), the viewport has `is-head-stuck` and the header
 casts a shadow (`::before`, since `box-shadow` is taken by the pin edge and
 the drop marker).
+
+**Sticky scrollbar.** `src/ui/stickyScrollbar.js`. Without `maxHeight` (and
+unless `stickyScrollbar: false`), `StickyScrollbar` appends a
+`.jw-dt-hscroll` to the viewport: an empty `overflow-x: scroll` element at the
+viewport's bottom whose track is as wide as the body's scroll range plus its
+own width, so both scroll the same distance. Like `StickyHead` it follows the
+page through a `ScrollWatch` (and runs on every layout), and lifts the bar by `translateY` to the bottom of the visible area, less
+`--jw-dt-sticky-bottom` (read as the viewport's `scroll-margin-bottom`). It is
+`hidden` without horizontal overflow, while the body's own scrollbar is in
+sight, while the bar would cover the header, and where the body's scrollbar
+takes no room (`offsetHeight - clientHeight` is 0). `scrollLeft` follows in
+both directions (the body's scroll handler, the bar's own); equal positions
+are not written, so the two never ping-pong. While it is in use the viewport
+has `has-hscroll` and `--dt-hscroll-h`, the cells' `scroll-margin-bottom`.
 
 ---
 

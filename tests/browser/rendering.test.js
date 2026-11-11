@@ -1,7 +1,7 @@
 // Rendering: public API, table, sorting, pagination, search, layouts, responsive, widths, cards.
 
 import { test, assert, nextFrame, waitFor, deepActiveElement, accessibleName, input } from "./harness.js";
-import { ENTRY, api, createDataTable, DATA, COLUMNS, mount, $, $$, columnTexts, rightClick, headerKeys, menuItem, root, announced, mountSticky, scrollPagePast, headerBox } from "./helpers.js";
+import { ENTRY, api, createDataTable, DATA, COLUMNS, mount, $, $$, columnTexts, rightClick, headerKeys, menuItem, root, announced, mountSticky, scrollPagePast, headerBox, mountWide, shownBar } from "./helpers.js";
 
 // ---- Public API -----------------------------------------------------------
 
@@ -404,6 +404,82 @@ test("stickyHeader: only for tables without maxHeight; cards have no header to f
     assert.ok($(table, ".jw-dt-viewport").classList.contains("is-sticky-head"), "table layout");
     table.remove();
     assert.ok(!$(table, ".jw-dt-viewport").classList.contains("is-sticky-head"), "removed: stops following");
+});
+
+// ---- Sticky scrollbar ------------------------------------------------------
+
+test("stickyScrollbar: shown at the window's bottom while the table's own scrollbar is out of sight", async () => {
+    const table = mountWide();
+    const body = $(table, ".jw-dt-body");
+    const bar = await shownBar(table);
+    const windowBottom = document.documentElement.clientHeight;
+    assert.ok(Math.abs(bar.getBoundingClientRect().bottom - windowBottom) < 1, "at the window's bottom");
+    assert.ok(Math.abs(bar.getBoundingClientRect().width - body.clientWidth) < 1, "as wide as the body");
+    assert.equal(bar.scrollWidth - bar.clientWidth, body.scrollWidth - body.clientWidth, "same scroll range");
+    assert.equal(bar.getAttribute("aria-hidden"), "true", "mouse aid only");
+    assert.equal(bar.tabIndex, -1, "not in the tab order");
+    assert.equal(bar.getAttribute("part"), "sticky-scrollbar");
+    const viewport = $(table, ".jw-dt-viewport");
+    assert.ok(parseFloat(viewport.style.getPropertyValue("--dt-hscroll-h")) > 2, "cells keep a scroll margin of its height");
+
+    assert.ok(body.scrollWidth - body.clientWidth > 100, "wider than the body");
+    bar.scrollLeft = 30;
+    await waitFor(() => body.scrollLeft === 30, { message: "the body follows the bar" });
+    body.scrollLeft = 80;
+    await waitFor(() => bar.scrollLeft === 80, { message: "the bar follows the body" });
+
+    table.style.setProperty("--jw-dt-sticky-bottom", "2rem");
+    dispatchEvent(new Event("resize"));
+    await waitFor(() => Math.abs(bar.getBoundingClientRect().bottom - (windowBottom - 32)) < 1, { message: "2rem above the window's bottom" });
+
+    // The table's own scrollbar comes into view: the bar goes.
+    scrollTo(0, body.getBoundingClientRect().bottom + scrollY - windowBottom + 40);
+    await waitFor(() => bar.hidden, { message: "hidden once the body's scrollbar is in sight" });
+    scrollTo(0, 0);
+    await shownBar(table);
+    assert.ok(Math.abs(bar.getBoundingClientRect().bottom - (windowBottom - 32)) < 1, "back at the bottom");
+    assert.equal(bar.scrollLeft, body.scrollLeft, "still in step");
+
+    // Wide enough for its columns: no bar.
+    table.style.width = "";
+    table.configure({ columns: COLUMNS, data: DATA, pagination: { pageSize: 30 } });
+    await waitFor(() => $(table, ".jw-dt-hscroll").hidden, { message: "no overflow, no bar" });
+    assert.ok(!$(table, ".jw-dt-viewport").classList.contains("has-hscroll"));
+    assert.equal($(table, ".jw-dt-viewport").style.getPropertyValue("--dt-hscroll-h"), "");
+});
+
+test("stickyScrollbar: hidden while the window shows too little of the table; follows a scrolling container", async () => {
+    const table = mountWide();
+    const bar = await shownBar(table);
+    // Only a strip of the table is in view: the bar would cover the header.
+    scrollTo(0, 0);
+    table.style.marginTop = `${document.documentElement.clientHeight - 60}px`;
+    dispatchEvent(new Event("resize"));
+    await waitFor(() => bar.hidden, { message: "hidden over the header" });
+    table.style.marginTop = "";
+
+    const box = document.createElement("div");
+    box.style.cssText = "height: 400px; overflow: auto";
+    table.after(box);
+    box.append(table);
+    const moved = await shownBar(table);
+    await waitFor(() => Math.abs(moved.getBoundingClientRect().bottom - box.getBoundingClientRect().bottom) < 1, { message: "at the container's bottom" });
+    box.scrollTop = 200;
+    await waitFor(() => Math.abs(moved.getBoundingClientRect().bottom - box.getBoundingClientRect().bottom) < 1, { message: "follows the container's scrolling" });
+    table.remove();
+    assert.equal($(table, ".jw-dt-hscroll"), null, "removed with the table");
+});
+
+test("stickyScrollbar: on by default; off with stickyScrollbar: false and with maxHeight", async () => {
+    const table = mountWide({ stickyHeader: true });
+    await shownBar(table);
+    table.configure({ columns: COLUMNS, data: DATA, pagination: { pageSize: 30 }, columnMinWidth: "12rem", stickyScrollbar: false });
+    assert.equal($(table, ".jw-dt-hscroll"), null, "option off");
+    assert.ok(!$(table, ".jw-dt-viewport").classList.contains("is-sticky-scrollbar"));
+    table.configure({ columns: COLUMNS, data: DATA, pagination: { pageSize: 30 }, columnMinWidth: "12rem", maxHeight: "300px" });
+    assert.equal($(table, ".jw-dt-hscroll"), null, "maxHeight: the body's own scrollbar is in sight");
+    table.configure({ columns: COLUMNS, data: DATA, pagination: { pageSize: 30 }, columnMinWidth: "12rem" });
+    await shownBar(table);
 });
 
 // ---- Cards --------------------------------------------------------------------

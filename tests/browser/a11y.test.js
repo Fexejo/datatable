@@ -1,7 +1,7 @@
 // Accessibility: roles and names, keyboard, focus management, roving focus, announcements.
 
 import { test, assert, sleep, waitFor, nextFrame, deepActiveElement, accessibleName, input } from "./harness.js";
-import { COLUMNS, ALL_FEATURES, mount, $, $$, columnTexts, rightClick, statusText, announced, hasIcon, status, root, mountSticky, headerBox, menuItem } from "./helpers.js";
+import { COLUMNS, ALL_FEATURES, mount, $, $$, columnTexts, rightClick, statusText, announced, hasIcon, status, root, mountSticky, headerBox, menuItem, mountWide, shownBar } from "./helpers.js";
 import { createIcon } from "../../src/ui/icons.js";
 
 // ---- Accessibility --------------------------------------------------------
@@ -513,6 +513,25 @@ test("maxHeight: arrow keys never leave the focused cell under the sticky header
     }
     assert.equal(deepActiveElement()?.dataset.fk, "cell:0:joined");
     assert.deepEqual(covered, [], "cells focused under the header");
+}, { cdp: true });
+
+test("stickyScrollbar: arrow keys never leave the focused cell under the bar or a fixed bar below", async () => {
+    const table = mountWide();
+    table.style.setProperty("--jw-dt-sticky-bottom", "40px");
+    const bar = await shownBar(table);
+    $(table, "tbody td").focus();
+    /** @type {string[]} */
+    const covered = [];
+    for (let i = 0; i < 29; i++) {
+        await input.press("ArrowDown");
+        await nextFrame();
+        await nextFrame();
+        const cell = deepActiveElement();
+        const limit = bar.hidden ? document.documentElement.clientHeight - 40 : bar.getBoundingClientRect().top;
+        if (cell && cell.getBoundingClientRect().bottom > limit + 1) covered.push(cell.dataset.fk ?? "");
+    }
+    assert.equal(deepActiveElement()?.dataset.fk, "cell:29:id");
+    assert.deepEqual(covered, [], "cells focused under the bar");
 }, { cdp: true });
 
 test("stickyHeader: arrow keys never leave the focused cell under the header or a fixed bar", async () => {
