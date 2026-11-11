@@ -1,4 +1,4 @@
-/*! jw-datatable v1.3.0 | Type declarations of jw-datatable.min.js */
+/*! jw-datatable v1.4.0 | Type declarations of jw-datatable.min.js */
 
 export declare type ActiveView = {
     name: string;
@@ -181,6 +181,11 @@ export declare type DataTableConfig = {
      * Keep the header in sight while the page scrolls (not with maxHeight).
      */
     stickyHeader?: boolean;
+    /**
+     * Keep a horizontal scrollbar at the bottom of the window while the
+     * table's own one is out of sight (default true; not with maxHeight).
+     */
+    stickyScrollbar?: boolean;
     /**
      * Minimum width of text columns.
      */
