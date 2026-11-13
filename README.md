@@ -1,5 +1,8 @@
 # jw-datatable – Developer documentation
 
+> [!IMPORTANT]
+> **Development Note:** Parts or all of this codebase were generated using AI tools (Claude Code) under human supervision, strict linting/typing, and manual testing.
+
 Configurable, reusable data table as a Web Component (`<jw-datatable>`),
 written in Vanilla JS (ES modules, Shadow DOM). No external dependencies.
 
