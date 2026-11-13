@@ -1,7 +1,7 @@
 // Accessibility: roles and names, keyboard, focus management, roving focus, announcements.
 
 import { test, assert, sleep, waitFor, nextFrame, deepActiveElement, accessibleName, input } from "./harness.js";
-import { COLUMNS, ALL_FEATURES, mount, $, $$, columnTexts, rightClick, statusText, announced, hasIcon, status, root, mountSticky, headerBox, menuItem, mountWide, shownBar } from "./helpers.js";
+import { COLUMNS, ALL_FEATURES, mount, $, $$, columnTexts, rightClick, statusText, announced, hasIcon, status, root, mountSticky, headerBox, menuItem, mountWide, shownBar, mountViews, memoryAdapter } from "./helpers.js";
 import { createIcon } from "../../src/ui/icons.js";
 
 // ---- Accessibility --------------------------------------------------------
@@ -86,6 +86,39 @@ test("form field borders have 3:1 contrast with the default colors (WCAG 1.4.11)
         assert.ok(ratio >= 3, `${selector}: border contrast ${ratio.toFixed(2)}:1`);
     }
 });
+
+test("accent buttons keep 4.5:1 text contrast on hover and while pressed (default colors)", async () => {
+    const table = mountViews(memoryAdapter({}), { features: { savedViews: true, grid: true } });
+    $(table, '[data-fk="tb:saved-views"]').click();
+    const save = await waitFor(() => $(table, '.jw-dt-overlay [data-vk="save"]'), { message: "saved views panel open" });
+    /**
+     * @param {string} name
+     * @param {Element} button
+     */
+    const readable = (name, button) => {
+        const style = getComputedStyle(button);
+        const ratio = contrast(style.color, style.backgroundColor);
+        assert.ok(ratio >= 4.5, `${name}: ${ratio.toFixed(2)}:1 (${style.color} on ${style.backgroundColor})`);
+        return style.backgroundColor;
+    };
+    const idle = readable("primary button", save);
+    await input.hover(save);
+    assert.ok(readable("hovered primary button", save) !== idle, "hover is visible");
+    await input.hover(save, { pressed: true });
+    readable("pressed primary button", save);
+    await input.release();
+    $(table, ".jw-dt-overlay").dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true, composed: true }));
+    await waitFor(() => !$(table, ".jw-dt-overlay"), { message: "panel closed" });
+
+    for (const [name, selector] of [["active page", '[data-fk="page:n:1"]'], ["current layout", '[data-fk="tb:layout:table"]']]) {
+        const button = $(table, selector);
+        assert.ok(button, `${name} rendered`);
+        const before = readable(name, button);
+        await input.hover(button);
+        assert.ok(readable(`hovered ${name}`, button) !== before, `${name}: hover is visible`);
+    }
+    await input.release();
+}, { cdp: true });
 
 test("the lines under the header and after the pinned columns have 3:1 contrast with header and rows (default colors)", () => {
     const table = mount({ features: { columnPinning: true }, initial: { pinnedColumns: ["name"] } });

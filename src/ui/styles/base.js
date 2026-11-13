@@ -16,6 +16,8 @@ export const baseStyles = `
     --dt-hover: var(--jw-dt-color-hover, #e8e8e8);
     --dt-accent: var(--jw-dt-color-accent, #1f7a3a);
     --dt-accent-text: var(--jw-dt-color-accent-text, #fff);
+    /* Hovered and pressed accent controls: darker, so the accent text stays readable. */
+    --dt-accent-hover: var(--jw-dt-color-accent-hover, color-mix(in srgb, var(--dt-accent) 85%, #000));
 }
 * { box-sizing: border-box; }
 
@@ -112,6 +114,12 @@ export const baseStyles = `
     background: var(--dt-accent);
     border-color: var(--dt-accent);
     color: var(--dt-accent-text);
+}
+/* Accent controls keep their text color on hover: the neutral hover background would make it unreadable. */
+.jw-dt-btn-primary:hover, .jw-dt-btn-primary:active,
+.jw-dt-layout-switch .jw-dt-btn[aria-pressed="true"]:hover {
+    background: var(--dt-accent-hover);
+    border-color: var(--dt-accent-hover);
 }
 .jw-dt-ic { display: inline-flex; line-height: 0; }
 .jw-dt-ic svg, .jw-dt-search-ic svg {

@@ -52,6 +52,10 @@ export const footerStyles = `
     border-color: var(--dt-accent);
     color: var(--dt-accent-text);
 }
+.jw-dt-page-btn.is-active:hover:not(:disabled) {
+    background: var(--dt-accent-hover);
+    border-color: var(--dt-accent-hover);
+}
 /* On phones the pager keeps only first/prev/active/next/last. */
 .jw-dt-page-num:not(.is-active) { display: none; }
 .jw-dt-page-gap { display: none; padding: 0 var(--jw-dt-space-2xs, 4px); color: var(--jw-dt-color-text-muted, #666); }

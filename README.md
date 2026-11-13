@@ -1023,6 +1023,7 @@ each has a built-in default, so none is required:
 | `--jw-dt-color-hover` | `#e8e8e8` | Hovered buttons and menu items |
 | `--jw-dt-color-accent` | `#1f7a3a` | Active sort and layout, pinned and filter buttons, primary buttons |
 | `--jw-dt-color-accent-text` | `#fff` | Text on the accent color |
+| `--jw-dt-color-accent-hover` | accent darkened 15% | Hovered and pressed primary buttons, the active page and the current layout on hover; keep ≥ 4.5:1 against `--jw-dt-color-accent-text` |
 | `--jw-dt-color-error` | `#c0392b` | Error messages |
 | `--jw-dt-space-2xs` / `-xs` / `-s` / `-l` / `-4xl` | `4px` / `6px` / `8px` / `12px` / `24px` | Spacing |
 | `--jw-dt-radius-s` / `-m` / `-l` | `8px` / `10px` / `12px` | Corner radius |
@@ -1441,6 +1442,10 @@ focus in place.
   `--jw-dt-color-border` is decorative only (table lines, cards, buttons that
   are identified by their label). When overriding `--jw-dt-*` variables, keep
   ≥ 4.5:1 for text and ≥ 3:1 for form field borders and focus indicators.
+- Accent controls (primary buttons, the active page, the current layout)
+  keep their text color on hover and while pressed and turn darker
+  (`--jw-dt-color-accent-hover`) instead of taking the neutral hover color,
+  so their text stays ≥ 4.5:1 against `--jw-dt-color-accent-text`.
 
 **Checked automatically:** the browser tests run [axe-core](https://github.com/dequelabs/axe-core)
 (WCAG 2.0–2.2 A/AA and best practices) over the table, cards, compact layout,
@@ -1507,7 +1512,7 @@ node tests/run.js --browser --dist # type test + browser tests against dist/ (af
 | `tests/unit/*.test.js` | `node:test` tests for the DOM-free modules (state, sorting, filtering, formatting, pagination, export incl. XLSX, i18n, icons, …) |
 | `tests/browser/*.test.js` | Component tests in a real browser, one file per topic: `rendering`, `a11y` (keyboard, focus, announcements), `menu`, `panels`, `views`, `columns`, `details`, `export`, `axe` |
 | `tests/browser/helpers.js` | Shared fixtures (`mount()`, `DATA`, `COLUMNS`, …) and query helpers |
-| `tests/browser/harness.js` | Tiny in-browser test harness (`test`, `assert`, `waitFor`, `input.press`, `input.longPress`, `input.viewport`, `input.touch`) |
+| `tests/browser/harness.js` | Tiny in-browser test harness (`test`, `assert`, `waitFor`, `input.press`, `input.hover`, `input.release`, `input.longPress`, `input.viewport`, `input.touch`) |
 | `tests/run.js` | Runner: starts a static server and headless Chromium, drives it via the DevTools protocol |
 | `tests/coverage.js` | Line coverage from V8 data of both runs (`--coverage`, `--coverage-min <percent>`) |
 | `tests/types/usage.ts` | Type test of `dist/jw-datatable.min.d.ts` (with `--dist`): uses the API like a TypeScript project; must compile with `strict`, and each line after `// @ts-expect-error` must fail |

@@ -216,6 +216,29 @@ export const input = {
         await nextFrame();
     },
     /**
+     * Moves the mouse to the center of `element` (`:hover`); `pressed` also
+     * holds the left button down there (`:active`) until `input.release()`.
+     * @param {Element} element
+     */
+    async hover(element, { pressed = false } = {}) {
+        element.scrollIntoView({ block: "center" });
+        const r = element.getBoundingClientRect();
+        const base = { x: r.left + r.width / 2, y: r.top + r.height / 2, button: "left", clickCount: 1 };
+        await cdp("Input.dispatchMouseEvent", { type: "mouseMoved", ...base });
+        if (pressed) await cdp("Input.dispatchMouseEvent", { type: "mousePressed", ...base });
+        await nextFrame();
+    },
+    /**
+     * Moves the mouse to the window's top left corner and lets go of the
+     * button there, so a press from `hover()` ends without a click.
+     */
+    async release() {
+        const base = { x: 0, y: 0, button: "left", clickCount: 1 };
+        await cdp("Input.dispatchMouseEvent", { type: "mouseMoved", ...base });
+        await cdp("Input.dispatchMouseEvent", { type: "mouseReleased", ...base });
+        await nextFrame();
+    },
+    /**
      * Holds a finger on the center of `element` for `ms`, then lifts it;
      * `move` slides it that many pixels right right after touching down.
      * @param {Element} element

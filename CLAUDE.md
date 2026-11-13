@@ -67,7 +67,7 @@ python3 -m http.server 8000       # /demo.html, /tests/browser/
 - New logic in `src/core`/`src/export` → `tests/unit/<module>.test.js`. New UI
   behavior → the topic file in `tests/browser/` (shared fixtures in `helpers.js`;
   a new file is imported in `index.html`) incl. keyboard and ARIA; real keys,
-  touch and viewport only via `input.press()` / `input.longPress()` /
+  mouse hover, touch and viewport only via `input.press()` / `input.hover()` / `input.longPress()` /
   `input.viewport()` / `input.touch()` with `{ cdp: true }`. A new layout, panel or popup state
   → a check in `axe.test.js` (`assertNoAxeViolations()`).
 - Console errors/warnings of the page fail the run.
