@@ -1,4 +1,4 @@
-/*! jw-datatable v1.4.0 | Type declarations of jw-datatable.min.js */
+/*! jw-datatable v1.4.1 | Type declarations of jw-datatable.min.js */
 
 export declare type ActiveView = {
     name: string;
