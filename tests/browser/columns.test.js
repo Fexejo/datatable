@@ -90,7 +90,22 @@ test("column chooser grows with long column names on the desktop, so they stay o
     for (const label of labels) {
         assert.ok(label.getBoundingClientRect().height < fontSize * 2, `${label.textContent}: on one line`);
     }
+    const list = $(table, ".jw-dt-overlay .jw-dt-check-list");
+    assert.ok(list.scrollHeight <= list.clientHeight, "all columns in one list, without a scrollbar of its own");
 });
+
+test("column chooser: opened as a popover, then as a bottom sheet, it spans the screen", async () => {
+    const table = mount({ features: { columnVisibility: true, grid: true }, responsive: { enabled: true } });
+    $(table, '[data-fk="tb:columns"]').click();
+    assert.ok($(table, ".jw-dt-overlay").style.width, "popover keeps the width it opened with");
+    await input.press("Escape");
+    await input.viewport(390, 800);
+    await waitFor(() => $(table, ".jw-dt-grid"), { message: "mobile layout" });
+    $(table, '[data-fk="tb:columns"]').click();
+    const sheet = $(table, ".jw-dt-overlay--sheet");
+    assert.ok(sheet, "bottom sheet");
+    assert.equal(sheet.getBoundingClientRect().width, document.documentElement.clientWidth, "full width");
+}, { cdp: true });
 
 test("column chooser: a hidden column's pin button is disabled and keeps its pin", () => {
     const table = mount({ features: { columnVisibility: true, columnPinning: true }, initial: { pinnedColumns: ["fee"] } });

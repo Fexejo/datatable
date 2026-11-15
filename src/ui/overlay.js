@@ -82,7 +82,12 @@ export class Overlay {
         backdrop.addEventListener("click", () => { if (this.panel === panel) this.close(); });
         this._backdrop = backdrop;
         this._root.append(backdrop, panel);
+        panel.style.width = "";   // a reopened panel (maybe now a sheet) is measured again
         if (!sheet && !centered) {
+            // The popover takes the width of its content (styles/overlays.js) and
+            // keeps it, so it doesn't jump while the content changes (filtering
+            // values, switching tabs).
+            panel.style.width = `${panel.getBoundingClientRect().width}px`;
             // Position synchronously so the panel can take focus right away.
             const a = anchor?.isConnected ? anchor.getBoundingClientRect() : { left: 0, top: 0, bottom: 0 };
             placePopup(panel, a.left, a.bottom + 4, { flipTop: a.top });

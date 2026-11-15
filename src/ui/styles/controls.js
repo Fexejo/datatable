@@ -128,7 +128,11 @@ export const controlStyles = `
     padding: var(--jw-dt-space-s, 8px);
 }
 .jw-dt-operands { display: flex; flex-direction: column; gap: var(--jw-dt-space-xs, 6px); }
-.jw-dt-check-list { display: flex; flex-direction: column; max-height: 220px; overflow: auto; gap: 2px; }
+/* Filter values scroll in the list, so the panel's actions stay in sight
+   (70vh panel less about 15rem for head, tabs, search and actions). */
+.jw-dt-check-list { display: flex; flex-direction: column; max-height: max(10rem, calc(70vh - 15rem)); overflow: auto; gap: 2px; }
+/* Column chooser: all columns in one list; the panel itself scrolls when needed. */
+.jw-dt-columns .jw-dt-check-list { max-height: none; overflow: visible; }
 .jw-dt-check {
     display: flex;
     align-items: center;

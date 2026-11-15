@@ -1,8 +1,8 @@
 // Saved views panel and filter summary.
 
 export const panelStyles = `
-/* Saved views panel: a little wider than the other popovers, so the name field fits its placeholder. */
-.jw-dt-views-panel:not(.jw-dt-overlay--sheet) { width: 320px; max-width: calc(100vw - 8px); }
+/* Saved views panel: at least a little wider than the other popovers, so the name field fits its placeholder. */
+.jw-dt-views-panel:not(.jw-dt-overlay--sheet) { min-width: min(320px, calc(100vw - 8px)); }
 .jw-dt-views-save { display: flex; gap: var(--jw-dt-space-2xs, 4px); }
 .jw-dt-views-save .jw-dt-input { flex: 1; min-width: 0; }
 .jw-dt-views-extra:empty, .jw-dt-views-active-wrap:empty { display: none; }
@@ -51,7 +51,7 @@ export const panelStyles = `
 .jw-dt-views-group-head .jw-dt-disclosure { font-weight: inherit; }
 
 /* Filter summary: one row per active filter (open it / remove it). */
-.jw-dt-fsum-panel:not(.jw-dt-overlay--sheet) { width: 360px; max-width: calc(100vw - 8px); }
+.jw-dt-fsum-panel:not(.jw-dt-overlay--sheet) { min-width: min(360px, calc(100vw - 8px)); }
 .jw-dt-fsum-panel .jw-dt-panel-actions { flex-wrap: wrap; }
 .jw-dt-fsum-items { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
 .jw-dt-fsum-item { display: flex; align-items: center; gap: var(--jw-dt-space-2xs, 4px); }

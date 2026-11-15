@@ -69,7 +69,12 @@ export const overlayStyles = `
 .jw-dt-overlay {
     position: fixed;
     z-index: 1000;
-    width: 280px;
+    /* As wide as the content needs within these limits, so long column names,
+       values and view names don't wrap; overlay.js keeps the width it opened
+       with, so the panel doesn't jump while its content changes. */
+    width: max-content;
+    min-width: min(280px, calc(100vw - 8px));
+    max-width: min(32rem, calc(100vw - 8px));
     max-height: 70vh;
     overflow: auto;
     background: var(--jw-dt-color-page, #fff);
@@ -81,13 +86,6 @@ export const overlayStyles = `
     flex-direction: column;
     gap: var(--jw-dt-space-s, 8px);
 }
-/* Column chooser: as wide as its longest column name allows (within limits),
-   so long names don't wrap next to the switch, pin and move buttons. */
-.jw-dt-overlay.jw-dt-columns:not(.jw-dt-overlay--sheet) {
-    width: max-content;
-    min-width: 280px;
-    max-width: min(32rem, calc(100vw - 8px));
-}
 /* Overlay as a bottom sheet (mobile, toggled from JS) */
 .jw-dt-overlay--sheet {
     left: 0;
@@ -95,6 +93,8 @@ export const overlayStyles = `
     bottom: 0;
     top: auto;
     width: 100%;
+    min-width: 0;
+    max-width: none;
     max-height: 85vh;
     border-radius: var(--jw-dt-radius-l, 12px) var(--jw-dt-radius-l, 12px) 0 0;
     box-shadow: 0 -8px 30px rgba(0,0,0,0.25);
@@ -118,6 +118,8 @@ export const overlayStyles = `
     top: 50%;
     transform: translate(-50%, -50%);
     width: min(36rem, calc(100vw - 32px));
+    min-width: 0;
+    max-width: none;
     max-height: 85vh;
 }
 .jw-dt-details { padding-top: 0; padding-bottom: 0; gap: var(--jw-dt-space-s, 8px); }

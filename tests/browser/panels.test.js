@@ -81,6 +81,23 @@ test("the RegEx operand is limited to the length that applies", async () => {
     assert.equal(operand.maxLength, -1, "limit gone with another operator");
 });
 
+test("filter panel grows with long values and keeps its width while searching", async () => {
+    const long = "Alexandra Maximiliane Hohenzollern";
+    const table = mount({ features: { filtering: true }, data: [{ id: 1, name: long }, { id: 2, name: "Ben" }] });
+    await openNameFilter(table);
+    const panel = $(table, ".jw-dt-overlay");
+    const width = panel.getBoundingClientRect().width;
+    assert.ok(width > 280 && width <= 512, `wider for the long value, at most 32rem: ${width}px`);
+    const label = $(table, `.jw-dt-overlay .jw-dt-check[data-value="${long}"] .jw-dt-check-label`);
+    assert.ok(label.scrollWidth <= label.clientWidth, "the long value is not cut off");
+    const list = $(table, ".jw-dt-overlay .jw-dt-check-list");
+    assert.ok(parseFloat(getComputedStyle(list).maxHeight) > 220, `the value list may be taller: ${getComputedStyle(list).maxHeight}`);
+
+    await type("Ben");
+    assert.deepEqual(visibleValues(table), ["Ben"]);
+    assert.equal(panel.getBoundingClientRect().width, width, "no jump while the list gets shorter");
+}, { cdp: true });
+
 test("value search checks the matches and restores the selection when cleared", async () => {
     const table = mount({ features: { filtering: true } });
     table.setState({ filters: { name: { kind: "value", values: ["Ben"] } } });
