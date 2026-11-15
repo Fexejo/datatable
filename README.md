@@ -1022,12 +1022,13 @@ each has a built-in default, so none is required:
 | `--jw-dt-color-surface` | `#f0f0f0` | Column headers |
 | `--jw-dt-color-surface-muted` | `#f8f8f8` | Toolbar, footer, tabs, row hover |
 | `--jw-dt-color-border` | `#d8d8d8` | Borders (decorative: table, cards, buttons with a label, separators) |
-| `--jw-dt-color-border-strong` | `#808080` | Borders of form fields (search, inputs, selects), which show where to type, the lines under the column headers and after the pinned columns; keep ≥ 3:1 against the page and `--jw-dt-color-surface` |
+| `--jw-dt-color-border-strong` | `#808080` | Borders of form fields (search, inputs, selects), which show where to type, the lines under the column headers and after the pinned columns, the border of the panels; keep ≥ 3:1 against the page and `--jw-dt-color-surface` |
 | `--jw-dt-color-hover` | `#e8e8e8` | Hovered buttons and menu items |
 | `--jw-dt-color-accent` | `#1f7a3a` | Active sort and layout, pinned and filter buttons, primary buttons |
 | `--jw-dt-color-accent-text` | `#fff` | Text on the accent color |
 | `--jw-dt-color-accent-hover` | accent darkened 15% | Hovered and pressed primary buttons, the active page and the current layout on hover; keep ≥ 4.5:1 against `--jw-dt-color-accent-text` |
 | `--jw-dt-color-error` | `#c0392b` | Error messages |
+| `--jw-dt-color-backdrop` | `rgba(0,0,0,0.15)` | Page behind an open panel (filter, columns, saved views; bottom sheets), dimmed so the panel stands out from the table; `transparent` turns it off. Dialogs (export, record details) dim it more |
 | `--jw-dt-space-2xs` / `-xs` / `-s` / `-l` / `-4xl` | `4px` / `6px` / `8px` / `12px` / `24px` | Spacing |
 | `--jw-dt-radius-s` / `-m` / `-l` | `8px` / `10px` / `12px` | Corner radius |
 | `--jw-dt-cell-max-width` | `16rem` | Width of truncated cells (see `cellOverflow`) |

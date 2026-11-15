@@ -98,6 +98,16 @@ test("filter panel grows with long values and keeps its width while searching", 
     assert.equal(panel.getBoundingClientRect().width, width, "no jump while the list gets shorter");
 }, { cdp: true });
 
+test("panels stand out from the table: strong border, the page dimmed behind (themable)", () => {
+    const table = mount({ features: { columnVisibility: true } });
+    $(table, '[data-fk="tb:columns"]').click();
+    assert.equal(getComputedStyle($(table, ".jw-dt-overlay")).borderTopColor, "rgb(128, 128, 128)", "--jw-dt-color-border-strong");
+    const backdrop = () => getComputedStyle($(table, ".jw-dt-backdrop")).backgroundColor;
+    assert.equal(backdrop(), "rgba(0, 0, 0, 0.15)", "page dimmed a little");
+    table.style.setProperty("--jw-dt-color-backdrop", "transparent");
+    assert.equal(backdrop(), "rgba(0, 0, 0, 0)", "--jw-dt-color-backdrop");
+});
+
 test("value search checks the matches and restores the selection when cleared", async () => {
     const table = mount({ features: { filtering: true } });
     table.setState({ filters: { name: { kind: "value", values: ["Ben"] } } });

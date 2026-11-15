@@ -61,8 +61,9 @@ export const overlayStyles = `
 .jw-ctx-menu--sheet .jw-ctx-item { padding: var(--jw-dt-space-l, 12px) var(--jw-dt-space-l, 12px); }
 
 /* Under every overlay: takes the pointer, so the page behind gets no hover
-   and no click (a click here only closes the overlay). Dialogs dim the page. */
-.jw-dt-backdrop { position: fixed; inset: 0; z-index: 999; }
+   and no click (a click here only closes the overlay). It dims the page a
+   little, so the panel stands out from the table; dialogs dim it more. */
+.jw-dt-backdrop { position: fixed; inset: 0; z-index: 999; background: var(--jw-dt-color-backdrop, rgba(0,0,0,0.15)); }
 .jw-dt-backdrop--dim { background: rgba(0,0,0,0.4); }
 
 /* Filter / columns / saved views panel (overlay) */
@@ -78,9 +79,10 @@ export const overlayStyles = `
     max-height: 70vh;
     overflow: auto;
     background: var(--jw-dt-color-page, #fff);
-    border: 1px solid var(--dt-border);
+    /* Strong border and a deep shadow: the panel stands out from the table under it. */
+    border: 1px solid var(--dt-border-strong);
     border-radius: var(--jw-dt-radius-m, 10px);
-    box-shadow: 0 10px 30px rgba(0,0,0,0.18);
+    box-shadow: 0 12px 40px rgba(0,0,0,0.28), 0 2px 6px rgba(0,0,0,0.12);
     padding: var(--jw-dt-space-l, 12px);
     display: flex;
     flex-direction: column;
