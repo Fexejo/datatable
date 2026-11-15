@@ -81,6 +81,13 @@ export const overlayStyles = `
     flex-direction: column;
     gap: var(--jw-dt-space-s, 8px);
 }
+/* Column chooser: as wide as its longest column name allows (within limits),
+   so long names don't wrap next to the switch, pin and move buttons. */
+.jw-dt-overlay.jw-dt-columns:not(.jw-dt-overlay--sheet) {
+    width: max-content;
+    min-width: 280px;
+    max-width: min(32rem, calc(100vw - 8px));
+}
 /* Overlay as a bottom sheet (mobile, toggled from JS) */
 .jw-dt-overlay--sheet {
     left: 0;

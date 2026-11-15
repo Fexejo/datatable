@@ -1165,7 +1165,7 @@ buttons stay visible, since touch has no hover.
 | Copy buttons | always visible | reveal on hover (touch screens: always visible) |
 | Touch targets | ≥ 44px | ≥ 24px (touch screens: ≥ 44px) |
 | Pagination | first / prev / current / next / last, page-size select | full page numbers, page-size select |
-| Filter / column / saved-view panels | bottom sheet | popover anchored to the button |
+| Filter / column / saved-view panels | bottom sheet | popover anchored to the button (the column chooser grows with long column names, up to `32rem`) |
 | Context menu | bottom sheet, opened via **long-press** | popover at the cursor, opened via **right-click** |
 
 **Configuration** (`config.responsive`, all optional):

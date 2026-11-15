@@ -70,6 +70,28 @@ test("column chooser offers pin toggle buttons with aria-pressed", () => {
     assert.equal(headerKeys(table)[0], "name");
 });
 
+test("column chooser grows with long column names on the desktop, so they stay on one line", () => {
+    const features = { columnVisibility: true, columnPinning: true, columnReorder: true };
+    const short = mount({ features });
+    $(short, '[data-fk="tb:columns"]').click();
+    assert.equal($(short, ".jw-dt-overlay").getBoundingClientRect().width, 280, "short names: the default width");
+    short.remove();
+
+    const long = ["Number of contributions", "Last workshop contribution"];
+    const table = mount({ features, columns: [...COLUMNS, ...long.map((label, i) => ({ key: `long${i}`, label }))] });
+    $(table, '[data-fk="tb:columns"]').click();
+    const panel = $(table, ".jw-dt-overlay");
+    const box = panel.getBoundingClientRect();
+    assert.ok(box.width > 280 && box.width <= 512, `wider, at most 32rem: ${box.width}px`);
+    assert.ok(box.left >= 0 && box.right <= innerWidth, "inside the window");
+    const labels = Array.from(panel.querySelectorAll(".jw-dt-switch-label"));
+    // One line is about 1.2em high, two lines 2.4em.
+    const fontSize = parseFloat(getComputedStyle(labels[0]).fontSize);
+    for (const label of labels) {
+        assert.ok(label.getBoundingClientRect().height < fontSize * 2, `${label.textContent}: on one line`);
+    }
+});
+
 test("column chooser: a hidden column's pin button is disabled and keeps its pin", () => {
     const table = mount({ features: { columnVisibility: true, columnPinning: true }, initial: { pinnedColumns: ["fee"] } });
     $(table, '[data-fk="tb:columns"]').click();

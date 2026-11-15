@@ -69,7 +69,7 @@ export function buildColumnChooser({ t, columns, isHidden, isPinned, pinning, re
         }
         list.appendChild(row);
     }
-    const panel = el("div", { class: "jw-dt-panel" }, [
+    const panel = el("div", { class: "jw-dt-panel jw-dt-columns" }, [
         el("div", { class: "jw-dt-panel-head", text: t.columnsPanel }),
         list
     ]);
